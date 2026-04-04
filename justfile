@@ -8,6 +8,7 @@ fmt-fix:
 
 policy:
     bash scripts/policy-guardrails.sh
+    bash scripts/workflow-guardrails.sh
 
 instruction-drift:
     bash scripts/instruction-drift-check.sh

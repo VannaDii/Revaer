@@ -109,6 +109,7 @@ fi
 collect_matches lint_control_matches \
   "justfile" \
   "scripts/policy-guardrails.sh" \
+  "scripts/workflow-guardrails.sh" \
   "scripts/instruction-drift-check.sh"
 collect_matches devops_matches \
   ".github/workflows/*" \
