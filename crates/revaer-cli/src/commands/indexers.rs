@@ -8,19 +8,21 @@ use revaer_api::models::{
     ImportJobRunProwlarrApiRequest, ImportJobRunProwlarrBackupRequest, ImportJobStatusResponse,
     IndexerBackupExportResponse, IndexerBackupRestoreRequest, IndexerBackupRestoreResponse,
     IndexerConnectivityProfileResponse, IndexerHealthEventListResponse,
-    IndexerInstanceListResponse, IndexerInstanceTestFinalizeRequest,
-    IndexerInstanceTestFinalizeResponse, IndexerInstanceTestPrepareResponse,
-    IndexerRssSeenItemsResponse, IndexerRssSeenMarkRequest, IndexerRssSeenMarkResponse,
-    IndexerRssSubscriptionResponse, IndexerRssSubscriptionUpdateRequest,
-    IndexerSourceReputationListResponse, MediaDomainMappingDeleteRequest,
-    MediaDomainMappingUpsertRequest, PolicyRuleCreateRequest, PolicyRuleReorderRequest,
-    PolicyRuleResponse, PolicyRuleValueItemRequest, PolicySetCreateRequest, PolicySetListResponse,
-    PolicySetReorderRequest, PolicySetResponse, PolicySetUpdateRequest,
-    RateLimitPolicyAssignmentRequest, RateLimitPolicyCreateRequest, RateLimitPolicyListResponse,
-    RateLimitPolicyResponse, RateLimitPolicyUpdateRequest, RoutingPolicyCreateRequest,
-    RoutingPolicyDetailResponse, RoutingPolicyListResponse, RoutingPolicyParamSetRequest,
-    RoutingPolicyResponse, RoutingPolicySecretBindRequest, SearchProfileCreateRequest,
-    SearchProfileDefaultDomainRequest, SearchProfileDefaultRequest,
+    IndexerHealthNotificationHookCreateRequest, IndexerHealthNotificationHookDeleteRequest,
+    IndexerHealthNotificationHookListResponse, IndexerHealthNotificationHookResponse,
+    IndexerHealthNotificationHookUpdateRequest, IndexerInstanceListResponse,
+    IndexerInstanceTestFinalizeRequest, IndexerInstanceTestFinalizeResponse,
+    IndexerInstanceTestPrepareResponse, IndexerRssSeenItemsResponse, IndexerRssSeenMarkRequest,
+    IndexerRssSeenMarkResponse, IndexerRssSubscriptionResponse,
+    IndexerRssSubscriptionUpdateRequest, IndexerSourceReputationListResponse,
+    MediaDomainMappingDeleteRequest, MediaDomainMappingUpsertRequest, PolicyRuleCreateRequest,
+    PolicyRuleReorderRequest, PolicyRuleResponse, PolicyRuleValueItemRequest,
+    PolicySetCreateRequest, PolicySetListResponse, PolicySetReorderRequest, PolicySetResponse,
+    PolicySetUpdateRequest, RateLimitPolicyAssignmentRequest, RateLimitPolicyCreateRequest,
+    RateLimitPolicyListResponse, RateLimitPolicyResponse, RateLimitPolicyUpdateRequest,
+    RoutingPolicyCreateRequest, RoutingPolicyDetailResponse, RoutingPolicyListResponse,
+    RoutingPolicyParamSetRequest, RoutingPolicyResponse, RoutingPolicySecretBindRequest,
+    SearchProfileCreateRequest, SearchProfileDefaultDomainRequest, SearchProfileDefaultRequest,
     SearchProfileDomainAllowlistRequest, SearchProfileIndexerSetRequest, SearchProfileListResponse,
     SearchProfilePolicySetRequest, SearchProfileResponse, SearchProfileTagSetRequest,
     SearchProfileUpdateRequest, SecretCreateRequest, SecretMetadataListResponse, SecretResponse,
@@ -33,27 +35,29 @@ use serde::{Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
 use crate::cli::{
-    BackupRestoreArgs, ImportJobCreateArgs, ImportJobResultsArgs, ImportJobRunProwlarrApiArgs,
-    ImportJobRunProwlarrBackupArgs, ImportJobStatusArgs, IndexerInstanceReadArgs,
-    IndexerInstanceRssItemsArgs, IndexerInstanceTestFinalizeArgs, IndexerInstanceTestPrepareArgs,
-    IndexerRoutingPolicyReadArgs, IndexerRssMarkSeenArgs, IndexerRssSetArgs,
-    MediaDomainMappingDeleteArgs, MediaDomainMappingUpsertArgs, OutputFormat, PolicyRuleCreateArgs,
-    PolicyRuleDisableArgs, PolicyRuleEnableArgs, PolicyRuleReorderArgs, PolicySetCreateArgs,
-    PolicySetDisableArgs, PolicySetEnableArgs, PolicySetReorderArgs, PolicySetUpdateArgs,
-    RateLimitAssignInstanceArgs, RateLimitAssignRoutingArgs, RateLimitCreateArgs,
-    RateLimitDeleteArgs, RateLimitUpdateArgs, RoutingPolicyBindSecretArgs, RoutingPolicyCreateArgs,
-    RoutingPolicySetParamArgs, SearchProfileCreateArgs, SearchProfileIndexerSetArgs,
-    SearchProfilePolicySetArgs, SearchProfileSetDefaultArgs, SearchProfileSetDefaultDomainArgs,
-    SearchProfileSetMediaDomainsArgs, SearchProfileTagSetArgs, SearchProfileUpdateArgs,
-    SecretCreateArgs, SecretRevokeArgs, SecretRotateArgs, TagCreateArgs, TagDeleteArgs,
-    TagUpdateArgs, TorznabCreateArgs, TorznabDeleteArgs, TorznabRotateArgs, TorznabSetStateArgs,
-    TrackerCategoryMappingDeleteArgs, TrackerCategoryMappingUpsertArgs,
+    BackupRestoreArgs, HealthNotificationCreateArgs, HealthNotificationDeleteArgs,
+    HealthNotificationUpdateArgs, ImportJobCreateArgs, ImportJobResultsArgs,
+    ImportJobRunProwlarrApiArgs, ImportJobRunProwlarrBackupArgs, ImportJobStatusArgs,
+    IndexerInstanceReadArgs, IndexerInstanceRssItemsArgs, IndexerInstanceTestFinalizeArgs,
+    IndexerInstanceTestPrepareArgs, IndexerRoutingPolicyReadArgs, IndexerRssMarkSeenArgs,
+    IndexerRssSetArgs, MediaDomainMappingDeleteArgs, MediaDomainMappingUpsertArgs, OutputFormat,
+    PolicyRuleCreateArgs, PolicyRuleDisableArgs, PolicyRuleEnableArgs, PolicyRuleReorderArgs,
+    PolicySetCreateArgs, PolicySetDisableArgs, PolicySetEnableArgs, PolicySetReorderArgs,
+    PolicySetUpdateArgs, RateLimitAssignInstanceArgs, RateLimitAssignRoutingArgs,
+    RateLimitCreateArgs, RateLimitDeleteArgs, RateLimitUpdateArgs, RoutingPolicyBindSecretArgs,
+    RoutingPolicyCreateArgs, RoutingPolicySetParamArgs, SearchProfileCreateArgs,
+    SearchProfileIndexerSetArgs, SearchProfilePolicySetArgs, SearchProfileSetDefaultArgs,
+    SearchProfileSetDefaultDomainArgs, SearchProfileSetMediaDomainsArgs, SearchProfileTagSetArgs,
+    SearchProfileUpdateArgs, SecretCreateArgs, SecretRevokeArgs, SecretRotateArgs, TagCreateArgs,
+    TagDeleteArgs, TagUpdateArgs, TorznabCreateArgs, TorznabDeleteArgs, TorznabRotateArgs,
+    TorznabSetStateArgs, TrackerCategoryMappingDeleteArgs, TrackerCategoryMappingUpsertArgs,
 };
 use crate::client::{AppContext, CliError, CliResult, HEADER_API_KEY, classify_problem};
 use crate::output::{
     render_import_job_results, render_import_job_status, render_import_job_summary,
     render_indexer_backup_export, render_indexer_backup_restore,
     render_indexer_connectivity_profile, render_indexer_health_events,
+    render_indexer_health_notification_hook_list, render_indexer_health_notification_hook_response,
     render_indexer_instance_list, render_indexer_instance_test_finalize,
     render_indexer_instance_test_prepare, render_indexer_rss_seen_items,
     render_indexer_rss_seen_mark, render_indexer_rss_subscription,
@@ -198,6 +202,77 @@ pub(crate) async fn handle_secret_revoke(
     )
     .await?;
     println!("Secret revoked");
+    Ok(())
+}
+
+pub(crate) async fn handle_health_notification_hook_create(
+    ctx: &AppContext,
+    args: HealthNotificationCreateArgs,
+    output: OutputFormat,
+) -> CliResult<()> {
+    let channel = require_trimmed(&args.channel, "channel must not be empty")?;
+    let display_name = require_trimmed(&args.display_name, "display name must not be empty")?;
+    let status_threshold =
+        require_trimmed(&args.status_threshold, "status threshold must not be empty")?;
+
+    let request = IndexerHealthNotificationHookCreateRequest {
+        channel,
+        display_name,
+        status_threshold,
+        webhook_url: trim_optional_text(args.webhook_url.as_deref()),
+        email: trim_optional_text(args.email.as_deref()),
+    };
+    let response: IndexerHealthNotificationHookResponse = send_indexer_json(
+        ctx,
+        Method::POST,
+        "/v1/indexers/health-notifications",
+        "/v1/indexers/health-notifications",
+        &request,
+    )
+    .await?;
+    render_indexer_health_notification_hook_response(&response, output)
+}
+
+pub(crate) async fn handle_health_notification_hook_update(
+    ctx: &AppContext,
+    args: HealthNotificationUpdateArgs,
+    output: OutputFormat,
+) -> CliResult<()> {
+    let request = IndexerHealthNotificationHookUpdateRequest {
+        indexer_health_notification_hook_public_id: args.indexer_health_notification_hook_public_id,
+        display_name: trim_optional_text(args.display_name.as_deref()),
+        status_threshold: trim_optional_text(args.status_threshold.as_deref()),
+        webhook_url: trim_optional_text(args.webhook_url.as_deref()),
+        email: trim_optional_text(args.email.as_deref()),
+        is_enabled: args.is_enabled,
+    };
+    let response: IndexerHealthNotificationHookResponse = send_indexer_json(
+        ctx,
+        Method::PATCH,
+        "/v1/indexers/health-notifications",
+        "/v1/indexers/health-notifications",
+        &request,
+    )
+    .await?;
+    render_indexer_health_notification_hook_response(&response, output)
+}
+
+pub(crate) async fn handle_health_notification_hook_delete(
+    ctx: &AppContext,
+    args: HealthNotificationDeleteArgs,
+) -> CliResult<()> {
+    let request = IndexerHealthNotificationHookDeleteRequest {
+        indexer_health_notification_hook_public_id: args.indexer_health_notification_hook_public_id,
+    };
+    send_indexer_no_content(
+        ctx,
+        Method::DELETE,
+        "/v1/indexers/health-notifications",
+        "/v1/indexers/health-notifications",
+        &request,
+    )
+    .await?;
+    println!("Health notification hook deleted");
     Ok(())
 }
 
@@ -1195,6 +1270,19 @@ pub(crate) async fn handle_secret_list(ctx: &AppContext, output: OutputFormat) -
     render_secret_metadata_list(&response, output)
 }
 
+pub(crate) async fn handle_health_notification_hook_list(
+    ctx: &AppContext,
+    output: OutputFormat,
+) -> CliResult<()> {
+    let response: IndexerHealthNotificationHookListResponse = get_indexer_resource(
+        ctx,
+        "/v1/indexers/health-notifications",
+        "/v1/indexers/health-notifications",
+    )
+    .await?;
+    render_indexer_health_notification_hook_list(&response, output)
+}
+
 pub(crate) async fn handle_search_profile_list(
     ctx: &AppContext,
     output: OutputFormat,
@@ -1381,6 +1469,12 @@ pub(crate) fn parse_import_job_id(input: &str) -> Result<Uuid, String> {
     input
         .parse()
         .map_err(|err| format!("invalid import job id '{input}': {err}"))
+}
+
+pub(crate) fn parse_health_notification_hook_id(input: &str) -> Result<Uuid, String> {
+    input
+        .parse()
+        .map_err(|err| format!("invalid health notification hook id '{input}': {err}"))
 }
 
 pub(crate) async fn handle_indexer_instance_test_prepare(

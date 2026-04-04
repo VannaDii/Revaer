@@ -303,3 +303,4 @@
     -   [271: Indexer CLI read parity](adr/271-indexer-cli-read-parity.md)
     -   [272: Indexer CLI operator write parity](adr/272-indexer-cli-operator-write-parity.md)
     -   [273: Indexer CLI mutation parity follow-up](adr/273-indexer-cli-mutation-parity-followup.md)
+    -   [274: Indexer CLI health-notification parity](adr/274-indexer-cli-health-notification-parity.md)

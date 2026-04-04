@@ -4,7 +4,8 @@ use anyhow::anyhow;
 use revaer_api::models::{
     ImportJobResponse, ImportJobResultsResponse, ImportJobStatusResponse,
     IndexerBackupExportResponse, IndexerBackupRestoreResponse, IndexerConnectivityProfileResponse,
-    IndexerHealthEventListResponse, IndexerInstanceListResponse,
+    IndexerHealthEventListResponse, IndexerHealthNotificationHookListResponse,
+    IndexerHealthNotificationHookResponse, IndexerInstanceListResponse,
     IndexerInstanceTestFinalizeResponse, IndexerInstanceTestPrepareResponse,
     IndexerRssSeenItemsResponse, IndexerRssSeenMarkResponse, IndexerRssSubscriptionResponse,
     IndexerSourceReputationListResponse, PolicyRuleResponse, PolicySetListResponse,
@@ -454,6 +455,59 @@ pub(crate) fn render_secret_metadata_list(
                     secret.is_revoked,
                     secret.binding_count,
                     rotated_at
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn render_indexer_health_notification_hook_response(
+    response: &IndexerHealthNotificationHookResponse,
+    format: OutputFormat,
+) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Table => {
+            println!(
+                "indexer_health_notification_hook_public_id: {}",
+                response.indexer_health_notification_hook_public_id
+            );
+            println!("channel: {}", response.channel);
+            println!("display_name: {}", response.display_name);
+            println!("status_threshold: {}", response.status_threshold);
+            println!("is_enabled: {}", response.is_enabled);
+            if let Some(webhook_url) = &response.webhook_url {
+                println!("webhook_url: {webhook_url}");
+            }
+            if let Some(email) = &response.email {
+                println!("email: {email}");
+            }
+            println!("updated_at: {}", response.updated_at.to_rfc3339());
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn render_indexer_health_notification_hook_list(
+    list: &IndexerHealthNotificationHookListResponse,
+    format: OutputFormat,
+) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => print_json(list)?,
+        OutputFormat::Table => {
+            println!(
+                "{:<36} {:<10} {:<12} {:<8} DISPLAY NAME",
+                "HOOK ID", "CHANNEL", "THRESHOLD", "ENABLED"
+            );
+            for hook in &list.hooks {
+                println!(
+                    "{:<36} {:<10} {:<12} {:<8} {}",
+                    hook.indexer_health_notification_hook_public_id,
+                    hook.channel,
+                    hook.status_threshold,
+                    hook.is_enabled,
+                    hook.display_name
                 );
             }
         }

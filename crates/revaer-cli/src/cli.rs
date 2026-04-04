@@ -9,9 +9,9 @@ use uuid::Uuid;
 
 use crate::client::{AppContext, CliDependencies, CliResult, parse_api_key, parse_url};
 use crate::commands::indexers::{
-    parse_import_job_id, parse_indexer_instance_id, parse_policy_rule_id, parse_policy_set_id,
-    parse_rate_limit_policy_id, parse_routing_policy_id, parse_search_profile_id,
-    parse_torznab_instance_id,
+    parse_health_notification_hook_id, parse_import_job_id, parse_indexer_instance_id,
+    parse_policy_rule_id, parse_policy_set_id, parse_rate_limit_policy_id, parse_routing_policy_id,
+    parse_search_profile_id, parse_torznab_instance_id,
 };
 use crate::commands::torrents::{FilePriorityOverrideArg, StorageModeArg};
 use crate::commands::{config, indexers, setup, tail, torrents};
@@ -135,6 +135,9 @@ async fn dispatch_indexer(
         IndexerCommand::Secret(secret_command) => {
             dispatch_indexer_secret(*secret_command, deps, output).await
         }
+        IndexerCommand::HealthNotification(health_notification_command) => {
+            dispatch_indexer_health_notification(*health_notification_command, deps, output).await
+        }
         IndexerCommand::RoutingPolicy(routing_command) => {
             dispatch_indexer_routing_policy(*routing_command, deps, output).await
         }
@@ -211,6 +214,24 @@ async fn dispatch_indexer_secret(
         SecretCommand::Create(args) => indexers::handle_secret_create(deps, args, output).await,
         SecretCommand::Rotate(args) => indexers::handle_secret_rotate(deps, args, output).await,
         SecretCommand::Revoke(args) => indexers::handle_secret_revoke(deps, args).await,
+    }
+}
+
+async fn dispatch_indexer_health_notification(
+    command: HealthNotificationCommand,
+    deps: &AppContext,
+    output: OutputFormat,
+) -> CliResult<()> {
+    match command {
+        HealthNotificationCommand::Create(args) => {
+            indexers::handle_health_notification_hook_create(deps, args, output).await
+        }
+        HealthNotificationCommand::Update(args) => {
+            indexers::handle_health_notification_hook_update(deps, args, output).await
+        }
+        HealthNotificationCommand::Delete(args) => {
+            indexers::handle_health_notification_hook_delete(deps, args).await
+        }
     }
 }
 
@@ -406,6 +427,9 @@ async fn dispatch_indexer_read(
     match command {
         IndexerReadCommand::Tags => indexers::handle_tag_list(deps, output).await,
         IndexerReadCommand::Secrets => indexers::handle_secret_list(deps, output).await,
+        IndexerReadCommand::HealthNotifications => {
+            indexers::handle_health_notification_hook_list(deps, output).await
+        }
         IndexerReadCommand::SearchProfiles => {
             indexers::handle_search_profile_list(deps, output).await
         }
@@ -482,6 +506,9 @@ fn command_label_indexer(command: &IndexerCommand) -> &'static str {
         },
         IndexerCommand::Tag(tag_command) => command_label_tag(tag_command),
         IndexerCommand::Secret(secret_command) => command_label_secret(secret_command),
+        IndexerCommand::HealthNotification(health_notification_command) => {
+            command_label_health_notification(health_notification_command)
+        }
         IndexerCommand::RoutingPolicy(routing_command) => {
             command_label_routing_policy(routing_command)
         }
@@ -575,6 +602,14 @@ const fn command_label_secret(command: &SecretCommand) -> &'static str {
     }
 }
 
+const fn command_label_health_notification(command: &HealthNotificationCommand) -> &'static str {
+    match command {
+        HealthNotificationCommand::Create(_) => "indexer_health_notification_create",
+        HealthNotificationCommand::Update(_) => "indexer_health_notification_update",
+        HealthNotificationCommand::Delete(_) => "indexer_health_notification_delete",
+    }
+}
+
 const fn command_label_category_mapping(command: &CategoryMappingCommand) -> &'static str {
     match command {
         CategoryMappingCommand::TrackerUpsert(_) => "indexer_category_mapping_tracker_upsert",
@@ -617,6 +652,7 @@ const fn command_label_indexer_read(command: &IndexerReadCommand) -> &'static st
         IndexerReadCommand::Connectivity(_) => "indexer_read_connectivity",
         IndexerReadCommand::Reputation(_) => "indexer_read_reputation",
         IndexerReadCommand::HealthEvents(_) => "indexer_read_health_events",
+        IndexerReadCommand::HealthNotifications => "indexer_read_health_notifications",
         IndexerReadCommand::Rss(_) => "indexer_read_rss",
         IndexerReadCommand::RssItems(_) => "indexer_read_rss_items",
     }
@@ -706,6 +742,8 @@ pub(crate) enum IndexerCommand {
     #[command(subcommand)]
     Secret(Box<SecretCommand>),
     #[command(subcommand)]
+    HealthNotification(Box<HealthNotificationCommand>),
+    #[command(subcommand)]
     RoutingPolicy(Box<RoutingPolicyCommand>),
     #[command(subcommand)]
     RateLimit(Box<RateLimitCommand>),
@@ -756,6 +794,13 @@ pub(crate) enum SecretCommand {
     Create(SecretCreateArgs),
     Rotate(SecretRotateArgs),
     Revoke(SecretRevokeArgs),
+}
+
+#[derive(Subcommand)]
+pub(crate) enum HealthNotificationCommand {
+    Create(HealthNotificationCreateArgs),
+    Update(HealthNotificationUpdateArgs),
+    Delete(HealthNotificationDeleteArgs),
 }
 
 #[derive(Subcommand)]
@@ -819,6 +864,7 @@ pub(crate) enum IndexerInstanceCommand {
 pub(crate) enum IndexerReadCommand {
     Tags,
     Secrets,
+    HealthNotifications,
     SearchProfiles,
     PolicySets,
     RoutingPolicies,
@@ -1078,6 +1124,51 @@ pub(crate) struct SecretRotateArgs {
 pub(crate) struct SecretRevokeArgs {
     #[arg(long, help = "Secret public id")]
     pub secret_public_id: Uuid,
+}
+
+#[derive(Args)]
+pub(crate) struct HealthNotificationCreateArgs {
+    #[arg(long, help = "Notification channel (email or webhook)")]
+    pub channel: String,
+    #[arg(long, help = "Operator-facing display name")]
+    pub display_name: String,
+    #[arg(
+        long,
+        help = "Lowest triggering status (degraded, failing, quarantined)"
+    )]
+    pub status_threshold: String,
+    #[arg(long, help = "Webhook URL for webhook hooks")]
+    pub webhook_url: Option<String>,
+    #[arg(long, help = "Email address for email hooks")]
+    pub email: Option<String>,
+}
+
+#[derive(Args)]
+pub(crate) struct HealthNotificationUpdateArgs {
+    #[arg(
+        value_parser = parse_health_notification_hook_id,
+        help = "Health notification hook public id"
+    )]
+    pub indexer_health_notification_hook_public_id: Uuid,
+    #[arg(long, help = "Updated display name")]
+    pub display_name: Option<String>,
+    #[arg(long, help = "Updated lowest triggering status")]
+    pub status_threshold: Option<String>,
+    #[arg(long, help = "Updated webhook URL for webhook hooks")]
+    pub webhook_url: Option<String>,
+    #[arg(long, help = "Updated email address for email hooks")]
+    pub email: Option<String>,
+    #[arg(long, help = "Override enabled state")]
+    pub is_enabled: Option<bool>,
+}
+
+#[derive(Args)]
+pub(crate) struct HealthNotificationDeleteArgs {
+    #[arg(
+        value_parser = parse_health_notification_hook_id,
+        help = "Health notification hook public id"
+    )]
+    pub indexer_health_notification_hook_public_id: Uuid,
 }
 
 #[derive(Args)]
@@ -1675,6 +1766,12 @@ mod tests {
         );
         assert_command_label(
             &Command::Indexer(IndexerCommand::Read(Box::new(
+                IndexerReadCommand::HealthNotifications,
+            ))),
+            "indexer_read_health_notifications",
+        );
+        assert_command_label(
+            &Command::Indexer(IndexerCommand::Read(Box::new(
                 IndexerReadCommand::RoutingPolicy(IndexerRoutingPolicyReadArgs {
                     routing_policy_public_id: Uuid::nil(),
                 }),
@@ -1702,6 +1799,19 @@ mod tests {
                 },
             )))),
             "indexer_secret_rotate",
+        );
+        assert_command_label(
+            &Command::Indexer(IndexerCommand::HealthNotification(Box::new(
+                HealthNotificationCommand::Update(HealthNotificationUpdateArgs {
+                    indexer_health_notification_hook_public_id: Uuid::nil(),
+                    display_name: Some("Ops Pager".to_string()),
+                    status_threshold: None,
+                    webhook_url: None,
+                    email: None,
+                    is_enabled: Some(true),
+                }),
+            ))),
+            "indexer_health_notification_update",
         );
         assert_command_label(
             &Command::Indexer(IndexerCommand::CategoryMapping(Box::new(
@@ -1970,6 +2080,45 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn run_with_cli_executes_indexer_read_health_notifications() -> Result<()> {
+        let server = MockServer::start_async().await;
+        let payload = serde_json::json!({
+            "hooks": [{
+                "indexer_health_notification_hook_public_id": Uuid::new_v4(),
+                "channel": "webhook",
+                "display_name": "Ops Pager",
+                "status_threshold": "failing",
+                "webhook_url": "https://hooks.example.test/revaer",
+                "email": null,
+                "is_enabled": true,
+                "updated_at": "2026-04-03T00:00:00Z"
+            }]
+        });
+        let hooks_mock = server.mock(|when, then| {
+            when.method(GET)
+                .path("/v1/indexers/health-notifications")
+                .header(HEADER_API_KEY, "key:secret");
+            then.status(200).json_body(payload);
+        });
+
+        let cli = Cli::parse_from([
+            "revaer",
+            "--api-url",
+            &server.base_url(),
+            "--api-key",
+            "key:secret",
+            "indexer",
+            "read",
+            "health-notifications",
+        ]);
+
+        let exit_code = run_with_cli(cli).await;
+        hooks_mock.assert();
+        assert_eq!(exit_code, 0);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn run_with_cli_executes_indexer_read_rss_items_with_limit() -> Result<()> {
         let server = MockServer::start_async().await;
         let instance_id = Uuid::new_v4();
@@ -2084,6 +2233,59 @@ mod tests {
 
         let exit_code = run_with_cli(cli).await;
         secret_mock.assert();
+        assert_eq!(exit_code, 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_with_cli_executes_health_notification_update() -> Result<()> {
+        let server = MockServer::start_async().await;
+        let hook_public_id = Uuid::new_v4();
+        let hook_mock = server.mock(|when, then| {
+            when.method(PATCH)
+                .path("/v1/indexers/health-notifications")
+                .header(HEADER_API_KEY, "key:secret")
+                .json_body(serde_json::json!({
+                    "indexer_health_notification_hook_public_id": hook_public_id,
+                    "display_name": "Ops Pager",
+                    "status_threshold": "quarantined",
+                    "webhook_url": "https://hooks.example.test/revaer",
+                    "is_enabled": true
+                }));
+            then.status(200).json_body(serde_json::json!({
+                "indexer_health_notification_hook_public_id": hook_public_id,
+                "channel": "webhook",
+                "display_name": "Ops Pager",
+                "status_threshold": "quarantined",
+                "webhook_url": "https://hooks.example.test/revaer",
+                "email": null,
+                "is_enabled": true,
+                "updated_at": "2026-04-03T00:00:00Z"
+            }));
+        });
+
+        let cli = Cli::parse_from([
+            "revaer",
+            "--api-url",
+            &server.base_url(),
+            "--api-key",
+            "key:secret",
+            "indexer",
+            "health-notification",
+            "update",
+            &hook_public_id.to_string(),
+            "--display-name",
+            " Ops Pager ",
+            "--status-threshold",
+            " quarantined ",
+            "--webhook-url",
+            " https://hooks.example.test/revaer ",
+            "--is-enabled",
+            "true",
+        ]);
+
+        let exit_code = run_with_cli(cli).await;
+        hook_mock.assert();
         assert_eq!(exit_code, 0);
         Ok(())
     }
