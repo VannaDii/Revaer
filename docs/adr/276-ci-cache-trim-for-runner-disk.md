@@ -1,0 +1,24 @@
+# CI cache trim for runner disk pressure
+
+- Status: Accepted
+- Date: 2026-04-03
+- Context:
+  - PR #6 showed a failing `Check Unused Deps` job even though local `just udeps` was clean and there were no open dependency issues on the branch.
+  - The GitHub check annotation for that failed job reported `System.IO.IOException: No space left on device` while the runner was still inside the shared `setup-revaer` action.
+  - The shared setup action restored both `~/.cargo/bin` and the workspace `target` directory for every PR job, which made the cache restore footprint much larger than the dependency/install state the jobs actually needed.
+- Decision:
+  - Stop caching the workspace `target` directory and `~/.cargo/bin` in the shared GitHub Actions setup action.
+  - Keep caching Cargo registries, git dependencies, and `sccache`, which preserve the useful network and compile wins without restoring the heaviest workspace-local artifacts into each runner.
+- Consequences:
+  - Positive outcomes:
+    - PR jobs restore less data and are less likely to exhaust runner disk before reaching their actual step logic.
+    - The `Check Unused Deps` job can now reach `just udeps` instead of failing during setup.
+  - Risks or trade-offs:
+    - Some PR jobs may rebuild more from scratch because `target` is no longer restored from cache.
+    - Cargo-installed helper binaries are no longer reused from cache and may be reinstalled when absent on the runner.
+- Follow-up:
+  - Implementation tasks:
+    - Re-run PR workflows to confirm the disk-exhaustion false failure is gone.
+  - Review checkpoints:
+    - `just ci`
+    - `just ui-e2e`

@@ -305,3 +305,4 @@
     -   [273: Indexer CLI mutation parity follow-up](adr/273-indexer-cli-mutation-parity-followup.md)
     -   [274: Indexer CLI health-notification parity](adr/274-indexer-cli-health-notification-parity.md)
     -   [275: PR output redaction and review follow-up](adr/275-pr-output-redaction-and-review-followup.md)
+    -   [276: CI cache trim for runner disk pressure](adr/276-ci-cache-trim-for-runner-disk.md)
