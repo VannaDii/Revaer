@@ -269,6 +269,28 @@ ui-e2e:
 ui-e2e-coverage:
     node tests/scripts/check-e2e-coverage.js
 
+runbook:
+    just ui-e2e
+    just ui-e2e-coverage
+    mkdir -p artifacts/runbook
+    rm -rf artifacts/runbook/logs artifacts/runbook/playwright-report artifacts/runbook/test-results
+    if [ -d tests/logs ]; then \
+        cp -R tests/logs artifacts/runbook/logs; \
+    fi
+    if [ -d tests/playwright-report ]; then \
+        cp -R tests/playwright-report artifacts/runbook/playwright-report; \
+    fi
+    if [ -d tests/test-results ]; then \
+        cp -R tests/test-results artifacts/runbook/test-results; \
+    fi
+    printf '%s\n' \
+        "runbook=ok" \
+        "artifacts=artifacts/runbook" \
+        "playwright_report=artifacts/runbook/playwright-report/index.html" \
+        "test_results=artifacts/runbook/test-results" \
+        "logs=artifacts/runbook/logs" \
+        > artifacts/runbook/summary.txt
+
 zombies:
     for port in 7070 8080; do \
         pids=$(lsof -ti :$port 2>/dev/null || true); \

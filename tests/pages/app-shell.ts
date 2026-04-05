@@ -1,4 +1,4 @@
-import { expect, Page } from '@playwright/test';
+import { expect, Locator, Page } from '@playwright/test';
 import { recordUiRoute } from '../support/ui-coverage';
 
 export class AppShell {
@@ -28,27 +28,44 @@ export class AppShell {
   }
 
   private async handleOverlays(): Promise<void> {
-    const setupOverlay = await this.page.$('.setup-overlay');
-    if (setupOverlay && (await setupOverlay.isVisible())) {
+    const setupOverlay = this.page.locator('.setup-overlay');
+    if (await setupOverlay.isVisible().catch(() => false)) {
       throw new Error('Setup required; the UI must be activated before running E2E tests.');
     }
 
-    const authOverlay = await this.page.$('.auth-overlay');
-    if (authOverlay && (await authOverlay.isVisible())) {
-      const useAnonymous = await authOverlay.$('button:has-text("Use anonymous")');
-      if (useAnonymous && (await useAnonymous.isVisible())) {
-        await useAnonymous.click();
-        await expect(this.page.locator('.auth-overlay')).toBeHidden();
+    const authOverlay = this.page.locator('.auth-overlay');
+    if (await authOverlay.isVisible().catch(() => false)) {
+      const useAnonymous = authOverlay.getByRole('button', { name: /Use anonymous/i }).first();
+      if (await this.clickOverlayControl(useAnonymous)) {
+        await expect(authOverlay).toBeHidden();
         return;
       }
 
-      const dismiss =
-        (await authOverlay.$('button.btn-circle[aria-label="Dismiss"]')) ??
-        (await authOverlay.$('button.btn-ghost.btn-sm:has-text("Dismiss")'));
-      if (dismiss && (await dismiss.isVisible())) {
-        await dismiss.click();
-        await expect(this.page.locator('.auth-overlay')).toBeHidden();
+      const dismissIcon = authOverlay.getByLabel('Dismiss').first();
+      if (await this.clickOverlayControl(dismissIcon)) {
+        await expect(authOverlay).toBeHidden();
+        return;
+      }
+
+      const dismissText = authOverlay.getByRole('button', { name: 'Dismiss' }).first();
+      if (await this.clickOverlayControl(dismissText)) {
+        await expect(authOverlay).toBeHidden();
       }
     }
+  }
+
+  private async clickOverlayControl(control: Locator): Promise<boolean> {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      if (!(await control.isVisible().catch(() => false))) {
+        return false;
+      }
+      try {
+        await control.click({ force: true, timeout: 2_000 });
+        return true;
+      } catch {
+        continue;
+      }
+    }
+    return false;
   }
 }

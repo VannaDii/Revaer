@@ -19,20 +19,27 @@
 
 use std::{
     fs::{self, File},
-    io,
+    io::{self, Read},
     path::{Component, Path, PathBuf},
+    process::Command,
     sync::{Arc, Mutex, MutexGuard},
 };
+
+#[cfg(test)]
+use std::collections::HashMap;
 
 use crate::error::{FsOpsError, FsOpsResult};
 use crate::model::FsOpsRequest;
 use chrono::{DateTime, Utc};
+use flate2::read::GzDecoder;
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use revaer_config::FsPolicy;
 use revaer_events::{Event, EventBus};
 use revaer_runtime::RuntimeStore;
 use revaer_telemetry::Metrics;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use tar::Archive as TarArchive;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 use walkdir::WalkDir;
@@ -65,12 +72,14 @@ enum StepKind {
     PrepareDirectories,
     CompileRules,
     LocateSource,
+    VerifyPar2,
     PrepareWorkDir,
     Extract,
     Flatten,
     Transfer,
     SetPermissions,
     Cleanup,
+    Checksum,
     Finalise,
 }
 
@@ -82,12 +91,14 @@ impl StepKind {
             Self::PrepareDirectories => "prepare_directories",
             Self::CompileRules => "compile_rules",
             Self::LocateSource => "locate_source",
+            Self::VerifyPar2 => "verify_par2",
             Self::PrepareWorkDir => "prepare_work_dir",
             Self::Extract => "extract",
             Self::Flatten => "flatten",
             Self::Transfer => "transfer",
             Self::SetPermissions => "set_permissions",
             Self::Cleanup => "cleanup",
+            Self::Checksum => "checksum",
             Self::Finalise => "finalise",
         }
     }
@@ -99,12 +110,14 @@ impl StepKind {
             Self::PrepareDirectories => "prepare_directories",
             Self::CompileRules => "compile_rules",
             Self::LocateSource => "locate_source",
+            Self::VerifyPar2 => "verify_par2",
             Self::PrepareWorkDir => "prepare_work_dir",
             Self::Extract => "extract",
             Self::Flatten => "flatten",
             Self::Transfer => "transfer",
             Self::SetPermissions => "set_permissions",
             Self::Cleanup => "cleanup",
+            Self::Checksum => "checksum",
             Self::Finalise => "finalise",
         }
     }
@@ -173,6 +186,141 @@ impl StepOutcome {
             Self::Completed(detail) | Self::Skipped(detail) => detail.as_deref(),
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Par2Mode {
+    Disabled,
+    Verify,
+    Repair,
+}
+
+impl Par2Mode {
+    fn from_policy(value: &str) -> FsOpsResult<Self> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "" | "disabled" | "off" => Ok(Self::Disabled),
+            "verify" | "enabled" => Ok(Self::Verify),
+            "repair" => Ok(Self::Repair),
+            other => Err(FsOpsError::InvalidPolicy {
+                field: "par2",
+                reason: "unsupported",
+                value: Some(other.to_string()),
+            }),
+        }
+    }
+
+    const fn command(self) -> &'static str {
+        match self {
+            Self::Disabled | Self::Verify => "v",
+            Self::Repair => "r",
+        }
+    }
+
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Disabled => "disabled",
+            Self::Verify => "verify",
+            Self::Repair => "repair",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ArchiveFormat {
+    Zip,
+    Tar,
+    TarGz,
+    SevenZip,
+    Rar,
+}
+
+impl ArchiveFormat {
+    fn detect(source: &Path) -> FsOpsResult<Self> {
+        let file_name = source
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(str::to_ascii_lowercase)
+            .ok_or_else(|| FsOpsError::InvalidInput {
+                field: "archive_extension",
+                reason: "missing",
+                value: Some(source.to_string_lossy().into_owned()),
+            })?;
+
+        if !file_name.contains('.') {
+            return Err(FsOpsError::InvalidInput {
+                field: "archive_extension",
+                reason: "missing",
+                value: Some(source.to_string_lossy().into_owned()),
+            });
+        }
+
+        let path_name = Path::new(&file_name);
+        if file_name.ends_with(".tar.gz")
+            || path_name
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("tgz"))
+        {
+            return Ok(Self::TarGz);
+        }
+        if path_name
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("tar"))
+        {
+            return Ok(Self::Tar);
+        }
+        if path_name
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("zip"))
+        {
+            return Ok(Self::Zip);
+        }
+        if path_name
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("7z"))
+        {
+            return Ok(Self::SevenZip);
+        }
+        if path_name
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("rar"))
+        {
+            return Ok(Self::Rar);
+        }
+
+        Err(FsOpsError::Unsupported {
+            operation: "extract_archive",
+            value: Some(file_name),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum ChecksumKind {
+    File,
+    Manifest,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct ChecksumRecord {
+    path: String,
+    kind: ChecksumKind,
+    algorithm: String,
+    value: String,
+    bytes: u64,
+}
+
+impl ChecksumRecord {
+    fn with_path(mut self, path: String) -> Self {
+        self.path = path;
+        self
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ExternalCommand {
+    program: &'static str,
+    args: Vec<String>,
 }
 
 /// Service responsible for executing filesystem post-processing steps after torrent completion.
@@ -260,12 +408,14 @@ impl FsOpsService {
         self.run_prepare_directories(torrent_id, &mut meta, &meta_path, &root, &meta_dir)?;
         self.run_compile_rules(torrent_id, &mut meta, &meta_path, policy)?;
         self.run_locate_source(torrent_id, &mut meta, &meta_path, source_path)?;
+        self.run_verify_par2(torrent_id, &mut meta, &meta_path, policy)?;
         self.run_prepare_work_dir(torrent_id, &mut meta, &meta_path, &meta_dir)?;
         self.run_extract(torrent_id, &mut meta, &meta_path, policy)?;
         self.run_flatten(torrent_id, &mut meta, &meta_path, policy)?;
         self.run_transfer(torrent_id, &mut meta, &meta_path, policy, &root)?;
         self.run_set_permissions(torrent_id, &mut meta, &meta_path, policy)?;
         self.run_cleanup(torrent_id, &mut meta, &meta_path, policy)?;
+        self.run_checksum(torrent_id, &mut meta, &meta_path)?;
         self.run_finalise(torrent_id, &mut meta, &meta_path)?;
 
         Ok(meta)
@@ -421,6 +571,53 @@ impl FsOpsService {
                     "source={}",
                     canonical.display()
                 ))))
+            },
+        )
+    }
+
+    fn run_verify_par2(
+        &self,
+        torrent_id: Uuid,
+        meta: &mut FsOpsMeta,
+        meta_path: &Path,
+        policy: &FsPolicy,
+    ) -> FsOpsResult<()> {
+        let par2_mode = Par2Mode::from_policy(&policy.par2)?;
+        self.execute_step(
+            torrent_id,
+            meta,
+            meta_path,
+            StepKind::VerifyPar2,
+            StepPersistence::new(false, true, false),
+            move |meta| {
+                if matches!(par2_mode, Par2Mode::Disabled) {
+                    return Ok(StepOutcome::Skipped(Some("par2 disabled".into())));
+                }
+
+                let source = meta.source_path.as_ref().map(PathBuf::from).ok_or(
+                    FsOpsError::MissingState {
+                        field: "source_path",
+                    },
+                )?;
+                let search_root = if source.is_dir() {
+                    source.clone()
+                } else {
+                    source
+                        .parent()
+                        .map(Path::to_path_buf)
+                        .ok_or(FsOpsError::MissingState {
+                            field: "source_parent",
+                        })?
+                };
+
+                let Some(par2_file) = Self::find_par2_file(&search_root, &source)? else {
+                    return Ok(StepOutcome::Skipped(Some(
+                        "no par2 files discovered".into(),
+                    )));
+                };
+
+                let detail = Self::run_par2_tool(par2_mode, &search_root, &par2_file)?;
+                Ok(StepOutcome::Completed(Some(detail)))
             },
         )
     }
@@ -758,6 +955,44 @@ impl FsOpsService {
         )
     }
 
+    fn run_checksum(
+        &self,
+        torrent_id: Uuid,
+        meta: &mut FsOpsMeta,
+        meta_path: &Path,
+    ) -> FsOpsResult<()> {
+        self.execute_step(
+            torrent_id,
+            meta,
+            meta_path,
+            StepKind::Checksum,
+            StepPersistence::new(false, true, false),
+            |meta| {
+                let artifact = if let Some(path) = meta.artifact_path.as_ref() {
+                    PathBuf::from(path)
+                } else {
+                    meta.checksums.clear();
+                    return Ok(StepOutcome::Skipped(Some(
+                        "artifact path unavailable; skipping checksum".into(),
+                    )));
+                };
+
+                if !artifact.exists() {
+                    meta.checksums.clear();
+                    return Ok(StepOutcome::Skipped(Some(
+                        "artifact path missing on disk".into(),
+                    )));
+                }
+
+                meta.checksums = Self::build_checksums(&artifact)?;
+                Ok(StepOutcome::Completed(Some(format!(
+                    "checksums={}",
+                    meta.checksums.len()
+                ))))
+            },
+        )
+    }
+
     fn run_finalise(
         &self,
         torrent_id: Uuid,
@@ -908,22 +1143,81 @@ impl FsOpsService {
     }
 
     fn extract_archive(source: &Path, target: &Path) -> FsOpsResult<()> {
-        let extension = source
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .map(str::to_lowercase);
-
-        match extension.as_deref() {
-            Some("zip") => Self::extract_zip(source, target),
-            Some(other) => Err(FsOpsError::Unsupported {
-                operation: "extract_archive",
-                value: Some(other.to_string()),
-            }),
-            None => Err(FsOpsError::InvalidInput {
-                field: "archive_extension",
-                reason: "missing",
-                value: Some(source.to_string_lossy().into_owned()),
-            }),
+        match ArchiveFormat::detect(source)? {
+            ArchiveFormat::Zip => Self::extract_zip(source, target),
+            ArchiveFormat::Tar => Self::extract_tar(source, target),
+            ArchiveFormat::TarGz => Self::extract_tar_gz(source, target),
+            ArchiveFormat::SevenZip => Self::extract_with_external_tool(
+                "extract_archive",
+                &[
+                    ExternalCommand {
+                        program: "7zz",
+                        args: vec![
+                            "x".to_string(),
+                            "-y".to_string(),
+                            format!("-o{}", target.display()),
+                            source.to_string_lossy().into_owned(),
+                        ],
+                    },
+                    ExternalCommand {
+                        program: "7z",
+                        args: vec![
+                            "x".to_string(),
+                            "-y".to_string(),
+                            format!("-o{}", target.display()),
+                            source.to_string_lossy().into_owned(),
+                        ],
+                    },
+                    ExternalCommand {
+                        program: "unar",
+                        args: vec![
+                            "-o".to_string(),
+                            target.to_string_lossy().into_owned(),
+                            source.to_string_lossy().into_owned(),
+                        ],
+                    },
+                ],
+            ),
+            ArchiveFormat::Rar => Self::extract_with_external_tool(
+                "extract_archive",
+                &[
+                    ExternalCommand {
+                        program: "7zz",
+                        args: vec![
+                            "x".to_string(),
+                            "-y".to_string(),
+                            format!("-o{}", target.display()),
+                            source.to_string_lossy().into_owned(),
+                        ],
+                    },
+                    ExternalCommand {
+                        program: "7z",
+                        args: vec![
+                            "x".to_string(),
+                            "-y".to_string(),
+                            format!("-o{}", target.display()),
+                            source.to_string_lossy().into_owned(),
+                        ],
+                    },
+                    ExternalCommand {
+                        program: "unrar",
+                        args: vec![
+                            "x".to_string(),
+                            "-o+".to_string(),
+                            source.to_string_lossy().into_owned(),
+                            target.to_string_lossy().into_owned(),
+                        ],
+                    },
+                    ExternalCommand {
+                        program: "unar",
+                        args: vec![
+                            "-o".to_string(),
+                            target.to_string_lossy().into_owned(),
+                            source.to_string_lossy().into_owned(),
+                        ],
+                    },
+                ],
+            ),
         }
     }
 
@@ -973,13 +1267,252 @@ impl FsOpsService {
         Ok(())
     }
 
+    fn extract_tar(source: &Path, target: &Path) -> FsOpsResult<()> {
+        let file = File::open(source)
+            .map_err(|source_err| FsOpsError::io("extract_tar.open", source, source_err))?;
+        let archive = TarArchive::new(file);
+        Self::extract_tar_entries(source, target, archive)
+    }
+
+    fn extract_tar_gz(source: &Path, target: &Path) -> FsOpsResult<()> {
+        let file = File::open(source)
+            .map_err(|source_err| FsOpsError::io("extract_tar_gz.open", source, source_err))?;
+        let archive = TarArchive::new(GzDecoder::new(file));
+        Self::extract_tar_entries(source, target, archive)
+    }
+
+    fn extract_tar_entries<R: Read>(
+        source: &Path,
+        target: &Path,
+        mut archive: TarArchive<R>,
+    ) -> FsOpsResult<()> {
+        let entries = archive
+            .entries()
+            .map_err(|source_err| FsOpsError::io("extract_tar.entries", source, source_err))?;
+
+        for entry in entries {
+            let mut entry = entry.map_err(|source_err| {
+                FsOpsError::io("extract_tar.read_entry", source, source_err)
+            })?;
+            let entry_path = entry.path().map_err(|source_err| {
+                FsOpsError::io("extract_tar.entry_path", source, source_err)
+            })?;
+            let entry_path = Self::sanitize_path_components(&entry_path, "archive_entry")?;
+            let destination = target.join(&entry_path);
+
+            if entry.header().entry_type().is_dir() {
+                fs::create_dir_all(&destination).map_err(|source_err| {
+                    FsOpsError::io("extract_tar.create_dir", &destination, source_err)
+                })?;
+                continue;
+            }
+
+            if !entry.header().entry_type().is_file() {
+                return Err(FsOpsError::Unsupported {
+                    operation: "extract_tar.entry_type",
+                    value: Some(entry_path.to_string_lossy().into_owned()),
+                });
+            }
+
+            if let Some(parent) = destination.parent() {
+                fs::create_dir_all(parent).map_err(|source_err| {
+                    FsOpsError::io("extract_tar.create_parent", parent, source_err)
+                })?;
+            }
+
+            let mut output = File::create(&destination).map_err(|source_err| {
+                FsOpsError::io("extract_tar.create_file", &destination, source_err)
+            })?;
+            io::copy(&mut entry, &mut output).map_err(|source_err| {
+                FsOpsError::io("extract_tar.copy", &destination, source_err)
+            })?;
+
+            #[cfg(unix)]
+            if let Ok(mode) = entry.header().mode() {
+                let perms = fs::Permissions::from_mode(mode);
+                fs::set_permissions(&destination, perms).map_err(|source_err| {
+                    FsOpsError::io("extract_tar.set_permissions", &destination, source_err)
+                })?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn extract_with_external_tool(
+        operation: &'static str,
+        candidates: &[ExternalCommand],
+    ) -> FsOpsResult<()> {
+        let _program = Self::run_external_command(operation, None, candidates)?;
+        Ok(())
+    }
+
+    fn run_par2_tool(mode: Par2Mode, working_dir: &Path, par2_file: &Path) -> FsOpsResult<String> {
+        let program = Self::run_external_command(
+            "par2",
+            Some(working_dir),
+            &[ExternalCommand {
+                program: "par2",
+                args: vec![
+                    mode.command().to_string(),
+                    par2_file.to_string_lossy().into_owned(),
+                ],
+            }],
+        )?;
+        Ok(format!(
+            "mode={} tool={} file={}",
+            mode.label(),
+            program,
+            par2_file.display()
+        ))
+    }
+
+    fn run_external_command(
+        operation: &'static str,
+        working_dir: Option<&Path>,
+        candidates: &[ExternalCommand],
+    ) -> FsOpsResult<String> {
+        let mut attempted_missing = Vec::new();
+        let mut last_process_error = None;
+
+        for candidate in candidates {
+            let resolved_program = Self::resolve_external_program(candidate.program);
+            let mut command = Command::new(&resolved_program);
+            command.args(&candidate.args);
+            if let Some(dir) = working_dir {
+                command.current_dir(dir);
+            }
+
+            match command.output() {
+                Ok(output) if output.status.success() => {
+                    return Ok(candidate.program.to_string());
+                }
+                Ok(output) => {
+                    last_process_error = Some(FsOpsError::Process {
+                        operation,
+                        program: candidate.program.to_string(),
+                        status: output.status.code(),
+                        stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+                    });
+                }
+                Err(source_err) if source_err.kind() == io::ErrorKind::NotFound => {
+                    attempted_missing.push(candidate.program.to_string());
+                }
+                Err(source_err) => {
+                    return Err(FsOpsError::io(
+                        operation,
+                        PathBuf::from(&resolved_program),
+                        source_err,
+                    ));
+                }
+            }
+        }
+
+        if let Some(error) = last_process_error {
+            return Err(error);
+        }
+
+        Err(FsOpsError::MissingTool {
+            operation,
+            programs: attempted_missing,
+        })
+    }
+
+    #[cfg(not(test))]
+    fn resolve_external_program(program: &str) -> String {
+        program.to_string()
+    }
+
+    #[cfg(test)]
+    fn resolve_external_program(program: &str) -> String {
+        let overrides = external_tool_overrides();
+        let guard = match overrides.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        guard.get(program).map_or_else(
+            || program.to_string(),
+            |path| path.to_string_lossy().into_owned(),
+        )
+    }
+
+    fn find_par2_file(search_root: &Path, source: &Path) -> FsOpsResult<Option<PathBuf>> {
+        if !search_root.exists() {
+            return Ok(None);
+        }
+
+        let preferred_stem = source
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .map(str::to_ascii_lowercase);
+        let mut candidates = Vec::new();
+        for entry in WalkDir::new(search_root) {
+            let entry = entry
+                .map_err(|source_err| FsOpsError::walkdir("par2.walk", search_root, source_err))?;
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            let path = entry.path();
+            let is_par2 = path
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("par2"));
+            if is_par2 {
+                candidates.push(path.to_path_buf());
+            }
+        }
+
+        candidates.sort();
+        let preferred = candidates.iter().find(|path| {
+            let file_name = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .map(str::to_ascii_lowercase);
+            let Some(file_name) = file_name else {
+                return false;
+            };
+            let preferred_matches = preferred_stem
+                .as_ref()
+                .is_some_and(|stem| file_name.starts_with(stem));
+            preferred_matches && !file_name.contains(".vol")
+        });
+        if let Some(path) = preferred {
+            return Ok(Some(path.clone()));
+        }
+
+        let primary = candidates.iter().find(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .map(str::to_ascii_lowercase)
+                .is_some_and(|name| !name.contains(".vol"))
+        });
+        if let Some(path) = primary {
+            return Ok(Some(path.clone()));
+        }
+
+        Ok(candidates.into_iter().next())
+    }
+
     fn sanitize_archive_path(entry: &str) -> FsOpsResult<PathBuf> {
         let path = Path::new(entry);
+        Self::sanitize_path_components(path, "archive_entry").map_err(|error| match error {
+            FsOpsError::InvalidInput { field, reason, .. } if field == "archive_entry" => {
+                FsOpsError::InvalidInput {
+                    field,
+                    reason,
+                    value: Some(entry.to_string()),
+                }
+            }
+            other => other,
+        })
+    }
+
+    fn sanitize_path_components(path: &Path, field: &'static str) -> FsOpsResult<PathBuf> {
         if path.is_absolute() {
             return Err(FsOpsError::InvalidInput {
-                field: "archive_entry",
+                field,
                 reason: "absolute_path",
-                value: Some(entry.to_string()),
+                value: Some(path.to_string_lossy().into_owned()),
             });
         }
 
@@ -990,15 +1523,109 @@ impl FsOpsService {
                 Component::CurDir => {}
                 _ => {
                     return Err(FsOpsError::InvalidInput {
-                        field: "archive_entry",
+                        field,
                         reason: "invalid_segment",
-                        value: Some(entry.to_string()),
+                        value: Some(path.to_string_lossy().into_owned()),
                     });
                 }
             }
         }
 
         Ok(sanitized)
+    }
+
+    fn build_checksums(artifact: &Path) -> FsOpsResult<Vec<ChecksumRecord>> {
+        if artifact.is_file() {
+            let checksum = Self::hash_file(artifact)?;
+            let file_name = artifact
+                .file_name()
+                .and_then(|name| name.to_str())
+                .map_or_else(
+                    || artifact.display().to_string(),
+                    std::borrow::ToOwned::to_owned,
+                );
+            let mut manifest = Sha256::new();
+            manifest.update(format!(
+                "{file_name}\t{}\t{}\n",
+                checksum.bytes, checksum.value
+            ));
+            return Ok(vec![
+                checksum.with_path(file_name),
+                ChecksumRecord {
+                    path: ".".to_string(),
+                    kind: ChecksumKind::Manifest,
+                    algorithm: "sha256".to_string(),
+                    value: format!("{:x}", manifest.finalize()),
+                    bytes: 1,
+                },
+            ]);
+        }
+
+        let mut file_checksums = Vec::new();
+        for entry in WalkDir::new(artifact) {
+            let entry = entry
+                .map_err(|source_err| FsOpsError::walkdir("checksum.walk", artifact, source_err))?;
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            let relative =
+                entry
+                    .path()
+                    .strip_prefix(artifact)
+                    .map_err(|_| FsOpsError::InvalidInput {
+                        field: "artifact_path",
+                        reason: "strip_prefix",
+                        value: Some(entry.path().to_string_lossy().into_owned()),
+                    })?;
+            let relative = relative.to_string_lossy().replace('\\', "/");
+            file_checksums.push(Self::hash_file(entry.path())?.with_path(relative));
+        }
+
+        file_checksums.sort_by(|left, right| left.path.cmp(&right.path));
+
+        let mut manifest = Sha256::new();
+        for record in &file_checksums {
+            manifest.update(format!(
+                "{}\t{}\t{}\n",
+                record.path, record.bytes, record.value
+            ));
+        }
+
+        let mut checksums = file_checksums;
+        checksums.push(ChecksumRecord {
+            path: ".".to_string(),
+            kind: ChecksumKind::Manifest,
+            algorithm: "sha256".to_string(),
+            value: format!("{:x}", manifest.finalize()),
+            bytes: checksums.len() as u64,
+        });
+        Ok(checksums)
+    }
+
+    fn hash_file(path: &Path) -> FsOpsResult<ChecksumRecord> {
+        let mut file = File::open(path)
+            .map_err(|source_err| FsOpsError::io("checksum.open", path, source_err))?;
+        let mut buffer = [0_u8; 8192];
+        let mut hasher = Sha256::new();
+        let mut bytes = 0_u64;
+        loop {
+            let read = file
+                .read(&mut buffer)
+                .map_err(|source_err| FsOpsError::io("checksum.read", path, source_err))?;
+            if read == 0 {
+                break;
+            }
+            hasher.update(&buffer[..read]);
+            bytes += read as u64;
+        }
+
+        Ok(ChecksumRecord {
+            path: String::new(),
+            kind: ChecksumKind::File,
+            algorithm: "sha256".to_string(),
+            value: format!("{:x}", hasher.finalize()),
+            bytes,
+        })
     }
 
     fn copy_tree(source: &Path, destination: &Path) -> FsOpsResult<()> {
@@ -1573,6 +2200,8 @@ struct FsOpsMeta {
     staging_path: Option<String>,
     artifact_path: Option<String>,
     transfer_mode: Option<String>,
+    #[serde(default)]
+    checksums: Vec<ChecksumRecord>,
 }
 
 impl FsOpsMeta {
@@ -1588,6 +2217,7 @@ impl FsOpsMeta {
             staging_path: None,
             artifact_path: None,
             transfer_mode: None,
+            checksums: Vec::new(),
         }
     }
 
@@ -1786,6 +2416,14 @@ fn build_globset(patterns: Vec<String>, field: &'static str) -> FsOpsResult<Opti
 }
 
 #[cfg(test)]
+fn external_tool_overrides() -> &'static Mutex<HashMap<String, PathBuf>> {
+    use std::sync::OnceLock;
+
+    static OVERRIDES: OnceLock<Mutex<HashMap<String, PathBuf>>> = OnceLock::new();
+    OVERRIDES.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use anyhow::Result;
@@ -1821,6 +2459,40 @@ mod tests {
             .tempdir_in(server_root()?)?)
     }
 
+    #[cfg(unix)]
+    fn write_executable(path: &Path, contents: &str) -> TestResult<()> {
+        use std::os::unix::fs::PermissionsExt;
+
+        fs::write(path, contents)?;
+        let mut permissions = fs::metadata(path)?.permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(path, permissions)?;
+        Ok(())
+    }
+
+    fn set_tool_override(program: &str, path: &Path) {
+        let overrides = external_tool_overrides();
+        let mut guard = match overrides.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        guard.insert(program.to_string(), path.to_path_buf());
+    }
+
+    fn clear_tool_overrides() {
+        let overrides = external_tool_overrides();
+        let mut guard = match overrides.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        guard.clear();
+    }
+
+    fn external_tool_test_lock() -> &'static std::sync::Mutex<()> {
+        static LOCK: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
+        LOCK.get_or_init(|| std::sync::Mutex::new(()))
+    }
+
     fn sample_policy(root: &Path) -> FsPolicy {
         FsPolicy {
             id: Uuid::new_v4(),
@@ -1838,6 +2510,37 @@ mod tests {
             umask: None,
             allow_paths: vec![root.display().to_string()],
         }
+    }
+
+    fn write_tar_archive(archive: &Path, entries: &[(&str, &[u8])]) -> TestResult<()> {
+        let file = File::create(archive)?;
+        let mut builder = tar::Builder::new(file);
+        for (path, contents) in entries {
+            let mut header = tar::Header::new_gnu();
+            header.set_path(path)?;
+            header.set_mode(0o644);
+            header.set_size(contents.len() as u64);
+            header.set_cksum();
+            builder.append(&header, *contents)?;
+        }
+        builder.finish()?;
+        Ok(())
+    }
+
+    fn write_tgz_archive(archive: &Path, entries: &[(&str, &[u8])]) -> TestResult<()> {
+        let file = File::create(archive)?;
+        let encoder = flate2::write::GzEncoder::new(file, flate2::Compression::default());
+        let mut builder = tar::Builder::new(encoder);
+        for (path, contents) in entries {
+            let mut header = tar::Header::new_gnu();
+            header.set_path(path)?;
+            header.set_mode(0o644);
+            header.set_size(contents.len() as u64);
+            header.set_cksum();
+            builder.append(&header, *contents)?;
+        }
+        builder.finish()?;
+        Ok(())
     }
 
     #[test]
@@ -2139,6 +2842,12 @@ mod tests {
             !artifact_dir.join("readme.txt").exists(),
             "cleanup_drop should remove junk files"
         );
+        assert!(
+            meta.checksums
+                .iter()
+                .any(|record| matches!(record.kind, ChecksumKind::Manifest)),
+            "pipeline should persist checksum metadata"
+        );
 
         // Ensure a completion event was emitted to close the stream.
         let runtime = Runtime::new()?;
@@ -2170,6 +2879,76 @@ mod tests {
     }
 
     #[test]
+    fn extract_archive_supports_tar() -> TestResult<()> {
+        let temp = temp_dir()?;
+        let source = temp.path().join("payload.tar");
+        write_tar_archive(&source, &[("show/episode1.mkv", b"video")])?;
+        let target = temp.path().join("target");
+
+        FsOpsService::extract_archive(&source, &target)?;
+
+        assert!(target.join("show").join("episode1.mkv").exists());
+        Ok(())
+    }
+
+    #[test]
+    fn extract_archive_supports_tar_gz() -> TestResult<()> {
+        let temp = temp_dir()?;
+        let source = temp.path().join("payload.tar.gz");
+        write_tgz_archive(&source, &[("show/episode1.mkv", b"video")])?;
+        let target = temp.path().join("target");
+
+        FsOpsService::extract_archive(&source, &target)?;
+
+        assert!(target.join("show").join("episode1.mkv").exists());
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn extract_archive_uses_external_tool_for_7z_and_rar() -> TestResult<()> {
+        let _lock = match external_tool_test_lock().lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        let temp = temp_dir()?;
+        let log_path = temp.path().join("extract.log");
+        let script = temp.path().join("7zz");
+        write_executable(
+            &script,
+            &format!(
+                "#!/bin/sh\nprintf '%s\\n' \"$@\" >> '{}'\ntarget=''\nlast=''\nfor arg in \"$@\"; do\n  case \"$arg\" in\n    -o*) target=\"${{arg#-o}}\" ;;\n  esac\n  last=\"$arg\"\ndone\nif [ -z \"$target\" ]; then\n  case \"$last\" in\n    *.7z|*.rar|'') ;;\n    *) target=\"$last\" ;;\n  esac\nfi\nif [ -n \"$target\" ]; then\n  mkdir -p \"$target\"\n  printf 'ok' > \"$target/extracted.txt\"\nfi\n",
+                log_path.display()
+            ),
+        )?;
+        set_tool_override("7zz", &script);
+
+        let seven_zip = temp.path().join("payload.7z");
+        let rar = temp.path().join("payload.rar");
+        fs::write(&seven_zip, b"7z")?;
+        fs::write(&rar, b"rar")?;
+        let seven_target = temp.path().join("target-7z");
+        let rar_target = temp.path().join("target-rar");
+
+        let result = (|| -> TestResult<()> {
+            FsOpsService::extract_archive(&seven_zip, &seven_target)?;
+            FsOpsService::extract_archive(&rar, &rar_target)?;
+            Ok(())
+        })();
+
+        clear_tool_overrides();
+
+        result?;
+
+        let log = fs::read_to_string(&log_path)?;
+        assert!(log.contains("payload.7z"));
+        assert!(log.contains("payload.rar"));
+        assert!(seven_target.join("extracted.txt").exists());
+        assert!(rar_target.join("extracted.txt").exists());
+        Ok(())
+    }
+
+    #[test]
     fn enforce_allow_paths_accepts_parent_directory() -> TestResult<()> {
         let temp = temp_dir()?;
         let root = temp.path().join("library");
@@ -2191,7 +2970,7 @@ mod tests {
     #[test]
     fn extract_archive_rejects_unknown_extensions() -> TestResult<()> {
         let temp = temp_dir()?;
-        let source = temp.path().join("payload.rar");
+        let source = temp.path().join("payload.iso");
         fs::write(&source, b"junk")?;
         let target = temp.path().join("target");
 
@@ -2293,6 +3072,81 @@ mod tests {
         assert_eq!(
             meta.step_status(StepKind::Extract),
             Some(StepStatus::Skipped)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn run_verify_par2_skips_when_disabled() -> TestResult<()> {
+        let temp = temp_dir()?;
+        let bus = EventBus::with_capacity(4);
+        let metrics = Metrics::new()?;
+        let service = FsOpsService::new(bus, metrics);
+        let torrent_id = Uuid::new_v4();
+        let meta_path = temp.path().join("meta.json");
+        let source = temp.path().join("source");
+        fs::create_dir_all(&source)?;
+
+        let mut meta = FsOpsMeta::new(torrent_id, Uuid::new_v4());
+        meta.source_path = Some(source.to_string_lossy().into_owned());
+
+        let policy = sample_policy(temp.path());
+        service.run_verify_par2(torrent_id, &mut meta, &meta_path, &policy)?;
+
+        assert_eq!(
+            meta.step_status(StepKind::VerifyPar2),
+            Some(StepStatus::Skipped)
+        );
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn run_verify_par2_invokes_external_tool() -> TestResult<()> {
+        let _lock = match external_tool_test_lock().lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        let temp = temp_dir()?;
+        let log_path = temp.path().join("par2.log");
+        let script = temp.path().join("par2");
+        write_executable(
+            &script,
+            &format!(
+                "#!/bin/sh\nprintf '%s\\n' \"$@\" >> '{}'\n",
+                log_path.display()
+            ),
+        )?;
+        set_tool_override("par2", &script);
+
+        let source = temp.path().join("source");
+        fs::create_dir_all(&source)?;
+        fs::write(source.join("movie.mkv"), b"video")?;
+        fs::write(source.join("movie.par2"), b"par2")?;
+
+        let bus = EventBus::with_capacity(4);
+        let metrics = Metrics::new()?;
+        let service = FsOpsService::new(bus, metrics);
+        let torrent_id = Uuid::new_v4();
+        let meta_path = temp.path().join("meta.json");
+        let mut meta = FsOpsMeta::new(torrent_id, Uuid::new_v4());
+        meta.source_path = Some(source.to_string_lossy().into_owned());
+
+        let mut policy = sample_policy(temp.path());
+        policy.par2 = "repair".to_string();
+
+        let result = service.run_verify_par2(torrent_id, &mut meta, &meta_path, &policy);
+
+        clear_tool_overrides();
+
+        result?;
+
+        let log = fs::read_to_string(&log_path)?;
+        assert!(log.contains('r'));
+        assert!(log.contains("movie.par2"));
+        assert_eq!(
+            meta.step_status(StepKind::VerifyPar2),
+            Some(StepStatus::Completed)
         );
         Ok(())
     }
@@ -2448,6 +3302,43 @@ mod tests {
         assert_eq!(removed, 1);
         assert!(root.join("keep").join("movie.mkv").exists());
         assert!(!root.join("extras").join("note.nfo").exists());
+        Ok(())
+    }
+
+    #[test]
+    fn checksum_step_records_file_and_manifest_hashes() -> TestResult<()> {
+        let temp = temp_dir()?;
+        let bus = EventBus::with_capacity(4);
+        let metrics = Metrics::new()?;
+        let service = FsOpsService::new(bus, metrics);
+        let torrent_id = Uuid::new_v4();
+        let mut meta = FsOpsMeta::new(torrent_id, Uuid::new_v4());
+        let meta_path = temp.path().join("meta.json");
+
+        let artifact = temp.path().join("artifact");
+        fs::create_dir_all(&artifact)?;
+        fs::write(artifact.join("episode1.mkv"), b"video")?;
+        fs::write(artifact.join("episode1.srt"), b"subs")?;
+        meta.artifact_path = Some(artifact.to_string_lossy().into_owned());
+
+        service.run_checksum(torrent_id, &mut meta, &meta_path)?;
+
+        assert_eq!(
+            meta.step_status(StepKind::Checksum),
+            Some(StepStatus::Completed)
+        );
+        assert_eq!(meta.checksums.len(), 3);
+        assert!(
+            meta.checksums
+                .iter()
+                .any(|record| matches!(record.kind, ChecksumKind::Manifest))
+        );
+        assert!(
+            meta.checksums
+                .iter()
+                .filter(|record| matches!(record.kind, ChecksumKind::File))
+                .all(|record| record.algorithm == "sha256")
+        );
         Ok(())
     }
 

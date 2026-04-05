@@ -1,0 +1,64 @@
+# Remediation plan gap closure
+
+- Status: Accepted
+- Date: 2026-04-04
+- Context:
+  - `REMEDIATION_PLAN.md` still had material open items after ADR 278: the FsOps archive/PAR2/checksum tranche, image-signing follow-through, and verification friction in the UI E2E harness.
+  - The repo requires dependency rationale, observability notes, rollback posture, and verification status to live with the code changes rather than only in chat transcripts.
+  - The remaining FsOps gap had to stay compatible with the repo’s safety and minimal-dependency rules while handling formats that are not realistically supported in `std` alone.
+- Decision:
+  - Extend `revaer-fsops` so Phase One archive handling now covers `zip`, `tar`, `tar.gz`, and `tgz` in-process, while `7z` and `rar` use guarded external-tool execution (`7zz`, `7z`, `unar`, `unrar`) with structured failures when tooling is absent.
+  - Add a dedicated PAR2 step to the FsOps pipeline that honors `disabled`, `verify`, and `repair`, preserving legacy `enabled` as a compatibility alias for `verify`.
+  - Persist checksum metadata alongside `.revaer.meta` by recording per-file SHA-256 digests plus a deterministic manifest digest after cleanup.
+  - Store the API-project auth session in E2E state and seed the UI browser fixture from that shared session so Playwright stops fighting the app’s real auth mode.
+  - Finish image-workflow hardening by signing pushed architecture images and multi-arch tags with Cosign in the existing publish workflow.
+  - Alternatives considered:
+    - Shell out for every archive type: rejected because `tar`/`tar.gz` support is simple and safer to keep in-process.
+    - Add a large archive abstraction crate for every format: rejected in favor of a smaller mixed strategy with minimal new dependencies.
+    - Keep the UI fixture on anonymous auth and dismiss the overlay opportunistically: rejected because it fought the server’s configured auth mode and stayed flaky.
+- Consequences:
+  - Positive outcomes:
+    - FsOps now matches the documented Phase One extractor/PAR2/checksum contract.
+    - `.revaer.meta` carries checksum state that can be used for future reconciliation and operator diagnostics.
+    - UI E2E auth follows the same session the API dependency project created, removing the overlay race at its root.
+    - Published images now have scan, attestation, and signing coverage in one workflow.
+  - Risks or trade-offs:
+    - `7z`/`rar` extraction and PAR2 repair still depend on host tooling being present.
+    - SHA-256 checksum generation adds more filesystem work to the FsOps tail of completed jobs.
+    - Runtime hardening remains a deployment contract expressed through docs/workflow guidance rather than something a Dockerfile can fully enforce alone.
+- Follow-up:
+  - Implementation tasks:
+    - Keep expanding FsOps failure-path and restart-path coverage around missing tools, partial repairs, and degraded health reporting.
+    - Validate the signed-image workflow on the next real publish and document any registry-specific quirks.
+    - Re-run the full repo verification loop (`just ci`, `just ui-e2e`) and keep `REMEDIATION_PLAN.md` aligned with the verified results.
+  - Review checkpoints:
+    - Verify FsOps metadata/resume behavior remains backward compatible with older `.meta.json` files.
+    - Verify operator docs still match the actual runtime/tooling expectations for archive extraction and read-only container deployments.
+
+## Task Record
+
+- Motivation:
+  - Close the largest remaining remediation-plan gaps with code, tests, and operator-facing documentation instead of leaving Phase One behavior split between implementation and aspiration.
+- Design notes:
+  - In-process extraction is used where it is cheap and deterministic; external tools are reserved for formats and repair flows that would otherwise require much heavier dependencies.
+  - Checksum persistence is modeled as a dedicated FsOps stage so resume semantics and step telemetry stay explicit.
+  - The UI fixture now consumes shared E2E session state rather than inferring auth mode locally.
+  - The Playwright UI project defaults to a lower worker count so shell bootstrap remains stable on normal local hosts while still allowing explicit worker overrides.
+- Test coverage summary:
+  - Added FsOps tests for `tar`, `tar.gz`, guarded external extraction, PAR2 execution, and checksum persistence.
+  - Revalidated the flaky UI navigation spec with the shared-session fixture path and reran the full UI suite after lowering the default UI worker count.
+- Observability updates:
+  - PAR2 and checksum execution now surface as first-class FsOps steps and are persisted in `.revaer.meta`.
+  - The release workflow now produces signed images in addition to scan/SBOM/provenance artifacts.
+- Risk & rollback plan:
+  - The changes are isolated to FsOps internals, test fixtures, workflow automation, and docs; rollback is straightforward by reverting those files if tooling regressions appear.
+- Dependency rationale:
+  - Added `tar` and `flate2` to `revaer-fsops`.
+  - Why these: they provide small, well-understood in-process support for `tar`/`tar.gz` without forcing all archive formats through host tooling.
+  - Alternatives considered: shelling out to `tar`, or adding a broader archive toolkit; both were rejected in favor of narrower, more deterministic support.
+  - Added `sha2` to `revaer-fsops`.
+  - Why this: checksum persistence needs a deterministic digest implementation that works in-process across platforms.
+  - Alternatives considered: shelling out to `sha256sum` or adding a larger crypto toolkit; both were rejected as either less portable or heavier than needed.
+  - Added optional `reqwest` to `revaer-telemetry`.
+  - Why this: the OTLP 0.31 migration needs an explicit HTTP client for the real exporter path while keeping TLS support narrow and runtime construction in bootstrap/telemetry wiring.
+  - Alternatives considered: relying on deprecated pipeline helpers or enabling broader client stacks through transitive defaults; both were rejected to keep the exporter current and the dependency surface tighter.

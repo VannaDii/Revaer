@@ -1,6 +1,7 @@
 import { test as base, expect } from '@playwright/test';
 import path from 'path';
 import { AppShell } from '../pages/app-shell';
+import { readState } from '../support/e2e-state';
 import { setUiCoveragePath } from '../support/ui-coverage';
 
 type AppFixtures = {
@@ -33,6 +34,32 @@ export const test = base.extend<AppFixtures & CoverageFixture>({
     { scope: 'worker' },
   ],
   app: async ({ page, _uiCoverage }, use) => {
+    const apiSession = readState()?.apiSession;
+    if (!apiSession) {
+      throw new Error('Missing API session in E2E state for UI fixture.');
+    }
+
+    await page.addInitScript((session) => {
+      const setJsonStorage = (key: string, value: unknown): void => {
+        window.localStorage.setItem(key, JSON.stringify(value));
+      };
+
+      if (session.authMode === 'api_key' && session.apiKey) {
+        setJsonStorage('revaer.auth.mode', 'api_key');
+        setJsonStorage('revaer.api_key', session.apiKey);
+        setJsonStorage(
+          'revaer.api_key_expires_at',
+          Date.now() + 86_400_000,
+        );
+        window.localStorage.removeItem('revaer.auth.anonymous');
+        return;
+      }
+
+      setJsonStorage('revaer.auth.mode', 'api_key');
+      setJsonStorage('revaer.auth.anonymous', true);
+      window.localStorage.removeItem('revaer.api_key');
+      window.localStorage.removeItem('revaer.api_key_expires_at');
+    }, apiSession);
     await use(new AppShell(page));
   },
 });

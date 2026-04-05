@@ -368,7 +368,9 @@ fn load_otel_config_from_env() -> Option<OpenTelemetryConfig<'static>> {
     let enabled = env_flag("REVAER_ENABLE_OTEL");
     let service_name =
         std::env::var("REVAER_OTEL_SERVICE_NAME").unwrap_or_else(|_| "revaer-app".to_string());
-    let endpoint = std::env::var("REVAER_OTEL_EXPORTER").ok();
+    let endpoint = std::env::var("REVAER_OTEL_EXPORTER")
+        .ok()
+        .or_else(|| std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok());
     otel_config_from_values(enabled, service_name, endpoint)
 }
 

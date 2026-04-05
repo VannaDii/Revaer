@@ -3,6 +3,7 @@ import path from 'path';
 import { createApiClient, type ApiClient } from '../support/api/client';
 import { setApiCoveragePath } from '../support/api/coverage';
 import { configureAuthMode } from '../support/api/setup';
+import { mergeState } from '../support/e2e-state';
 import type { ApiSession, AuthMode } from '../support/session';
 
 type ApiFixtures = {
@@ -63,6 +64,7 @@ export const test = base.extend<ApiFixtures & CoverageFixture>({
       const baseUrl = resolveBaseUrl(testInfo);
       const authMode = projectAuthMode(testInfo);
       const session = await configureAuthMode({ baseUrl, authMode });
+      mergeState({ apiSession: session });
       await use(session);
     },
     { scope: 'worker' },

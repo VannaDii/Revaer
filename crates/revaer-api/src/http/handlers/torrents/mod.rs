@@ -53,6 +53,8 @@ impl TorrentHandles {
 /// Tags/trackers metadata captured alongside torrent status snapshots.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct TorrentMetadata {
+    #[cfg(feature = "compat-qb")]
+    pub(crate) display_name: Option<String>,
     pub(crate) tags: Vec<String>,
     pub(crate) category: Option<String>,
     pub(crate) trackers: Vec<String>,
@@ -102,6 +104,8 @@ impl TorrentMetadata {
             cleanup,
         } = seed;
         Self {
+            #[cfg(feature = "compat-qb")]
+            display_name: None,
             tags,
             category,
             trackers,

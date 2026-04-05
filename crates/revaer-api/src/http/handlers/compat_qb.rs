@@ -1,10 +1,11 @@
 //! qBittorrent compatibility façade (`/api/v2`).
 //!
-//! The façade maps Revaer's domain model onto the subset of qBittorrent
-//! endpoints needed for Phase 1 interoperability with existing clients. The
-//! implementation intentionally keeps the surface minimal while remaining
-//! conservative about authentication (no-op login) until the full auth model
-//! lands in a later phase.
+//! The façade maps Revaer's domain model onto the qBittorrent endpoints needed
+//! for Phase 1 interoperability with existing clients. The implementation keeps
+//! the scope intentionally bounded to the supported qB mutation surface
+//! (add/pause/resume/delete, labels, rename, relocate, reannounce, and
+//! recheck) while remaining conservative about authentication (no-op login)
+//! until the full auth model lands in a later phase.
 
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
@@ -57,6 +58,13 @@ pub(crate) fn mount(router: Router<Arc<ApiState>>) -> Router<Arc<ApiState>> {
         .route("/api/v2/torrents/add", post(torrents_add))
         .route("/api/v2/torrents/pause", post(torrents_pause))
         .route("/api/v2/torrents/resume", post(torrents_resume))
+        .route("/api/v2/torrents/reannounce", post(torrents_reannounce))
+        .route("/api/v2/torrents/recheck", post(torrents_recheck))
+        .route("/api/v2/torrents/setLocation", post(torrents_set_location))
+        .route("/api/v2/torrents/setCategory", post(torrents_set_category))
+        .route("/api/v2/torrents/setTags", post(torrents_set_tags))
+        .route("/api/v2/torrents/removeTags", post(torrents_remove_tags))
+        .route("/api/v2/torrents/rename", post(torrents_rename))
         .route("/api/v2/torrents/delete", post(torrents_delete))
         .route("/api/v2/transfer/uploadlimit", post(transfer_upload_limit))
         .route(
@@ -427,14 +435,16 @@ pub(crate) async fn torrents_properties(
     let now = Utc::now().timestamp();
 
     let properties = QbTorrentProperties {
-        save_path: status
+        save_path: metadata
             .download_dir
             .clone()
+            .or_else(|| status.download_dir.clone())
             .or_else(|| status.library_path.clone())
             .unwrap_or_default(),
-        name: status
-            .name
+        name: metadata
+            .display_name
             .clone()
+            .or_else(|| status.name.clone())
             .unwrap_or_else(|| id.simple().to_string()),
         hash: id.simple().to_string(),
         creation_date: status.added_at.timestamp(),
@@ -608,6 +618,226 @@ pub(crate) async fn torrents_resume(
         workflow.resume_torrent(id).await
     })
     .await?;
+    Ok(ok_plain())
+}
+
+pub(crate) async fn torrents_reannounce(
+    State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
+    Form(form): Form<TorrentHashesForm>,
+) -> Result<Response, ApiError> {
+    ensure_session(&state, &headers)?;
+    apply_to_hashes(&state, &form.hashes, |workflow, id| async move {
+        workflow.reannounce(id).await
+    })
+    .await?;
+    Ok(ok_plain())
+}
+
+pub(crate) async fn torrents_recheck(
+    State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
+    Form(form): Form<TorrentHashesForm>,
+) -> Result<Response, ApiError> {
+    ensure_session(&state, &headers)?;
+    apply_to_hashes(&state, &form.hashes, |workflow, id| async move {
+        workflow.recheck(id).await
+    })
+    .await?;
+    Ok(ok_plain())
+}
+
+#[derive(Deserialize, Default, Clone)]
+pub(crate) struct TorrentSetLocationForm {
+    pub hashes: String,
+    #[serde(rename = "location")]
+    pub location: Option<String>,
+}
+
+pub(crate) async fn torrents_set_location(
+    State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
+    Form(form): Form<TorrentSetLocationForm>,
+) -> Result<Response, ApiError> {
+    ensure_session(&state, &headers)?;
+    let location = form
+        .location
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| ApiError::bad_request("location is required"))?
+        .to_string();
+    let handles = state
+        .torrent
+        .as_ref()
+        .ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
+    let workflow = Arc::clone(handles.workflow());
+    let ids = resolve_hashes(handles, &form.hashes).await?;
+    for id in ids {
+        workflow
+            .move_torrent(id, location.clone())
+            .await
+            .map_err(|err| {
+                error!(error = %err, torrent_id = %id, "torrent move command failed");
+                ApiError::internal("torrent command failed")
+            })?;
+        state.update_metadata(&id, |metadata| {
+            metadata.download_dir = Some(location.clone());
+        });
+    }
+    Ok(ok_plain())
+}
+
+#[derive(Deserialize, Default, Clone)]
+pub(crate) struct TorrentSetCategoryForm {
+    pub hashes: String,
+    #[serde(rename = "category")]
+    pub category: Option<String>,
+}
+
+pub(crate) async fn torrents_set_category(
+    State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
+    Form(form): Form<TorrentSetCategoryForm>,
+) -> Result<Response, ApiError> {
+    ensure_session(&state, &headers)?;
+    let category = form
+        .category
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| normalize_label_name("category", value))
+        .transpose()?;
+    if let Some(ref normalized) = category {
+        update_label_catalog(
+            state.as_ref(),
+            "compat_qb",
+            "torrent_category_upsert",
+            |catalog| catalog.upsert_category(normalized, TorrentLabelPolicy::default()),
+        )
+        .await?;
+    }
+    let handles = state
+        .torrent
+        .as_ref()
+        .ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
+    let ids = resolve_hashes(handles, &form.hashes).await?;
+    for id in ids {
+        let next_category = category.clone();
+        state.update_metadata(&id, |metadata| {
+            metadata.category.clone_from(&next_category);
+        });
+    }
+    Ok(ok_plain())
+}
+
+#[derive(Deserialize, Default, Clone)]
+pub(crate) struct TorrentSetTagsForm {
+    pub hashes: String,
+    #[serde(rename = "tags")]
+    pub tags: Option<String>,
+}
+
+pub(crate) async fn torrents_set_tags(
+    State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
+    Form(form): Form<TorrentSetTagsForm>,
+) -> Result<Response, ApiError> {
+    ensure_session(&state, &headers)?;
+    let tags = normalize_tags(form.tags.as_deref())?;
+    if tags.is_empty() {
+        return Err(ApiError::bad_request("tags are required"));
+    }
+    update_label_catalog(
+        state.as_ref(),
+        "compat_qb",
+        "torrent_tag_upsert",
+        |catalog| {
+            for tag in &tags {
+                catalog.upsert_tag(tag, TorrentLabelPolicy::default())?;
+            }
+            Ok(())
+        },
+    )
+    .await?;
+    let handles = state
+        .torrent
+        .as_ref()
+        .ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
+    let ids = resolve_hashes(handles, &form.hashes).await?;
+    for id in ids {
+        let next_tags = tags.clone();
+        state.update_metadata(&id, |metadata| {
+            metadata.tags.clone_from(&next_tags);
+        });
+    }
+    Ok(ok_plain())
+}
+
+#[derive(Deserialize, Default, Clone)]
+pub(crate) struct TorrentRemoveTagsForm {
+    pub hashes: String,
+    #[serde(rename = "tags")]
+    pub tags: Option<String>,
+}
+
+pub(crate) async fn torrents_remove_tags(
+    State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
+    Form(form): Form<TorrentRemoveTagsForm>,
+) -> Result<Response, ApiError> {
+    ensure_session(&state, &headers)?;
+    let tags = normalize_tags(form.tags.as_deref())?;
+    let handles = state
+        .torrent
+        .as_ref()
+        .ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
+    let ids = resolve_hashes(handles, &form.hashes).await?;
+    for id in ids {
+        let removed_tags = tags.clone();
+        state.update_metadata(&id, |metadata| {
+            if removed_tags.is_empty() {
+                metadata.tags.clear();
+            } else {
+                metadata
+                    .tags
+                    .retain(|existing| !removed_tags.contains(existing));
+            }
+        });
+    }
+    Ok(ok_plain())
+}
+
+#[derive(Deserialize, Default, Clone)]
+pub(crate) struct TorrentRenameForm {
+    pub hash: String,
+    pub name: Option<String>,
+}
+
+pub(crate) async fn torrents_rename(
+    State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
+    Form(form): Form<TorrentRenameForm>,
+) -> Result<Response, ApiError> {
+    ensure_session(&state, &headers)?;
+    let name = form
+        .name
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| ApiError::bad_request("name is required"))?
+        .to_string();
+    let handles = state
+        .torrent
+        .as_ref()
+        .ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
+    let ids = resolve_hashes(handles, &form.hash).await?;
+    let id = *ids
+        .first()
+        .ok_or_else(|| ApiError::bad_request("hash required"))?;
+    state.update_metadata(&id, |metadata| {
+        metadata.display_name = Some(name.clone());
+    });
     Ok(ok_plain())
 }
 
@@ -840,7 +1070,11 @@ async fn resolve_hashes(handles: &TorrentHandles, hashes: &str) -> Result<Vec<Uu
 
 fn qb_entry(status: &TorrentStatus, metadata: &TorrentMetadata) -> QbTorrentEntry {
     let hash = status.id.simple().to_string();
-    let name = status.name.clone().unwrap_or_else(|| hash.clone());
+    let name = metadata
+        .display_name
+        .clone()
+        .or_else(|| status.name.clone())
+        .unwrap_or_else(|| hash.clone());
     let added_on = status.added_at.timestamp();
     let completion_on = status
         .completed_at
@@ -848,7 +1082,10 @@ fn qb_entry(status: &TorrentStatus, metadata: &TorrentMetadata) -> QbTorrentEntr
         .unwrap_or_default();
     let progress = progress_fraction(status);
     let state = qb_state(&status.state);
-    let download_dir = status.download_dir.clone();
+    let download_dir = metadata
+        .download_dir
+        .clone()
+        .or_else(|| status.download_dir.clone());
     let library_path = status.library_path.clone();
     let save_path = download_dir.or(library_path).unwrap_or_default();
 
@@ -997,6 +1234,13 @@ fn parse_tags(value: Option<&str>) -> Vec<String> {
         .unwrap_or_default()
 }
 
+fn normalize_tags(value: Option<&str>) -> Result<Vec<String>, ApiError> {
+    parse_tags(value)
+        .into_iter()
+        .map(|tag| normalize_label_name("tag", &tag))
+        .collect()
+}
+
 fn split_hashes(input: &str) -> Vec<String> {
     input
         .split('|')
@@ -1051,11 +1295,14 @@ mod tests {
     use revaer_events::EventBus;
     use revaer_telemetry::Metrics;
     use revaer_torrent_core::{
-        AddTorrent, PeerSnapshot, TorrentInspector, TorrentProgress, TorrentRates, TorrentResult,
-        TorrentStatus, TorrentWorkflow,
+        AddTorrent, PeerSnapshot, RemoveTorrent, TorrentInspector, TorrentProgress, TorrentRates,
+        TorrentResult, TorrentStatus, TorrentWorkflow,
     };
     use serde_json::Value;
-    use std::{sync::Arc, time::Duration};
+    use std::{
+        sync::{Arc, Mutex},
+        time::Duration,
+    };
 
     #[tokio::test]
     async fn login_emits_cookie_and_accepts_credentials() -> Result<()> {
@@ -1304,6 +1551,130 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn qb_mutation_endpoints_update_metadata_and_workflow() -> Result<()> {
+        let status = TorrentStatus {
+            id: Uuid::new_v4(),
+            name: Some("original".into()),
+            download_dir: Some(".server_root/incoming".into()),
+            ..TorrentStatus::default()
+        };
+        let state_and_workflow = state_with_workflow(
+            vec![status.clone()],
+            vec![(status.id, TorrentMetadata::default())],
+        )?;
+        let (state, workflow) = state_and_workflow;
+        let sid = state.issue_qb_session();
+        let headers = header_with_sid(&sid)?;
+
+        torrents_set_category(
+            State(Arc::clone(&state)),
+            headers.clone(),
+            Form(TorrentSetCategoryForm {
+                hashes: status.id.simple().to_string(),
+                category: Some("movies".into()),
+            }),
+        )
+        .await?;
+        torrents_set_tags(
+            State(Arc::clone(&state)),
+            headers.clone(),
+            Form(TorrentSetTagsForm {
+                hashes: status.id.simple().to_string(),
+                tags: Some("alpha,beta".into()),
+            }),
+        )
+        .await?;
+        torrents_remove_tags(
+            State(Arc::clone(&state)),
+            headers.clone(),
+            Form(TorrentRemoveTagsForm {
+                hashes: status.id.simple().to_string(),
+                tags: Some("alpha".into()),
+            }),
+        )
+        .await?;
+        torrents_rename(
+            State(Arc::clone(&state)),
+            headers.clone(),
+            Form(TorrentRenameForm {
+                hash: status.id.simple().to_string(),
+                name: Some("renamed".into()),
+            }),
+        )
+        .await?;
+        torrents_set_location(
+            State(Arc::clone(&state)),
+            headers.clone(),
+            Form(TorrentSetLocationForm {
+                hashes: status.id.simple().to_string(),
+                location: Some(".server_root/library".into()),
+            }),
+        )
+        .await?;
+        torrents_reannounce(
+            State(Arc::clone(&state)),
+            headers.clone(),
+            Form(TorrentHashesForm {
+                hashes: status.id.simple().to_string(),
+            }),
+        )
+        .await?;
+        torrents_recheck(
+            State(Arc::clone(&state)),
+            headers,
+            Form(TorrentHashesForm {
+                hashes: status.id.simple().to_string(),
+            }),
+        )
+        .await?;
+
+        let metadata = state.get_metadata(&status.id);
+        assert_eq!(metadata.category.as_deref(), Some("movies"));
+        assert_eq!(metadata.tags, vec!["beta".to_string()]);
+        assert_eq!(metadata.display_name.as_deref(), Some("renamed"));
+        assert_eq!(
+            metadata.download_dir.as_deref(),
+            Some(".server_root/library")
+        );
+
+        let calls = workflow.recorded_calls();
+        assert_eq!(calls.reannounce, vec![status.id]);
+        assert_eq!(calls.recheck, vec![status.id]);
+        assert_eq!(
+            calls.moved,
+            vec![(status.id, ".server_root/library".to_string())]
+        );
+
+        let Json(categories) =
+            list_categories(State(Arc::clone(&state)), header_with_sid(&sid)?).await?;
+        assert!(categories.contains_key("movies"));
+
+        let Json(tags) = list_tags(State(state), header_with_sid(&sid)?).await?;
+        assert_eq!(tags, vec!["alpha".to_string(), "beta".to_string()]);
+        Ok(())
+    }
+
+    #[test]
+    fn qb_entry_prefers_metadata_name_and_location() {
+        let status = TorrentStatus {
+            id: Uuid::new_v4(),
+            name: Some("engine-name".into()),
+            download_dir: Some(".server_root/downloads".into()),
+            ..TorrentStatus::default()
+        };
+        let metadata = TorrentMetadata {
+            display_name: Some("ui-name".into()),
+            download_dir: Some(".server_root/library".into()),
+            ..TorrentMetadata::default()
+        };
+
+        let entry = qb_entry(&status, &metadata);
+
+        assert_eq!(entry.name, "ui-name");
+        assert_eq!(entry.save_path, ".server_root/library");
+    }
+
     fn header_with_sid(sid: &str) -> Result<HeaderMap> {
         let mut headers = HeaderMap::new();
         headers.insert(
@@ -1330,9 +1701,20 @@ mod tests {
         statuses: Vec<TorrentStatus>,
         metadata: Vec<(Uuid, TorrentMetadata)>,
     ) -> Result<Arc<ApiState>> {
+        let (state, _) = state_with_workflow(statuses, metadata)?;
+        Ok(state)
+    }
+
+    fn state_with_workflow(
+        statuses: Vec<TorrentStatus>,
+        metadata: Vec<(Uuid, TorrentMetadata)>,
+    ) -> Result<(Arc<ApiState>, StubWorkflow)> {
         let config: Arc<dyn ConfigFacade> = Arc::new(TestConfig::default());
-        let handles =
-            TorrentHandles::new(Arc::new(StubWorkflow), Arc::new(StubInspector { statuses }));
+        let workflow = StubWorkflow::default();
+        let handles = TorrentHandles::new(
+            Arc::new(workflow.clone()),
+            Arc::new(StubInspector { statuses }),
+        );
         let state = Arc::new(ApiState::new(
             config,
             test_indexers(),
@@ -1344,7 +1726,7 @@ mod tests {
         for (id, data) in metadata {
             state.set_metadata(id, data);
         }
-        Ok(state)
+        Ok((state, workflow))
     }
 
     #[derive(Clone, Default)]
@@ -1439,8 +1821,26 @@ mod tests {
         }
     }
 
-    #[derive(Clone)]
-    struct StubWorkflow;
+    #[derive(Clone, Debug, Default, PartialEq, Eq)]
+    struct WorkflowCalls {
+        reannounce: Vec<Uuid>,
+        recheck: Vec<Uuid>,
+        moved: Vec<(Uuid, String)>,
+    }
+
+    #[derive(Clone, Default)]
+    struct StubWorkflow {
+        calls: Arc<Mutex<WorkflowCalls>>,
+    }
+
+    impl StubWorkflow {
+        fn recorded_calls(&self) -> WorkflowCalls {
+            self.calls
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone()
+        }
+    }
 
     #[async_trait]
     impl TorrentWorkflow for StubWorkflow {
@@ -1449,6 +1849,33 @@ mod tests {
         }
 
         async fn remove_torrent(&self, _id: Uuid, _options: RemoveTorrent) -> TorrentResult<()> {
+            Ok(())
+        }
+
+        async fn reannounce(&self, id: Uuid) -> TorrentResult<()> {
+            self.calls
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .reannounce
+                .push(id);
+            Ok(())
+        }
+
+        async fn move_torrent(&self, id: Uuid, download_dir: String) -> TorrentResult<()> {
+            self.calls
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .moved
+                .push((id, download_dir));
+            Ok(())
+        }
+
+        async fn recheck(&self, id: Uuid) -> TorrentResult<()> {
+            self.calls
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .recheck
+                .push(id);
             Ok(())
         }
     }

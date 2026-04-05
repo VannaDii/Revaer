@@ -289,3 +289,5 @@
 -   [275](275-pr-output-redaction-and-review-followup.md) – PR output redaction and review follow-up
 -   [276](276-ci-cache-trim-for-runner-disk.md) – CI cache trim for runner disk pressure
 -   [277](277-pr-review-handler-normalization-followup.md) – PR review handler normalization follow-up
+-   [278](278-remediation-plan-implementation-closeout.md) – Remediation plan implementation closeout
+-   [279](279-remediation-plan-gap-closure.md) – Remediation plan gap closure

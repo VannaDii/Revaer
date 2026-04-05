@@ -11,7 +11,7 @@ authors.workspace = true
 
 [features]
 default = []
-otel = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:tracing-opentelemetry"]
+otel = ["dep:opentelemetry", "dep:opentelemetry-otlp", "dep:opentelemetry_sdk", "dep:reqwest", "dep:tracing-opentelemetry"]
 
 [dependencies]
 tracing.workspace = true
@@ -22,9 +22,11 @@ serde_json.workspace = true
 prometheus.workspace = true
 tower-http.workspace = true
 tokio.workspace = true
-opentelemetry = { version = "0.23", default-features = false, features = ["trace"], optional = true }
-opentelemetry_sdk = { version = "0.23", default-features = false, features = ["trace", "rt-tokio"], optional = true }
-tracing-opentelemetry = { version = "0.24", optional = true }
+opentelemetry = { version = "0.31", default-features = false, features = ["trace"], optional = true }
+opentelemetry-otlp = { version = "0.31.1", default-features = false, features = ["http-proto", "reqwest-rustls", "trace"], optional = true }
+opentelemetry_sdk = { version = "0.31", default-features = false, features = ["trace", "rt-tokio"], optional = true }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"], optional = true }
+tracing-opentelemetry = { version = "0.32.1", optional = true }
 
 [dev-dependencies]
 tempfile = "3.10"
