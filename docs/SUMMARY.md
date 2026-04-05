@@ -310,3 +310,4 @@
     -   [278: Remediation plan implementation closeout](adr/278-remediation-plan-implementation-closeout.md)
     -   [279: Remediation plan gap closure](adr/279-remediation-plan-gap-closure.md)
     -   [280: PR 21 feedback closeout](adr/280-pr-21-feedback-closeout.md)
+    -   [281: PR 21 Sonar and review closeout](adr/281-pr-21-sonar-and-review-closeout.md)

@@ -96,7 +96,7 @@ jobs:
             .
 
       - name: Scan pushed image
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
         with:
           image-ref: ${{ steps.build_image.outputs.image_tag }}
           format: sarif
@@ -106,12 +106,12 @@ jobs:
 
       - name: Upload scan results
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@5c8a8a642e79153f5d047b10ec1cba1d1cc65699 # v3
         with:
           sarif_file: trivy-results.sarif
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
 
       - name: Sign pushed image
         run: cosign sign --yes "${{ steps.build_image.outputs.image_tag }}"
@@ -184,7 +184,7 @@ jobs:
             "${ARM64_TAG}"
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
 
       - name: Sign multi-arch tags
         env:

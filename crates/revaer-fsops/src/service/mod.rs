@@ -84,42 +84,31 @@ enum StepKind {
 }
 
 impl StepKind {
-    const fn as_str(self) -> &'static str {
+    const fn names(self) -> (&'static str, &'static str) {
         match self {
-            Self::ValidatePolicy => "validate_policy",
-            Self::Allowlist => "allowlist",
-            Self::PrepareDirectories => "prepare_directories",
-            Self::CompileRules => "compile_rules",
-            Self::LocateSource => "locate_source",
-            Self::VerifyPar2 => "verify_par2",
-            Self::PrepareWorkDir => "prepare_work_dir",
-            Self::Extract => "extract",
-            Self::Flatten => "flatten",
-            Self::Transfer => "transfer",
-            Self::SetPermissions => "set_permissions",
-            Self::Cleanup => "cleanup",
-            Self::Checksum => "checksum",
-            Self::Finalise => "finalise",
+            Self::ValidatePolicy => ("validate_policy", "validate"),
+            Self::Allowlist => ("allowlist", "allowlist"),
+            Self::PrepareDirectories => ("prepare_directories", "prepare_directories"),
+            Self::CompileRules => ("compile_rules", "compile_rules"),
+            Self::LocateSource => ("locate_source", "locate_source"),
+            Self::VerifyPar2 => ("verify_par2", "verify_par2"),
+            Self::PrepareWorkDir => ("prepare_work_dir", "prepare_work_dir"),
+            Self::Extract => ("extract", "extract"),
+            Self::Flatten => ("flatten", "flatten"),
+            Self::Transfer => ("transfer", "transfer"),
+            Self::SetPermissions => ("set_permissions", "set_permissions"),
+            Self::Cleanup => ("cleanup", "cleanup"),
+            Self::Checksum => ("checksum", "checksum"),
+            Self::Finalise => ("finalise", "finalise"),
         }
     }
 
+    const fn as_str(self) -> &'static str {
+        self.names().0
+    }
+
     const fn progress_label(self) -> &'static str {
-        match self {
-            Self::ValidatePolicy => "validate",
-            Self::Allowlist => "allowlist",
-            Self::PrepareDirectories => "prepare_directories",
-            Self::CompileRules => "compile_rules",
-            Self::LocateSource => "locate_source",
-            Self::VerifyPar2 => "verify_par2",
-            Self::PrepareWorkDir => "prepare_work_dir",
-            Self::Extract => "extract",
-            Self::Flatten => "flatten",
-            Self::Transfer => "transfer",
-            Self::SetPermissions => "set_permissions",
-            Self::Cleanup => "cleanup",
-            Self::Checksum => "checksum",
-            Self::Finalise => "finalise",
-        }
+        self.names().1
     }
 }
 
@@ -322,6 +311,92 @@ struct ExternalCommand {
     program: &'static str,
     args: Vec<String>,
 }
+
+#[derive(Clone, Copy)]
+struct ArchiveWriteOps {
+    create_dir: &'static str,
+    create_parent: &'static str,
+    create_file: &'static str,
+    copy: &'static str,
+    set_permissions: &'static str,
+}
+
+impl ArchiveWriteOps {
+    const fn new(
+        create_dir: &'static str,
+        create_parent: &'static str,
+        create_file: &'static str,
+        copy: &'static str,
+        set_permissions: &'static str,
+    ) -> Self {
+        Self {
+            create_dir,
+            create_parent,
+            create_file,
+            copy,
+            set_permissions,
+        }
+    }
+}
+
+const ZIP_EXTRACT_OPS: ArchiveWriteOps = ArchiveWriteOps::new(
+    "extract_zip.create_dir",
+    "extract_zip.create_parent",
+    "extract_zip.create_file",
+    "extract_zip.copy",
+    "extract_zip.set_permissions",
+);
+
+const TAR_EXTRACT_OPS: ArchiveWriteOps = ArchiveWriteOps::new(
+    "extract_tar.create_dir",
+    "extract_tar.create_parent",
+    "extract_tar.create_file",
+    "extract_tar.copy",
+    "extract_tar.set_permissions",
+);
+
+#[derive(Clone, Copy)]
+struct TreeTransferOps {
+    walk: &'static str,
+    create_dir: &'static str,
+    create_parent: &'static str,
+    transfer_file: &'static str,
+    transfer_entry: &'static str,
+}
+
+impl TreeTransferOps {
+    const fn new(
+        walk: &'static str,
+        create_dir: &'static str,
+        create_parent: &'static str,
+        transfer_file: &'static str,
+        transfer_entry: &'static str,
+    ) -> Self {
+        Self {
+            walk,
+            create_dir,
+            create_parent,
+            transfer_file,
+            transfer_entry,
+        }
+    }
+}
+
+const COPY_TREE_OPS: TreeTransferOps = TreeTransferOps::new(
+    "copy_tree.walk",
+    "copy_tree.create_dir",
+    "copy_tree.create_parent",
+    "copy_tree.copy_file",
+    "copy_tree.copy_entry",
+);
+
+const HARDLINK_TREE_OPS: TreeTransferOps = TreeTransferOps::new(
+    "hardlink_tree.walk",
+    "hardlink_tree.create_dir",
+    "hardlink_tree.create_parent",
+    "hardlink_tree.link_file",
+    "hardlink_tree.link_entry",
+);
 
 /// Service responsible for executing filesystem post-processing steps after torrent completion.
 #[derive(Clone)]
@@ -1147,77 +1222,59 @@ impl FsOpsService {
             ArchiveFormat::Zip => Self::extract_zip(source, target),
             ArchiveFormat::Tar => Self::extract_tar(source, target),
             ArchiveFormat::TarGz => Self::extract_tar_gz(source, target),
-            ArchiveFormat::SevenZip => Self::extract_with_external_tool(
-                "extract_archive",
-                &[
-                    ExternalCommand {
-                        program: "7zz",
-                        args: vec![
-                            "x".to_string(),
-                            "-y".to_string(),
-                            format!("-o{}", target.display()),
-                            source.to_string_lossy().into_owned(),
-                        ],
-                    },
-                    ExternalCommand {
-                        program: "7z",
-                        args: vec![
-                            "x".to_string(),
-                            "-y".to_string(),
-                            format!("-o{}", target.display()),
-                            source.to_string_lossy().into_owned(),
-                        ],
-                    },
-                    ExternalCommand {
-                        program: "unar",
-                        args: vec![
-                            "-o".to_string(),
-                            target.to_string_lossy().into_owned(),
-                            source.to_string_lossy().into_owned(),
-                        ],
-                    },
-                ],
-            ),
-            ArchiveFormat::Rar => Self::extract_with_external_tool(
-                "extract_archive",
-                &[
-                    ExternalCommand {
-                        program: "7zz",
-                        args: vec![
-                            "x".to_string(),
-                            "-y".to_string(),
-                            format!("-o{}", target.display()),
-                            source.to_string_lossy().into_owned(),
-                        ],
-                    },
-                    ExternalCommand {
-                        program: "7z",
-                        args: vec![
-                            "x".to_string(),
-                            "-y".to_string(),
-                            format!("-o{}", target.display()),
-                            source.to_string_lossy().into_owned(),
-                        ],
-                    },
-                    ExternalCommand {
-                        program: "unrar",
-                        args: vec![
-                            "x".to_string(),
-                            "-o+".to_string(),
-                            source.to_string_lossy().into_owned(),
-                            target.to_string_lossy().into_owned(),
-                        ],
-                    },
-                    ExternalCommand {
-                        program: "unar",
-                        args: vec![
-                            "-o".to_string(),
-                            target.to_string_lossy().into_owned(),
-                            source.to_string_lossy().into_owned(),
-                        ],
-                    },
-                ],
-            ),
+            ArchiveFormat::SevenZip => {
+                let mut candidates = Self::seven_zip_extract_candidates(source, target);
+                candidates.push(Self::unar_extract_command(source, target));
+                Self::extract_with_external_tool("extract_archive", &candidates)
+            }
+            ArchiveFormat::Rar => {
+                let mut candidates = Self::seven_zip_extract_candidates(source, target);
+                candidates.push(Self::unrar_extract_command(source, target));
+                candidates.push(Self::unar_extract_command(source, target));
+                Self::extract_with_external_tool("extract_archive", &candidates)
+            }
+        }
+    }
+
+    fn seven_zip_extract_candidates(source: &Path, target: &Path) -> Vec<ExternalCommand> {
+        let args = vec![
+            "x".to_string(),
+            "-y".to_string(),
+            format!("-o{}", target.display()),
+            source.to_string_lossy().into_owned(),
+        ];
+        vec![
+            ExternalCommand {
+                program: "7zz",
+                args: args.clone(),
+            },
+            ExternalCommand {
+                program: "7z",
+                args,
+            },
+        ]
+    }
+
+    fn unar_extract_command(source: &Path, target: &Path) -> ExternalCommand {
+        ExternalCommand {
+            program: "unar",
+            args: vec![
+                "-o".to_string(),
+                target.to_string_lossy().into_owned(),
+                source.to_string_lossy().into_owned(),
+            ],
+        }
+    }
+
+    fn unrar_extract_command(source: &Path, target: &Path) -> ExternalCommand {
+        ExternalCommand {
+            program: "unrar",
+            args: vec![
+                "x".to_string(),
+                "-o+".to_string(),
+                source.to_string_lossy().into_owned(),
+                target.to_string_lossy().into_owned(),
+            ],
         }
     }
 
@@ -1236,32 +1293,12 @@ impl FsOpsService {
             destination.push(&entry_path);
 
             if entry.name().ends_with('/') {
-                fs::create_dir_all(&destination).map_err(|source_err| {
-                    FsOpsError::io("extract_zip.create_dir", &destination, source_err)
-                })?;
+                Self::create_directory(&destination, ZIP_EXTRACT_OPS.create_dir)?;
                 continue;
             }
 
-            if let Some(parent) = destination.parent() {
-                fs::create_dir_all(parent).map_err(|source_err| {
-                    FsOpsError::io("extract_zip.create_parent", parent, source_err)
-                })?;
-            }
-
-            let mut output = File::create(&destination).map_err(|source_err| {
-                FsOpsError::io("extract_zip.create_file", &destination, source_err)
-            })?;
-            io::copy(&mut entry, &mut output).map_err(|source_err| {
-                FsOpsError::io("extract_zip.copy", &destination, source_err)
-            })?;
-
-            #[cfg(unix)]
-            if let Some(mode) = entry.unix_mode() {
-                let perms = fs::Permissions::from_mode(mode);
-                fs::set_permissions(&destination, perms).map_err(|source_err| {
-                    FsOpsError::io("extract_zip.set_permissions", &destination, source_err)
-                })?;
-            }
+            let unix_mode = entry.unix_mode();
+            Self::write_archive_file(&mut entry, &destination, ZIP_EXTRACT_OPS, unix_mode)?;
         }
 
         Ok(())
@@ -1301,9 +1338,7 @@ impl FsOpsService {
             let destination = target.join(&entry_path);
 
             if entry.header().entry_type().is_dir() {
-                fs::create_dir_all(&destination).map_err(|source_err| {
-                    FsOpsError::io("extract_tar.create_dir", &destination, source_err)
-                })?;
+                Self::create_directory(&destination, TAR_EXTRACT_OPS.create_dir)?;
                 continue;
             }
 
@@ -1314,27 +1349,47 @@ impl FsOpsService {
                 });
             }
 
-            if let Some(parent) = destination.parent() {
-                fs::create_dir_all(parent).map_err(|source_err| {
-                    FsOpsError::io("extract_tar.create_parent", parent, source_err)
-                })?;
-            }
-
-            let mut output = File::create(&destination).map_err(|source_err| {
-                FsOpsError::io("extract_tar.create_file", &destination, source_err)
-            })?;
-            io::copy(&mut entry, &mut output).map_err(|source_err| {
-                FsOpsError::io("extract_tar.copy", &destination, source_err)
-            })?;
-
-            #[cfg(unix)]
-            if let Ok(mode) = entry.header().mode() {
-                let perms = fs::Permissions::from_mode(mode);
-                fs::set_permissions(&destination, perms).map_err(|source_err| {
-                    FsOpsError::io("extract_tar.set_permissions", &destination, source_err)
-                })?;
-            }
+            let unix_mode = entry.header().mode().ok();
+            Self::write_archive_file(&mut entry, &destination, TAR_EXTRACT_OPS, unix_mode)?;
         }
+
+        Ok(())
+    }
+
+    fn create_directory(path: &Path, operation: &'static str) -> FsOpsResult<()> {
+        fs::create_dir_all(path).map_err(|source_err| FsOpsError::io(operation, path, source_err))
+    }
+
+    fn ensure_parent_directory(path: &Path, operation: &'static str) -> FsOpsResult<()> {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|source_err| FsOpsError::io(operation, parent, source_err))?;
+        }
+        Ok(())
+    }
+
+    fn write_archive_file<R: Read>(
+        reader: &mut R,
+        destination: &Path,
+        ops: ArchiveWriteOps,
+        unix_mode: Option<u32>,
+    ) -> FsOpsResult<()> {
+        Self::ensure_parent_directory(destination, ops.create_parent)?;
+        let mut output = File::create(destination)
+            .map_err(|source_err| FsOpsError::io(ops.create_file, destination, source_err))?;
+        io::copy(reader, &mut output)
+            .map_err(|source_err| FsOpsError::io(ops.copy, destination, source_err))?;
+
+        #[cfg(unix)]
+        if let Some(mode) = unix_mode {
+            let perms = fs::Permissions::from_mode(mode);
+            fs::set_permissions(destination, perms).map_err(|source_err| {
+                FsOpsError::io(ops.set_permissions, destination, source_err)
+            })?;
+        }
+
+        #[cfg(not(unix))]
+        let _ = unix_mode;
 
         Ok(())
     }
@@ -1534,6 +1589,19 @@ impl FsOpsService {
         Ok(sanitized)
     }
 
+    fn relative_path<'a>(
+        root: &Path,
+        path: &'a Path,
+        field: &'static str,
+    ) -> FsOpsResult<&'a Path> {
+        path.strip_prefix(root)
+            .map_err(|_| FsOpsError::InvalidInput {
+                field,
+                reason: "strip_prefix",
+                value: Some(path.to_string_lossy().into_owned()),
+            })
+    }
+
     fn build_checksums(artifact: &Path) -> FsOpsResult<Vec<ChecksumRecord>> {
         if artifact.is_file() {
             let checksum = Self::hash_file(artifact)?;
@@ -1567,15 +1635,7 @@ impl FsOpsService {
             if !entry.file_type().is_file() {
                 continue;
             }
-            let relative =
-                entry
-                    .path()
-                    .strip_prefix(artifact)
-                    .map_err(|_| FsOpsError::InvalidInput {
-                        field: "artifact_path",
-                        reason: "strip_prefix",
-                        value: Some(entry.path().to_string_lossy().into_owned()),
-                    })?;
+            let relative = Self::relative_path(artifact, entry.path(), "artifact_path")?;
             let relative = relative.to_string_lossy().replace('\\', "/");
             file_checksums.push(Self::hash_file(entry.path())?.with_path(relative));
         }
@@ -1639,52 +1699,11 @@ impl FsOpsService {
     }
 
     fn copy_tree(source: &Path, destination: &Path) -> FsOpsResult<()> {
-        if source.is_file() {
-            if let Some(parent) = destination.parent() {
-                fs::create_dir_all(parent).map_err(|source_err| {
-                    FsOpsError::io("copy_tree.create_parent", parent, source_err)
-                })?;
-            }
-            fs::copy(source, destination).map_err(|source_err| {
-                FsOpsError::io("copy_tree.copy_file", destination, source_err)
-            })?;
-            return Ok(());
-        }
-
-        fs::create_dir_all(destination).map_err(|source_err| {
-            FsOpsError::io("copy_tree.create_dir", destination, source_err)
-        })?;
-
-        for entry in WalkDir::new(source) {
-            let entry = entry
-                .map_err(|source_err| FsOpsError::walkdir("copy_tree.walk", source, source_err))?;
-            let relative =
-                entry
-                    .path()
-                    .strip_prefix(source)
-                    .map_err(|_| FsOpsError::InvalidInput {
-                        field: "source_path",
-                        reason: "strip_prefix",
-                        value: Some(entry.path().to_string_lossy().into_owned()),
-                    })?;
-            let target_path = destination.join(relative);
-            if entry.file_type().is_dir() {
-                fs::create_dir_all(&target_path).map_err(|source_err| {
-                    FsOpsError::io("copy_tree.create_dir", &target_path, source_err)
-                })?;
-            } else {
-                if let Some(parent) = target_path.parent() {
-                    fs::create_dir_all(parent).map_err(|source_err| {
-                        FsOpsError::io("copy_tree.create_parent", parent, source_err)
-                    })?;
-                }
-                fs::copy(entry.path(), &target_path).map_err(|source_err| {
-                    FsOpsError::io("copy_tree.copy_entry", &target_path, source_err)
-                })?;
-            }
-        }
-
-        Ok(())
+        Self::replicate_tree(source, destination, COPY_TREE_OPS, |from, to, operation| {
+            fs::copy(from, to)
+                .map(|_| ())
+                .map_err(|source_err| FsOpsError::io(operation, to, source_err))
+        })
     }
 
     fn move_tree(source: &Path, destination: &Path) -> FsOpsResult<()> {
@@ -1706,49 +1725,44 @@ impl FsOpsService {
     }
 
     fn hardlink_tree(source: &Path, destination: &Path) -> FsOpsResult<()> {
+        Self::replicate_tree(
+            source,
+            destination,
+            HARDLINK_TREE_OPS,
+            |from, to, operation| {
+                fs::hard_link(from, to)
+                    .map_err(|source_err| FsOpsError::io(operation, to, source_err))
+            },
+        )
+    }
+
+    fn replicate_tree<F>(
+        source: &Path,
+        destination: &Path,
+        ops: TreeTransferOps,
+        mut transfer_file: F,
+    ) -> FsOpsResult<()>
+    where
+        F: FnMut(&Path, &Path, &'static str) -> FsOpsResult<()>,
+    {
         if source.is_file() {
-            if let Some(parent) = destination.parent() {
-                fs::create_dir_all(parent).map_err(|source_err| {
-                    FsOpsError::io("hardlink_tree.create_parent", parent, source_err)
-                })?;
-            }
-            fs::hard_link(source, destination).map_err(|source_err| {
-                FsOpsError::io("hardlink_tree.link_file", destination, source_err)
-            })?;
+            Self::ensure_parent_directory(destination, ops.create_parent)?;
+            transfer_file(source, destination, ops.transfer_file)?;
             return Ok(());
         }
 
-        fs::create_dir_all(destination).map_err(|source_err| {
-            FsOpsError::io("hardlink_tree.create_dir", destination, source_err)
-        })?;
+        Self::create_directory(destination, ops.create_dir)?;
 
         for entry in WalkDir::new(source) {
-            let entry = entry.map_err(|source_err| {
-                FsOpsError::walkdir("hardlink_tree.walk", source, source_err)
-            })?;
-            let relative =
-                entry
-                    .path()
-                    .strip_prefix(source)
-                    .map_err(|_| FsOpsError::InvalidInput {
-                        field: "source_path",
-                        reason: "strip_prefix",
-                        value: Some(entry.path().to_string_lossy().into_owned()),
-                    })?;
+            let entry =
+                entry.map_err(|source_err| FsOpsError::walkdir(ops.walk, source, source_err))?;
+            let relative = Self::relative_path(source, entry.path(), "source_path")?;
             let target_path = destination.join(relative);
             if entry.file_type().is_dir() {
-                fs::create_dir_all(&target_path).map_err(|source_err| {
-                    FsOpsError::io("hardlink_tree.create_dir", &target_path, source_err)
-                })?;
+                Self::create_directory(&target_path, ops.create_dir)?;
             } else {
-                if let Some(parent) = target_path.parent() {
-                    fs::create_dir_all(parent).map_err(|source_err| {
-                        FsOpsError::io("hardlink_tree.create_parent", parent, source_err)
-                    })?;
-                }
-                fs::hard_link(entry.path(), &target_path).map_err(|source_err| {
-                    FsOpsError::io("hardlink_tree.link_entry", &target_path, source_err)
-                })?;
+                Self::ensure_parent_directory(&target_path, ops.create_parent)?;
+                transfer_file(entry.path(), &target_path, ops.transfer_entry)?;
             }
         }
 

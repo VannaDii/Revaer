@@ -40,32 +40,79 @@ export const test = base.extend<AppFixtures & CoverageFixture>({
     }
 
     await page.addInitScript((session) => {
-      const setJsonSessionStorage = (key: string, value: unknown): void => {
-        window.sessionStorage.setItem(key, JSON.stringify(value));
+      type StorageSeeds = {
+        local: Map<string, string>;
+        session: Map<string, string>;
       };
 
+      type SeededWindow = Window & {
+        __revaerE2eStoragePatch?: boolean;
+        __revaerE2eStorageSeeds?: StorageSeeds;
+      };
+
+      const seededWindow = window as SeededWindow;
+      seededWindow.__revaerE2eStorageSeeds = {
+        local: new Map<string, string>(),
+        session: new Map<string, string>(),
+      };
+
+      const storageSeeds = seededWindow.__revaerE2eStorageSeeds;
+      const setSeed = (key: string, value: unknown): void => {
+        storageSeeds.local.set(key, JSON.stringify(value));
+      };
+
+      if (!seededWindow.__revaerE2eStoragePatch) {
+        const storageProto = Object.getPrototypeOf(window.localStorage) as Storage;
+        const originalGetItem = storageProto.getItem;
+        const originalSetItem = storageProto.setItem;
+        const originalRemoveItem = storageProto.removeItem;
+        const originalClear = storageProto.clear;
+        const activeSeedMap = (storage: Storage): Map<string, string> => {
+          const nextSeeds = seededWindow.__revaerE2eStorageSeeds;
+          if (!nextSeeds) {
+            return new Map<string, string>();
+          }
+          return storage === window.sessionStorage
+            ? nextSeeds.session
+            : nextSeeds.local;
+        };
+
+        storageProto.getItem = function getItem(key: string): string | null {
+          const seededValue = activeSeedMap(this).get(key);
+          if (seededValue !== undefined) {
+            return seededValue;
+          }
+          return originalGetItem.call(this, key);
+        };
+
+        storageProto.setItem = function setItem(key: string, value: string): void {
+          activeSeedMap(this).delete(key);
+          originalSetItem.call(this, key, value);
+        };
+
+        storageProto.removeItem = function removeItem(key: string): void {
+          activeSeedMap(this).delete(key);
+          originalRemoveItem.call(this, key);
+        };
+
+        storageProto.clear = function clear(): void {
+          const seedMap = activeSeedMap(this);
+          seedMap.clear();
+          originalClear.call(this);
+        };
+
+        seededWindow.__revaerE2eStoragePatch = true;
+      }
+
       if (session.authMode === 'api_key' && session.apiKey) {
-        setJsonSessionStorage('revaer.auth.mode', 'api_key');
-        setJsonSessionStorage('revaer.api_key', session.apiKey);
-        setJsonSessionStorage(
-          'revaer.api_key_expires_at',
-          Date.now() + 86_400_000,
-        );
-        window.localStorage.removeItem('revaer.auth.mode');
-        window.localStorage.removeItem('revaer.api_key');
-        window.localStorage.removeItem('revaer.api_key_expires_at');
-        window.localStorage.removeItem('revaer.auth.anonymous');
+        setSeed('revaer.auth.mode', 'api_key');
+        setSeed('revaer.api_key', session.apiKey);
+        setSeed('revaer.api_key_expires_at', Date.now() + 86_400_000);
         return;
       }
 
-      setJsonSessionStorage('revaer.auth.mode', 'api_key');
-      setJsonSessionStorage('revaer.auth.anonymous', true);
-      window.sessionStorage.removeItem('revaer.api_key');
-      window.sessionStorage.removeItem('revaer.api_key_expires_at');
-      window.localStorage.removeItem('revaer.auth.mode');
-      window.localStorage.removeItem('revaer.api_key');
-      window.localStorage.removeItem('revaer.api_key_expires_at');
-      window.localStorage.removeItem('revaer.auth.anonymous');
+      setSeed('revaer.auth.mode', 'api_key');
+      setSeed('revaer.auth.anonymous', true);
     }, apiSession);
     await use(new AppShell(page));
   },
