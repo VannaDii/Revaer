@@ -270,26 +270,34 @@ ui-e2e-coverage:
     node tests/scripts/check-e2e-coverage.js
 
 runbook:
-    just ui-e2e
-    just ui-e2e-coverage
-    mkdir -p artifacts/runbook
-    rm -rf artifacts/runbook/logs artifacts/runbook/playwright-report artifacts/runbook/test-results
+    status=0; \
+    just ui-e2e || status=$?; \
+    if [ "$status" -eq 0 ]; then \
+        just ui-e2e-coverage || status=$?; \
+    fi; \
+    mkdir -p artifacts/runbook; \
+    rm -rf artifacts/runbook/logs artifacts/runbook/playwright-report artifacts/runbook/test-results; \
     if [ -d tests/logs ]; then \
         cp -R tests/logs artifacts/runbook/logs; \
-    fi
+    fi; \
     if [ -d tests/playwright-report ]; then \
         cp -R tests/playwright-report artifacts/runbook/playwright-report; \
-    fi
+    fi; \
     if [ -d tests/test-results ]; then \
         cp -R tests/test-results artifacts/runbook/test-results; \
-    fi
+    fi; \
+    runbook_status="ok"; \
+    if [ "$status" -ne 0 ]; then \
+        runbook_status="failed"; \
+    fi; \
     printf '%s\n' \
-        "runbook=ok" \
+        "runbook=${runbook_status}" \
         "artifacts=artifacts/runbook" \
         "playwright_report=artifacts/runbook/playwright-report/index.html" \
         "test_results=artifacts/runbook/test-results" \
         "logs=artifacts/runbook/logs" \
-        > artifacts/runbook/summary.txt
+        > artifacts/runbook/summary.txt; \
+    exit "$status"
 
 zombies:
     for port in 7070 8080; do \

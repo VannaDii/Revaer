@@ -309,3 +309,4 @@
     -   [277: PR review handler normalization follow-up](adr/277-pr-review-handler-normalization-followup.md)
     -   [278: Remediation plan implementation closeout](adr/278-remediation-plan-implementation-closeout.md)
     -   [279: Remediation plan gap closure](adr/279-remediation-plan-gap-closure.md)
+    -   [280: PR 21 feedback closeout](adr/280-pr-21-feedback-closeout.md)

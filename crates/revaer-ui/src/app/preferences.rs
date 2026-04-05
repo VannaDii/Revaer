@@ -5,10 +5,11 @@ use crate::core::theme::ThemeMode;
 use crate::core::ui::{Density, UiMode};
 use crate::i18n::{DEFAULT_LOCALE, LocaleCode};
 use gloo::console;
-use gloo::storage::{LocalStorage, Storage};
+use gloo::storage::{LocalStorage, SessionStorage, Storage};
 use gloo::utils::window;
 use js_sys::Date;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 use std::net::IpAddr;
 use web_sys::Url;
 
@@ -72,7 +73,7 @@ pub(crate) fn load_locale() -> LocaleCode {
 }
 
 pub(crate) fn load_stored_auth_token(_allow_anon: bool) -> Option<String> {
-    let value = LocalStorage::get::<String>(API_KEY_KEY).ok()?;
+    let value = load_auth_storage::<String>(API_KEY_KEY)?;
     if value.trim().is_empty() {
         clear_api_key_storage();
         return None;
@@ -90,7 +91,7 @@ pub(crate) fn load_stored_auth_token(_allow_anon: bool) -> Option<String> {
 }
 
 pub(crate) fn load_auth_mode() -> AuthMode {
-    if let Ok(value) = LocalStorage::get::<String>(AUTH_MODE_KEY) {
+    if let Some(value) = load_auth_storage::<String>(AUTH_MODE_KEY) {
         return match value.as_str() {
             "local" => AuthMode::Local,
             _ => AuthMode::ApiKey,
@@ -104,8 +105,8 @@ pub(crate) fn load_bypass_local() -> bool {
 }
 
 pub(crate) fn load_local_auth() -> Option<LocalAuth> {
-    let username = LocalStorage::get::<String>(LOCAL_AUTH_USER_KEY).ok()?;
-    let password = LocalStorage::get::<String>(LOCAL_AUTH_PASS_KEY).ok()?;
+    let username = load_auth_storage::<String>(LOCAL_AUTH_USER_KEY)?;
+    let password = load_auth_storage::<String>(LOCAL_AUTH_PASS_KEY)?;
     if username.trim().is_empty() || password.trim().is_empty() {
         return None;
     }
@@ -198,11 +199,11 @@ fn parse_expires_at_ms(value: &str) -> Option<i64> {
 }
 
 pub(crate) fn load_api_key_expires_at_ms() -> Option<i64> {
-    LocalStorage::get::<i64>(API_KEY_EXPIRES_AT_KEY).ok()
+    load_auth_storage::<i64>(API_KEY_EXPIRES_AT_KEY)
 }
 
 fn load_anonymous_auth() -> bool {
-    LocalStorage::get::<bool>(AUTH_ANONYMOUS_KEY).unwrap_or(false)
+    load_auth_storage::<bool>(AUTH_ANONYMOUS_KEY).unwrap_or(false)
 }
 
 pub(crate) fn persist_bypass_local(value: bool) {
@@ -286,8 +287,18 @@ fn set_storage<T: Serialize>(key: &'static str, value: T) {
     }
 }
 
+fn load_auth_storage<T>(key: &'static str) -> Option<T>
+where
+    T: DeserializeOwned,
+{
+    LocalStorage::get::<T>(key)
+        .ok()
+        .or_else(|| SessionStorage::get::<T>(key).ok())
+}
+
 fn delete_storage(key: &'static str) {
     LocalStorage::delete(key);
+    SessionStorage::delete(key);
 }
 
 fn log_storage_error() {

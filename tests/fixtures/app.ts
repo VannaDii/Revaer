@@ -40,25 +40,32 @@ export const test = base.extend<AppFixtures & CoverageFixture>({
     }
 
     await page.addInitScript((session) => {
-      const setJsonStorage = (key: string, value: unknown): void => {
-        window.localStorage.setItem(key, JSON.stringify(value));
+      const setJsonSessionStorage = (key: string, value: unknown): void => {
+        window.sessionStorage.setItem(key, JSON.stringify(value));
       };
 
       if (session.authMode === 'api_key' && session.apiKey) {
-        setJsonStorage('revaer.auth.mode', 'api_key');
-        setJsonStorage('revaer.api_key', session.apiKey);
-        setJsonStorage(
+        setJsonSessionStorage('revaer.auth.mode', 'api_key');
+        setJsonSessionStorage('revaer.api_key', session.apiKey);
+        setJsonSessionStorage(
           'revaer.api_key_expires_at',
           Date.now() + 86_400_000,
         );
+        window.localStorage.removeItem('revaer.auth.mode');
+        window.localStorage.removeItem('revaer.api_key');
+        window.localStorage.removeItem('revaer.api_key_expires_at');
         window.localStorage.removeItem('revaer.auth.anonymous');
         return;
       }
 
-      setJsonStorage('revaer.auth.mode', 'api_key');
-      setJsonStorage('revaer.auth.anonymous', true);
+      setJsonSessionStorage('revaer.auth.mode', 'api_key');
+      setJsonSessionStorage('revaer.auth.anonymous', true);
+      window.sessionStorage.removeItem('revaer.api_key');
+      window.sessionStorage.removeItem('revaer.api_key_expires_at');
+      window.localStorage.removeItem('revaer.auth.mode');
       window.localStorage.removeItem('revaer.api_key');
       window.localStorage.removeItem('revaer.api_key_expires_at');
+      window.localStorage.removeItem('revaer.auth.anonymous');
     }, apiSession);
     await use(new AppShell(page));
   },

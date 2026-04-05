@@ -1544,19 +1544,18 @@ impl FsOpsService {
                     || artifact.display().to_string(),
                     std::borrow::ToOwned::to_owned,
                 );
-            let mut manifest = Sha256::new();
-            manifest.update(format!(
-                "{file_name}\t{}\t{}\n",
-                checksum.bytes, checksum.value
-            ));
+            let manifest_line =
+                Self::checksum_manifest_line(&file_name, checksum.bytes, &checksum.value);
+            let (manifest_value, manifest_bytes) =
+                Self::build_manifest_checksum(std::slice::from_ref(&manifest_line));
             return Ok(vec![
                 checksum.with_path(file_name),
                 ChecksumRecord {
                     path: ".".to_string(),
                     kind: ChecksumKind::Manifest,
                     algorithm: "sha256".to_string(),
-                    value: format!("{:x}", manifest.finalize()),
-                    bytes: 1,
+                    value: manifest_value,
+                    bytes: manifest_bytes,
                 },
             ]);
         }
@@ -1583,23 +1582,34 @@ impl FsOpsService {
 
         file_checksums.sort_by(|left, right| left.path.cmp(&right.path));
 
-        let mut manifest = Sha256::new();
-        for record in &file_checksums {
-            manifest.update(format!(
-                "{}\t{}\t{}\n",
-                record.path, record.bytes, record.value
-            ));
-        }
-
+        let manifest_lines: Vec<String> = file_checksums
+            .iter()
+            .map(|record| Self::checksum_manifest_line(&record.path, record.bytes, &record.value))
+            .collect();
+        let (manifest_value, manifest_bytes) = Self::build_manifest_checksum(&manifest_lines);
         let mut checksums = file_checksums;
         checksums.push(ChecksumRecord {
             path: ".".to_string(),
             kind: ChecksumKind::Manifest,
             algorithm: "sha256".to_string(),
-            value: format!("{:x}", manifest.finalize()),
-            bytes: checksums.len() as u64,
+            value: manifest_value,
+            bytes: manifest_bytes,
         });
         Ok(checksums)
+    }
+
+    fn checksum_manifest_line(path: &str, bytes: u64, value: &str) -> String {
+        format!("{path}\t{bytes}\t{value}\n")
+    }
+
+    fn build_manifest_checksum(lines: &[String]) -> (String, u64) {
+        let mut manifest = Sha256::new();
+        let mut manifest_bytes = 0_u64;
+        for line in lines {
+            manifest.update(line.as_bytes());
+            manifest_bytes += line.len() as u64;
+        }
+        (format!("{:x}", manifest.finalize()), manifest_bytes)
     }
 
     fn hash_file(path: &Path) -> FsOpsResult<ChecksumRecord> {
@@ -3339,6 +3349,23 @@ mod tests {
                 .filter(|record| matches!(record.kind, ChecksumKind::File))
                 .all(|record| record.algorithm == "sha256")
         );
+        let manifest = meta
+            .checksums
+            .iter()
+            .find(|record| matches!(record.kind, ChecksumKind::Manifest))
+            .ok_or(FsOpsError::MissingState {
+                field: "manifest_checksum",
+            })?;
+        let manifest_bytes: u64 = meta
+            .checksums
+            .iter()
+            .filter(|record| matches!(record.kind, ChecksumKind::File))
+            .map(|record| {
+                FsOpsService::checksum_manifest_line(&record.path, record.bytes, &record.value)
+                    .len() as u64
+            })
+            .sum();
+        assert_eq!(manifest.bytes, manifest_bytes);
         Ok(())
     }
 

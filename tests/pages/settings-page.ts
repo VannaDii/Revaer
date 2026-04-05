@@ -15,6 +15,8 @@ export class SettingsPage {
     const panel = content.getByRole('tabpanel');
     await expect(panel).toBeVisible();
     await expect(panel).toHaveClass(/tab-content/);
+    await expect(content.getByRole('button', { name: 'Save' })).toBeVisible();
+    await expect(content.getByRole('button', { name: 'Test connection' })).toBeVisible();
     await expect(this.page.locator('#layout-topbar .breadcrumbs')).toHaveCount(0);
     await expect(
       content.locator(
@@ -33,11 +35,5 @@ export class SettingsPage {
       await expect(panel).toBeVisible();
       await expect(panel).toHaveAttribute('aria-labelledby', tabId);
     }
-  }
-
-  async expectConfigPlaceholder(): Promise<void> {
-    await expect(
-      this.page.getByText('Configuration snapshot is not available.', { exact: true }),
-    ).toBeVisible();
   }
 }

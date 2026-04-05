@@ -21,7 +21,10 @@ export class LogsPage {
   }
 
   async selectFilter(label: string): Promise<void> {
-    await this.page.getByRole('radio', { name: label }).click();
+    await this.page
+      .getByTestId('logs-level-filter')
+      .getByRole('radio', { name: label })
+      .check({ force: true });
   }
 
   async expectLogVisible(text: string): Promise<void> {
