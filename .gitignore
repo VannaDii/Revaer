@@ -18,6 +18,7 @@ docs/book
 /tests/playwright-report
 /tests/.playwright
 /tests/.auth
+/tests/.runtime
 /tests/logs
 node_modules
 release/next-release.json

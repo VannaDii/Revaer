@@ -90,6 +90,7 @@ export default defineConfig({
       use: { browserName: name },
       workers: uiWorkers,
       metadata: {
+        authMode: 'api_key',
         coverageFile: `test-results/ui-coverage-ui-${name}${coverageShardSuffix}.json`,
       },
     })),

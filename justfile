@@ -285,6 +285,7 @@ runbook:
     fi; \
     if [ -d tests/test-results ]; then \
         cp -R tests/test-results artifacts/runbook/test-results; \
+        rm -f artifacts/runbook/test-results/e2e-state.json; \
     fi; \
     runbook_status="ok"; \
     if [ "$status" -ne 0 ]; then \
@@ -457,17 +458,31 @@ docs:
 # Set REVAER_DB_RESET=1 to drop + recreate local databases before running migrations.
 db-start:
     db_url="${DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}"; \
-    echo "Using database URL: ${db_url}"; \
     db_host="$(printf "%s" "${db_url}" | sed -E 's#^[^:]+://[^@]+@([^:/]+).*#\1#')"; \
     db_port="$(printf "%s" "${db_url}" | sed -En 's#^[^:]+://[^@]+@[^:/]+:([0-9]+).*#\1#p')"; \
     if [ -z "${db_port}" ]; then \
         db_port="5432"; \
     fi; \
+    if [ "${db_host}" = "host.docker.internal" ] && python3 -c 'import socket, sys; probe = socket.create_connection((sys.argv[1], int(sys.argv[2])), 1); probe.close()' localhost "${db_port}" >/dev/null 2>&1; then \
+        db_host="localhost"; \
+        db_url="$(printf "%s" "${db_url}" | sed 's#@host\.docker\.internal:#@localhost:#')"; \
+        echo "Normalized local Docker database host to ${db_host}:${db_port}"; \
+    fi; \
+    echo "Using database URL: ${db_url}"; \
     container_name="${PG_CONTAINER:-revaer-db}"; \
+    volume_name="${PG_VOLUME:-revaer-pgdata}"; \
     if python3 -c 'import socket, sys; probe = socket.create_connection((sys.argv[1], int(sys.argv[2])), 1); probe.close()' "${db_host}" "${db_port}" >/dev/null 2>&1; then \
         echo "Using existing Postgres endpoint ${db_host}:${db_port}"; \
     else \
         existing_container="$(docker ps -aq -f name=^${container_name}$)"; \
+        if [ -n "$existing_container" ]; then \
+            published_port="$(docker port "${container_name}" 5432/tcp 2>/dev/null || true)"; \
+            if [ -z "$published_port" ]; then \
+                echo "Recreating existing Postgres container (${container_name}) without a published host port"; \
+                docker rm -f "${container_name}" >/dev/null; \
+                existing_container=""; \
+            fi; \
+        fi; \
         if [ -n "$existing_container" ]; then \
             if [ -z "$(docker ps -q -f name=^${container_name}$)" ]; then \
                 echo "Starting existing Postgres container (${container_name})"; \
@@ -480,13 +495,13 @@ db-start:
                 -e POSTGRES_USER=revaer \
                 -e POSTGRES_PASSWORD=revaer \
                 -e POSTGRES_DB=revaer \
-                -p 5432:5432 \
-                -v revaer-pgdata:/var/lib/postgresql/data \
+                -p "${db_port}:5432" \
+                -v "${volume_name}:/var/lib/postgresql/data" \
                 postgres:16-alpine >/dev/null; \
         fi; \
         echo "Waiting for Postgres to become ready..."; \
         for _ in $(seq 1 30); do \
-            if docker exec "${container_name}" pg_isready -U revaer -d revaer >/dev/null 2>&1; then \
+            if docker exec "${container_name}" pg_isready -U revaer -d postgres >/dev/null 2>&1; then \
                 break; \
             fi; \
             sleep 1; \
@@ -506,7 +521,19 @@ db-start:
         exit 1; \
     fi; \
     just sqlx-install; \
-    DATABASE_URL="${db_url}" sqlx database create --database-url "${db_url}" 2>/dev/null || true; \
+    echo "Waiting for Postgres to accept SQL connections..."; \
+    sql_ready="0"; \
+    for _ in $(seq 1 30); do \
+        if DATABASE_URL="${db_url}" sqlx database create --database-url "${db_url}" >/dev/null 2>&1; then \
+            sql_ready="1"; \
+            break; \
+        fi; \
+        sleep 1; \
+    done; \
+    if [ "${sql_ready}" != "1" ]; then \
+        echo "Postgres endpoint ${db_host}:${db_port} did not become SQL-ready."; \
+        exit 1; \
+    fi; \
     reset_db="${REVAER_DB_RESET:-0}"; \
     if [ "${reset_db}" = "1" ]; then \
         if echo "${db_url}" | grep -Eq '@(localhost|127\.0\.0\.1|host\.docker\.internal)(:|/)'; then \

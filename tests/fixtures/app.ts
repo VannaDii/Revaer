@@ -33,10 +33,10 @@ export const test = base.extend<AppFixtures & CoverageFixture>({
     },
     { scope: 'worker' },
   ],
-  app: async ({ page, _uiCoverage }, use) => {
+  app: async ({ page, _uiCoverage }, use, testInfo) => {
     const apiSession = readState()?.apiSession;
     if (!apiSession) {
-      throw new Error('Missing API session in E2E state for UI fixture.');
+      throw new Error(`Missing API session in E2E runtime state for ${testInfo.project.name}.`);
     }
 
     await page.addInitScript((session) => {
@@ -50,7 +50,7 @@ export const test = base.extend<AppFixtures & CoverageFixture>({
         __revaerE2eStorageSeeds?: StorageSeeds;
       };
 
-      const seededWindow = window as SeededWindow;
+      const seededWindow = globalThis as unknown as SeededWindow;
       seededWindow.__revaerE2eStorageSeeds = {
         local: new Map<string, string>(),
         session: new Map<string, string>(),
@@ -62,7 +62,7 @@ export const test = base.extend<AppFixtures & CoverageFixture>({
       };
 
       if (!seededWindow.__revaerE2eStoragePatch) {
-        const storageProto = Object.getPrototypeOf(window.localStorage) as Storage;
+        const storageProto = Object.getPrototypeOf(globalThis.localStorage) as Storage;
         const originalGetItem = storageProto.getItem;
         const originalSetItem = storageProto.setItem;
         const originalRemoveItem = storageProto.removeItem;
@@ -72,7 +72,7 @@ export const test = base.extend<AppFixtures & CoverageFixture>({
           if (!nextSeeds) {
             return new Map<string, string>();
           }
-          return storage === window.sessionStorage
+          return storage === globalThis.sessionStorage
             ? nextSeeds.session
             : nextSeeds.local;
         };

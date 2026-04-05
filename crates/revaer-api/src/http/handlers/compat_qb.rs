@@ -817,9 +817,10 @@ pub(crate) async fn torrents_rename(
         .ok_or_else(|| ApiError::bad_request("name is required"))?
         .to_string();
     let ids = resolve_compat_hashes(state.as_ref(), &form.hash).await?;
-    let id = *ids
-        .first()
-        .ok_or_else(|| ApiError::bad_request("hash required"))?;
+    if ids.len() != 1 {
+        return Err(ApiError::bad_request("rename requires exactly one hash"));
+    }
+    let id = ids[0];
     update_metadata_and_publish(state.as_ref(), id, |metadata| {
         metadata.display_name = Some(name.clone());
     });
@@ -1663,6 +1664,35 @@ mod tests {
             }),
         )
         .await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn rename_rejects_multiple_hashes() -> Result<()> {
+        let first = TorrentStatus {
+            id: Uuid::new_v4(),
+            name: Some("first".into()),
+            ..TorrentStatus::default()
+        };
+        let second = TorrentStatus {
+            id: Uuid::new_v4(),
+            name: Some("second".into()),
+            ..TorrentStatus::default()
+        };
+        let state = state_with_handles(vec![first.clone(), second.clone()], Vec::new())?;
+        let sid = state.issue_qb_session();
+        let error = torrents_rename(
+            State(state),
+            header_with_sid(&sid)?,
+            Form(TorrentRenameForm {
+                hash: format!("{}|{}", first.id.simple(), second.id.simple()),
+                name: Some("renamed".into()),
+            }),
+        )
+        .await
+        .expect_err("multiple hashes should fail");
+
+        assert_eq!(error.status().as_u16(), 400);
         Ok(())
     }
 

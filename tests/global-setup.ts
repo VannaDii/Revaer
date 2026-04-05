@@ -1,4 +1,5 @@
 import { execFileSync, spawn, spawnSync } from 'child_process';
+import { randomBytes } from 'crypto';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import http from 'http';
@@ -41,6 +42,9 @@ export default async function globalSetup(): Promise<void> {
   const root = repoRoot();
   const testsDir = path.join(root, 'tests');
   dotenv.config({ path: path.join(testsDir, '.env') });
+  if (!process.env.REVAER_E2E_STATE_KEY) {
+    process.env.REVAER_E2E_STATE_KEY = randomBytes(32).toString('hex');
+  }
 
   try {
     const apiBaseUrl = process.env.E2E_API_BASE_URL ?? 'http://localhost:7070';

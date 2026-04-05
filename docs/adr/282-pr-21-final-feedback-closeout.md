@@ -1,0 +1,59 @@
+# PR 21 final feedback closeout
+
+- Status: Accepted
+- Date: 2026-04-05
+- Context:
+  - PR 21 still had open review threads after the earlier remediation follow-up.
+  - SonarCloud still reported new-code issues in the Playwright UI fixture, and the review feedback identified one remaining ambiguous qBittorrent mutation plus two E2E secret-handling leaks.
+- Decision:
+  - Move the E2E runtime state file out of `tests/test-results`, keep its process metadata readable only by the local user, and encrypt the shared UI/API session payload at rest with a per-run Playwright secret so no API credential is persisted in plaintext.
+  - Tighten the qB rename handler so it rejects any request that resolves to anything other than exactly one torrent hash.
+  - Remove the remaining `window` references Sonar flagged in the UI fixture and keep the runbook artifact copy guarded against stale `e2e-state.json` files.
+  - Expand the GitHub Actions CI workflow to run on `pull_request` to `main`, and remove job-level branch guards that previously prevented PR heads from ever reporting checks.
+  - Harden `just db-start` so it recreates stale named Postgres containers that lack a published host port, which restores local `just ui-e2e` and `just ci` runs when an old container state is present.
+  - Alternatives considered:
+    - Redacting the API key in-place in `e2e-state.json`; rejected because the UI fixture still needed the secret and the artifact path remained risky.
+    - Re-running setup from the UI fixture; rejected because the active auth mode prevents unauthenticated factory reset and caused 401 failures in the UI project.
+    - Using a plaintext temp file outside the repo tree; rejected because it still serialized the credential at rest and would keep the same leak class.
+    - Allowing multi-hash rename by renaming the first torrent only; rejected because it hides client mistakes and diverges from predictable mutation semantics.
+- Consequences:
+  - Positive outcomes.
+    - The UI harness no longer stores live API credentials in the copied Playwright artifact tree.
+    - The UI suite can still reuse the authenticated API-key session produced by the API project, but the shared session data is encrypted at rest instead of being written in plaintext.
+    - qB compatibility mutations now fail fast on ambiguous rename input instead of silently mutating the wrong torrent.
+    - SonarCloud’s remaining fixture issues are addressed directly in code rather than suppressed.
+  - Risks or trade-offs.
+    - The Playwright run now depends on a per-run encryption secret being present in the worker environment; global setup provisions it automatically.
+    - The E2E runtime state file remains on disk for process cleanup and encrypted cross-project state handoff, but the API credential is no longer readable in plaintext.
+- Follow-up:
+  - Implementation tasks.
+    - Re-run `just ui-e2e` and `just ci`.
+    - Push the follow-up commit and re-check PR threads plus SonarCloud on the new head.
+  - Review checkpoints.
+    - Confirm the qB rename review thread is resolved by the new validation behavior.
+    - Confirm the Sonar issue list is empty for PR 21 after the next analysis cycle.
+
+## Task Record
+
+- Motivation:
+  - The PR could not be considered clean while review threads still pointed at secret exposure and ambiguous qB compatibility behavior, and the branch still failed to report any GitHub checks because the CI workflow never triggered for pull requests.
+  - Design notes:
+  - `tests/support/e2e-state.ts` now stores E2E runtime state in `tests/.runtime/e2e-state.json` with `0600` permissions, and it encrypts `apiSession` with AES-256-GCM using a per-run key from `REVAER_E2E_STATE_KEY`.
+  - `tests/global-setup.ts` provisions `REVAER_E2E_STATE_KEY` before Playwright workers start, allowing the API fixture to persist encrypted session state and the UI fixture to decrypt it without a second setup pass.
+  - `tests/fixtures/app.ts` again reads the shared API session from runtime state, but only after that payload has been encrypted at rest by the API fixture.
+  - `torrents_rename` now enforces a single resolved hash and has regression coverage for the multi-hash case.
+  - `.github/workflows/ci.yml` now listens to `pull_request` events targeting `main`, which restores the expected PR status checks for branch heads.
+  - `just db-start` now validates that the named Docker Postgres container actually publishes the requested host port and probes the built-in `postgres` database for readiness before migrations run.
+- Test coverage summary:
+  - Added a new qB compatibility unit test for multi-hash rename rejection.
+  - Re-ran the full UI E2E suite and the full `just ci` gate set after the follow-up.
+- Observability updates:
+  - No new runtime telemetry was added; the change is confined to test harness behavior, CI trigger wiring, and an existing qB handler validation path.
+- Status-doc validation:
+  - `README.md` did not require content changes for this follow-up.
+  - ADR index/sidebar entries were updated to keep the task record catalogue current.
+- Risk & rollback plan:
+  - If the UI fixture setup change regresses, revert the fixture and runtime-state changes together so the harness uses the earlier shared-state path.
+  - If qB clients depend on the old rename behavior, revert the validation change and its test as one unit.
+- Dependency rationale:
+  - No new dependencies were added.
