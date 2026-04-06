@@ -312,3 +312,4 @@
     -   [280: PR 21 feedback closeout](adr/280-pr-21-feedback-closeout.md)
     -   [281: PR 21 Sonar and review closeout](adr/281-pr-21-sonar-and-review-closeout.md)
     -   [282: PR 21 final feedback closeout](adr/282-pr-21-final-feedback-closeout.md)
+    -   [283: PR 21 Trivy action pin refresh](adr/283-pr-21-trivy-action-pin-refresh.md)
