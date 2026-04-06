@@ -465,7 +465,7 @@ db-start:
     fi; \
     if [ "${db_host}" = "host.docker.internal" ] && python3 -c 'import socket, sys; probe = socket.create_connection((sys.argv[1], int(sys.argv[2])), 1); probe.close()' localhost "${db_port}" >/dev/null 2>&1; then \
         db_host="localhost"; \
-        db_url="$(printf "%s" "${db_url}" | sed 's#@host\.docker\.internal:#@localhost:#')"; \
+        db_url="$(printf "%s" "${db_url}" | sed 's#@host\.docker\.internal\([:/]\)#@localhost\1#')"; \
         echo "Normalized local Docker database host to ${db_host}:${db_port}"; \
     fi; \
     echo "Using database URL: ${db_url}"; \

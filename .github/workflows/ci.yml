@@ -14,9 +14,6 @@ concurrency:
 
 permissions:
   contents: read
-  packages: write
-  security-events: write
-  id-token: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -457,6 +454,11 @@ jobs:
   build-images:
     name: Build Images
     needs: [load-matrix, release-dev]
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+      id-token: write
     if: |
       (github.ref == 'refs/heads/main' &&
         needs.release-dev.result == 'success' &&

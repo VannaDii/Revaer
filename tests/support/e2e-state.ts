@@ -1,6 +1,6 @@
-import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 
 import { repoRoot } from './paths';
 import type { ApiSession } from './session';
@@ -21,9 +21,14 @@ type PersistedState = Omit<E2EState, 'apiSession'> & {
 
 export function writeState(state: E2EState): void {
   const dir = path.dirname(stateFile);
+  const tempFile = path.join(
+    dir,
+    `.e2e-state.${process.pid}.${Date.now()}.${randomBytes(6).toString('hex')}.tmp`,
+  );
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(stateFile, JSON.stringify(serializeState(state), null, 2));
-  fs.chmodSync(stateFile, 0o600);
+  fs.writeFileSync(tempFile, JSON.stringify(serializeState(state), null, 2));
+  fs.chmodSync(tempFile, 0o600);
+  fs.renameSync(tempFile, stateFile);
 }
 
 export function mergeState(state: Partial<E2EState>): void {
@@ -74,8 +79,8 @@ function deserializeState(state: PersistedState): E2EState {
 
 function encryptSession(session: ApiSession): string {
   const key = encryptionKey();
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
   const plaintext = Buffer.from(JSON.stringify(session), 'utf-8');
   const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
   const tag = cipher.getAuthTag();
@@ -88,7 +93,7 @@ function decryptSession(payload: string): ApiSession {
   const iv = data.subarray(0, 12);
   const tag = data.subarray(12, 28);
   const ciphertext = data.subarray(28);
-  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  const decipher = createDecipheriv('aes-256-gcm', key, iv);
   decipher.setAuthTag(tag);
   const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
   return JSON.parse(plaintext.toString('utf-8')) as ApiSession;
@@ -99,5 +104,12 @@ function encryptionKey(): Buffer {
   if (!raw) {
     throw new Error(`Missing ${secretEnvVar}.`);
   }
-  return Buffer.from(raw, 'hex');
+  if (!/^[0-9a-fA-F]{64}$/.test(raw)) {
+    throw new Error(`${secretEnvVar} must be exactly 64 hexadecimal characters.`);
+  }
+  const decoded = Buffer.from(raw, 'hex');
+  if (decoded.length !== 32) {
+    throw new Error(`${secretEnvVar} must decode to exactly 32 bytes.`);
+  }
+  return decoded;
 }

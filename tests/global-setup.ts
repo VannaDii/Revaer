@@ -1,10 +1,10 @@
 import { execFileSync, spawn, spawnSync } from 'child_process';
-import { randomBytes } from 'crypto';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import http from 'http';
 import https from 'https';
 import net from 'net';
+import { randomBytes } from 'node:crypto';
 import path from 'path';
 
 import { cleanupE2EState } from './support/e2e-cleanup';
