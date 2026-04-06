@@ -291,6 +291,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+      security-events: write
+      id-token: write
     with:
       matrix: ${{ needs.load-matrix.outputs.matrix }}
       image_name: revaer
