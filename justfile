@@ -255,7 +255,7 @@ ui-build: sync-assets
 ui-e2e:
     cd tests && npm install
     cd tests && npm run gen:api-client
-    if [ "${CI:-}" = "true" ]; then \
+    if [ "${CI:-}" = "true" ] || { [ "$(uname -s)" = "Linux" ] && sudo -n true >/dev/null 2>&1; }; then \
         cd tests && npx playwright install --with-deps; \
     else \
         cd tests && npx playwright install; \
@@ -479,6 +479,10 @@ db-start:
             published_port="$(docker port "${container_name}" 5432/tcp 2>/dev/null || true)"; \
             if [ -z "$published_port" ]; then \
                 echo "Recreating existing Postgres container (${container_name}) without a published host port"; \
+                docker rm -f "${container_name}" >/dev/null; \
+                existing_container=""; \
+            elif ! printf "%s" "$published_port" | grep -Eq "(:|^)${db_port}$"; then \
+                echo "Recreating existing Postgres container (${container_name}) with mismatched published port ${published_port}"; \
                 docker rm -f "${container_name}" >/dev/null; \
                 existing_container=""; \
             fi; \

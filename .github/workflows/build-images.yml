@@ -97,6 +97,9 @@ jobs:
 
       - name: Scan pushed image
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        env:
+          TRIVY_IMAGE_SRC: remote
+          TRIVY_PLATFORM: ${{ matrix.platform }}
         with:
           image-ref: ${{ steps.build_image.outputs.image_tag }}
           format: sarif
@@ -105,7 +108,7 @@ jobs:
           exit-code: "1"
 
       - name: Upload scan results
-        if: always()
+        if: always() && hashFiles('trivy-results.sarif') != ''
         uses: github/codeql-action/upload-sarif@5c8a8a642e79153f5d047b10ec1cba1d1cc65699 # v3
         with:
           sarif_file: trivy-results.sarif
