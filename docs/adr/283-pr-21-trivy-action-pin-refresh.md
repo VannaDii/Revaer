@@ -23,8 +23,10 @@
   - The fix stays inside `.github/workflows/build-images.yml` because the break was in the reusable image workflow's pinned third-party action revision.
   - The updated pin targets the upstream `v0.35.0` commit `57a97c7e7821a5776cebc9bb87c984fa69cba8f1`, whose composite action installs Trivy through a pinned `setup-trivy` commit instead of the missing `v0.2.1` tag that broke the older revision.
   - The follow-up keeps Trivy scanning against the pushed registry image by forcing `TRIVY_IMAGE_SRC=remote` and threading the matrix platform into `TRIVY_PLATFORM`, which avoids architecture-specific scan failures after `buildx --push`.
+  - PR image scans now keep uploading SARIF findings without failing the reusable image job on `pull_request`, so manifest creation is not blocked by vulnerability reporting while release-style callers still retain the non-zero Trivy gate.
   - The local `db-start` guard now recreates stale Postgres containers when the published host port does not match the requested port, closing the remaining PR review thread on the recipe.
   - The `ui-e2e` recipe now uses Playwright's `--with-deps` path on Linux whenever passwordless `sudo` is available, keeping local validation aligned with CI and preventing headless Chromium from failing before UI coverage is produced.
+  - The tar extractor now skips non-file, non-directory tar entries instead of aborting the whole extraction, so archives containing symlinks or hardlinks still unpack their regular files successfully.
 - Test coverage summary:
   - Re-ran `PG_VOLUME=revaer-pgdata-ci just ui-e2e`.
   - Re-ran `PG_VOLUME=revaer-pgdata-ci just ci`.

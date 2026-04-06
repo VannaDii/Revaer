@@ -1343,10 +1343,11 @@ impl FsOpsService {
             }
 
             if !entry.header().entry_type().is_file() {
-                return Err(FsOpsError::Unsupported {
-                    operation: "extract_tar.entry_type",
-                    value: Some(entry_path.to_string_lossy().into_owned()),
-                });
+                warn!(
+                    path = %entry_path.display(),
+                    "skipping unsupported tar entry type during extraction"
+                );
+                continue;
             }
 
             let unix_mode = entry.header().mode().ok();
@@ -2912,6 +2913,39 @@ mod tests {
         FsOpsService::extract_archive(&source, &target)?;
 
         assert!(target.join("show").join("episode1.mkv").exists());
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn extract_archive_skips_tar_symlink_entries() -> TestResult<()> {
+        let temp = temp_dir()?;
+        let source = temp.path().join("payload.tar");
+        let file = File::create(&source)?;
+        let mut builder = tar::Builder::new(file);
+
+        let mut file_header = tar::Header::new_gnu();
+        file_header.set_path("show/episode1.mkv")?;
+        file_header.set_size(5);
+        file_header.set_mode(0o644);
+        file_header.set_cksum();
+        builder.append(&file_header, &b"video"[..])?;
+
+        let mut symlink_header = tar::Header::new_gnu();
+        symlink_header.set_entry_type(tar::EntryType::Symlink);
+        symlink_header.set_path("show/latest.mkv")?;
+        symlink_header.set_link_name("show/episode1.mkv")?;
+        symlink_header.set_size(0);
+        symlink_header.set_mode(0o644);
+        symlink_header.set_cksum();
+        builder.append(&symlink_header, io::empty())?;
+        builder.finish()?;
+
+        let target = temp.path().join("target");
+        FsOpsService::extract_archive(&source, &target)?;
+
+        assert!(target.join("show").join("episode1.mkv").exists());
+        assert!(!target.join("show").join("latest.mkv").exists());
         Ok(())
     }
 
