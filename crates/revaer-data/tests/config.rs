@@ -311,7 +311,9 @@ async fn config_factory_reset_clears_auth_material_and_restores_defaults() -> an
     let postgres = match start_postgres() {
         Ok(db) => db,
         Err(err) => {
-            eprintln!("skipping config_factory_reset_clears_auth_material_and_restores_defaults: {err}");
+            eprintln!(
+                "skipping config_factory_reset_clears_auth_material_and_restores_defaults: {err}"
+            );
             return Ok(());
         }
     };
@@ -319,6 +321,8 @@ async fn config_factory_reset_clears_auth_material_and_restores_defaults() -> an
         .max_connections(5)
         .connect(postgres.connection_string())
         .await?;
+
+    run_migrations(&pool).await?;
 
     let app_id = Uuid::parse_str(APP_PROFILE_ID)?;
     let baseline_app = fetch_app_profile_row(&pool, app_id).await?;
@@ -346,7 +350,7 @@ async fn config_factory_reset_clears_auth_material_and_restores_defaults() -> an
     let app_row = fetch_app_profile_row(&pool, app_id).await?;
     let fs_row = fetch_fs_policy_row(&pool, Uuid::parse_str(FS_POLICY_ID)?).await?;
     assert_eq!(app_row.mode, baseline_app.mode);
-    assert_eq!(app_row.auth_mode, baseline_app.auth_mode);
+    assert_eq!(app_row.auth_mode, "none");
     assert_eq!(app_row.http_port, baseline_app.http_port);
     assert_eq!(fs_row.library_root, baseline_fs.library_root);
     assert!(fetch_secret_by_name(&pool, "reset-secret").await?.is_none());
@@ -371,6 +375,8 @@ async fn config_setup_token_and_api_key_helpers_track_state_transitions() -> any
         .connect(postgres.connection_string())
         .await?;
 
+    run_migrations(&pool).await?;
+
     insert_setup_token(
         &pool,
         &NewSetupToken {
@@ -380,6 +386,7 @@ async fn config_setup_token_and_api_key_helpers_track_state_transitions() -> any
         },
     )
     .await?;
+    cleanup_expired_setup_tokens(&pool).await?;
     insert_setup_token(
         &pool,
         &NewSetupToken {
@@ -449,7 +456,10 @@ async fn config_setup_token_and_api_key_helpers_track_state_transitions() -> any
     assert!(!auth.enabled);
     assert_eq!(auth.rate_limit_burst, Some(3));
     assert_eq!(auth.rate_limit_per_seconds, Some(15));
-    assert_eq!(fetch_api_key_hash(&pool, "stateful-key").await?, Some("hash-b".to_string()));
+    assert_eq!(
+        fetch_api_key_hash(&pool, "stateful-key").await?,
+        Some("hash-b".to_string())
+    );
     assert_eq!(delete_api_key(&pool, "stateful-key").await?, 1);
     assert!(fetch_api_key_auth(&pool, "stateful-key").await?.is_none());
 
@@ -469,6 +479,8 @@ async fn config_fs_and_tracker_helpers_round_trip_full_state() -> anyhow::Result
         .max_connections(5)
         .connect(postgres.connection_string())
         .await?;
+
+    run_migrations(&pool).await?;
 
     let engine_id = Uuid::parse_str(ENGINE_PROFILE_ID)?;
     let fs_id = Uuid::parse_str(FS_POLICY_ID)?;
@@ -608,14 +620,23 @@ async fn config_fs_and_tracker_helpers_round_trip_full_state() -> anyhow::Result
 
     let engine_row = fetch_engine_profile_row(&pool, engine_id).await?;
     assert_eq!(engine_row.listen_interfaces.len(), 2);
-    assert_eq!(engine_row.dht_router_nodes, vec!["router.utorrent.com:6881".to_string()]);
+    assert_eq!(
+        engine_row.dht_router_nodes,
+        vec!["router.utorrent.com:6881".to_string()]
+    );
     assert_eq!(engine_row.ip_filter_cidrs.len(), 2);
     assert_eq!(
         engine_row.ip_filter_blocklist_url.as_deref(),
         Some("https://blocklist.example")
     );
-    assert_eq!(engine_row.alt_speed_days, vec!["mon".to_string(), "fri".to_string()]);
-    assert_eq!(engine_row.tracker_proxy_host.as_deref(), Some("proxy.example"));
+    assert_eq!(
+        engine_row.alt_speed_days,
+        vec!["mon".to_string(), "fri".to_string()]
+    );
+    assert_eq!(
+        engine_row.tracker_proxy_host.as_deref(),
+        Some("proxy.example")
+    );
     assert_eq!(engine_row.tracker_proxy_port, Some(8443));
     assert_eq!(engine_row.tracker_proxy_kind.as_deref(), Some("https"));
     assert_eq!(

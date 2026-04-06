@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use revaer_data::config::run_migrations;
+use crate::config::run_migrations;
 use revaer_test_support::postgres::start_postgres;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::{PgPool, Row};

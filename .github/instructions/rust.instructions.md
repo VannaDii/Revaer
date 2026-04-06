@@ -29,13 +29,14 @@ applyTo:
 
 - Keep workspace lint posture aligned with `AGENTS.md`, the active `just` recipes, and crate-root attributes.
 - `just lint` includes `scripts/policy-guardrails.sh`. Keep that guardrail aligned with the root policy when the lint posture changes.
-- `scripts/policy-guardrails.sh` currently enforces no source-level lint suppressions, no authored stubs, FFI-only `unsafe`/`catch_unwind`, and the stored-procedure-only runtime SQL boundary. Update this file when that guardrail changes.
+- `scripts/policy-guardrails.sh` currently enforces no source-level lint suppressions, no authored stubs, FFI-only `unsafe`/`catch_unwind`, and the stored-procedure-only runtime SQL boundary. The inline DDL/DML scan excludes test-only sidecar modules at `crates/**/src/**/tests.rs`; keep runtime code and non-test source files on the stored-procedure path.
 - `just lint` also runs a production-target Clippy pass on workspace libs, bins, and examples that forbids `panic!`, `unwrap()`, `expect()`, `unreachable!()`, `todo!()`, and `unimplemented!()` without applying those restrictions to test targets.
 - Keep repo-level Clippy exceptions in `just lint`, not in crate source. Today that includes the ADR-backed `clippy::multiple_crate_versions` exception and the workspace `pub(crate)` style exception for `clippy::redundant_pub_crate`. The owning `clippy::cargo` and `clippy::nursery` groups are enforced from the Justfile for the same reason.
 - `#[allow(...)]` and `#[expect(...)]` are not permitted in authored code. Split or redesign the code instead.
 - If custom cfgs are introduced, register them with `cargo::rustc-check-cfg` in `build.rs` or the manifest lint configuration. Do not silence `unexpected_cfgs`.
 - Prefer `#[must_use]` for important return values and `pub(crate)` for internal APIs.
 - FFI crates may omit a crate-wide `forbid(unsafe_code)` if necessary, but unsafe code must stay isolated to the documented boundary modules and shims. Do not use lint suppressions to permit unsafe.
+- `just test`, `just test-features-min`, `just test-native`, `just db-migrate`, `just cov`, and `just validate` now default `REVAER_TEST_DATABASE_URL` to the Postgres maintenance database at `postgres://revaer:revaer@localhost:5432/postgres`. `just db-start` also retries transient Postgres recovery/startup/not-yet-accepting-connection errors around `sqlx migrate run` and `sqlx database reset` before treating the database as mismatched. Keep recipes and docs aligned with that admin-connection workflow when test database bootstrapping changes.
 
 # Documentation
 

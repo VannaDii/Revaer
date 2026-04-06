@@ -427,6 +427,33 @@ mod tests {
     }
 
     #[test]
+    fn ensure_initialized_reports_create_dir_error_for_nested_path_under_file() -> Result<()> {
+        let temp = temp_dir()?;
+        let parent = temp.path().join("resume-parent");
+        fs::write(&parent, "not-a-directory")?;
+        let store = FastResumeStore::new(parent.join("child"));
+
+        let err = store
+            .ensure_initialized()
+            .err()
+            .ok_or_else(|| anyhow!("expected create_dir_all failure"))?;
+        let TorrentError::OperationFailed { source, .. } = err else {
+            return Err(anyhow!("expected operation failure"));
+        };
+        let source = source
+            .downcast::<LibtorrentError>()
+            .map_err(|_| anyhow!("expected libtorrent error"))?;
+        assert!(matches!(
+            *source,
+            LibtorrentError::StoreIo {
+                operation: "fastresume_init",
+                ..
+            }
+        ));
+        Ok(())
+    }
+
+    #[test]
     fn write_and_load_round_trip() -> Result<()> {
         let temp = temp_dir()?;
         let store = FastResumeStore::new(temp.path());
@@ -496,6 +523,33 @@ mod tests {
     }
 
     #[test]
+    fn load_all_reports_read_dir_error_when_base_is_file() -> Result<()> {
+        let temp = temp_dir()?;
+        let file = temp.path().join("resume-file");
+        fs::write(&file, "not-a-directory")?;
+        let store = FastResumeStore::new(&file);
+
+        let err = store
+            .load_all()
+            .err()
+            .ok_or_else(|| anyhow!("expected read_dir failure"))?;
+        let TorrentError::OperationFailed { source, .. } = err else {
+            return Err(anyhow!("expected operation failure"));
+        };
+        let source = source
+            .downcast::<LibtorrentError>()
+            .map_err(|_| anyhow!("expected libtorrent error"))?;
+        assert!(matches!(
+            *source,
+            LibtorrentError::StoreIo {
+                operation: "fastresume_load",
+                ..
+            }
+        ));
+        Ok(())
+    }
+
+    #[test]
     fn load_all_errors_on_corrupt_metadata() -> Result<()> {
         let temp = temp_dir()?;
         let store = FastResumeStore::new(temp.path());
@@ -514,6 +568,199 @@ mod tests {
             .downcast::<LibtorrentError>()
             .map_err(|_| anyhow!("expected libtorrent error"))?;
         assert!(matches!(*source, LibtorrentError::StoreParse { .. }));
+        Ok(())
+    }
+
+    #[test]
+    fn load_all_merges_partial_fastresume_and_metadata_entries() -> Result<()> {
+        let temp = temp_dir()?;
+        let store = FastResumeStore::new(temp.path());
+        let fastresume_only = Uuid::new_v4();
+        let metadata_only = Uuid::new_v4();
+
+        fs::write(
+            temp.path()
+                .join(format!("{fastresume_only}{FASTRESUME_SUFFIX}")),
+            [9_u8, 8, 7, 6],
+        )?;
+        fs::write(
+            temp.path().join(format!("{metadata_only}{META_SUFFIX}")),
+            serde_json::to_string_pretty(&sample_metadata())?,
+        )?;
+
+        let mut loaded = store.load_all()?;
+        loaded.sort_by_key(|state| state.torrent_id);
+        assert_eq!(loaded.len(), 2);
+        assert!(
+            loaded
+                .iter()
+                .any(|state| state.torrent_id == fastresume_only
+                    && state.fastresume.as_deref() == Some(&[9, 8, 7, 6])
+                    && state.metadata.is_none())
+        );
+        assert!(loaded.iter().any(|state| state.torrent_id == metadata_only
+            && state.fastresume.is_none()
+            && state.metadata.is_some()));
+        Ok(())
+    }
+
+    #[test]
+    fn write_metadata_refreshes_timestamp_and_remove_ignores_missing_files() -> Result<()> {
+        let temp = temp_dir()?;
+        let store = FastResumeStore::new(temp.path());
+        let torrent_id = Uuid::new_v4();
+        let mut metadata = sample_metadata();
+        metadata.updated_at = Utc::now() - chrono::Duration::hours(2);
+        let original_updated_at = metadata.updated_at;
+
+        store.write_metadata(torrent_id, &metadata)?;
+        let loaded = store
+            .load_all()?
+            .into_iter()
+            .find(|state| state.torrent_id == torrent_id)
+            .ok_or_else(|| anyhow!("stored metadata missing"))?;
+        let stored = loaded
+            .metadata
+            .ok_or_else(|| anyhow!("metadata payload missing"))?;
+        assert!(stored.updated_at >= original_updated_at);
+
+        store.remove(Uuid::new_v4())?;
+        Ok(())
+    }
+
+    #[test]
+    fn ensure_initialized_and_writes_report_io_failures_when_base_is_file() -> Result<()> {
+        let temp = temp_dir()?;
+        let base = temp.path().join("resume-file");
+        fs::write(&base, "not-a-directory")?;
+        let store = FastResumeStore::new(&base);
+        let torrent_id = Uuid::new_v4();
+
+        store.ensure_initialized()?;
+
+        let fastresume_err = store
+            .write_fastresume(torrent_id, &[1, 2, 3])
+            .err()
+            .ok_or_else(|| anyhow!("expected fastresume init error"))?;
+        assert!(matches!(
+            fastresume_err,
+            revaer_torrent_core::TorrentError::OperationFailed { .. }
+        ));
+
+        let metadata_err = store
+            .write_metadata(torrent_id, &sample_metadata())
+            .err()
+            .ok_or_else(|| anyhow!("expected metadata init error"))?;
+        assert!(matches!(
+            metadata_err,
+            revaer_torrent_core::TorrentError::OperationFailed { .. }
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn load_all_reports_fastresume_read_errors_for_directories() -> Result<()> {
+        let temp = temp_dir()?;
+        let store = FastResumeStore::new(temp.path());
+        let torrent_id = Uuid::new_v4();
+        let payload_dir = temp.path().join(format!("{torrent_id}{FASTRESUME_SUFFIX}"));
+        fs::create_dir_all(&payload_dir)?;
+
+        let err = store
+            .load_all()
+            .err()
+            .ok_or_else(|| anyhow!("expected fastresume read error"))?;
+        let revaer_torrent_core::TorrentError::OperationFailed { source, .. } = err else {
+            return Err(anyhow!("expected operation failure"));
+        };
+        let source = source
+            .downcast::<LibtorrentError>()
+            .map_err(|_| anyhow!("expected libtorrent error"))?;
+        assert!(matches!(
+            *source,
+            LibtorrentError::StoreIo {
+                operation: "fastresume_read",
+                ..
+            }
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn load_all_reports_metadata_read_errors_for_directories() -> Result<()> {
+        let temp = temp_dir()?;
+        let store = FastResumeStore::new(temp.path());
+        let torrent_id = Uuid::new_v4();
+        let metadata_dir = temp.path().join(format!("{torrent_id}{META_SUFFIX}"));
+        fs::create_dir_all(&metadata_dir)?;
+
+        let err = store
+            .load_all()
+            .err()
+            .ok_or_else(|| anyhow!("expected metadata read error"))?;
+        let TorrentError::OperationFailed { source, .. } = err else {
+            return Err(anyhow!("expected operation failure"));
+        };
+        let source = source
+            .downcast::<LibtorrentError>()
+            .map_err(|_| anyhow!("expected libtorrent error"))?;
+        assert!(matches!(
+            *source,
+            LibtorrentError::StoreIo {
+                operation: "metadata_read",
+                ..
+            }
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn remove_reports_delete_failures_for_directory_entries() -> Result<()> {
+        let temp = temp_dir()?;
+        let store = FastResumeStore::new(temp.path());
+        let fastresume_id = Uuid::new_v4();
+        fs::create_dir_all(
+            temp.path()
+                .join(format!("{fastresume_id}{FASTRESUME_SUFFIX}")),
+        )?;
+
+        let err = store
+            .remove(fastresume_id)
+            .err()
+            .ok_or_else(|| anyhow!("expected fastresume remove error"))?;
+        let TorrentError::OperationFailed { source, .. } = err else {
+            return Err(anyhow!("expected operation failure"));
+        };
+        let source = source
+            .downcast::<LibtorrentError>()
+            .map_err(|_| anyhow!("expected libtorrent error"))?;
+        assert!(matches!(
+            *source,
+            LibtorrentError::StoreIo {
+                operation: "fastresume_remove",
+                ..
+            }
+        ));
+
+        let metadata_id = Uuid::new_v4();
+        fs::create_dir_all(temp.path().join(format!("{metadata_id}{META_SUFFIX}")))?;
+        let err = store
+            .remove(metadata_id)
+            .err()
+            .ok_or_else(|| anyhow!("expected metadata remove error"))?;
+        let TorrentError::OperationFailed { source, .. } = err else {
+            return Err(anyhow!("expected operation failure"));
+        };
+        let source = source
+            .downcast::<LibtorrentError>()
+            .map_err(|_| anyhow!("expected libtorrent error"))?;
+        assert!(matches!(
+            *source,
+            LibtorrentError::StoreIo {
+                operation: "metadata_remove",
+                ..
+            }
+        ));
         Ok(())
     }
 }

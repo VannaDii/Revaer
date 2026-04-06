@@ -473,6 +473,7 @@ mod tests {
             Arc::new(StubConfig {
                 snapshot: snapshot.clone(),
             }),
+            test_indexers(),
             Metrics::new()?,
             Arc::new(serde_json::json!({})),
             EventBus::new(),
@@ -491,6 +492,7 @@ mod tests {
             Arc::new(StubConfig {
                 snapshot: sample_snapshot()?,
             }),
+            test_indexers(),
             Metrics::new()?,
             Arc::new(serde_json::json!({})),
             EventBus::new(),
@@ -516,6 +518,7 @@ mod tests {
             Arc::new(StubConfig {
                 snapshot: sample_snapshot()?,
             }),
+            test_indexers(),
             Metrics::new()?,
             Arc::new(serde_json::json!({})),
             EventBus::new(),

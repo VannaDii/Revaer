@@ -307,4 +307,113 @@ mod tests {
             Some(HOOK_STATUS_THRESHOLD_REQUIRED)
         );
     }
+
+    #[tokio::test]
+    async fn update_health_notification_hook_trims_optionals_and_returns_payload() {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone()).expect("state should build");
+        let hook_public_id = uuid::Uuid::new_v4();
+        indexers
+            .health_notification_hooks
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(IndexerHealthNotificationHookResponse {
+                indexer_health_notification_hook_public_id: hook_public_id,
+                channel: "webhook".to_string(),
+                display_name: "Pager".to_string(),
+                status_threshold: "failing".to_string(),
+                webhook_url: Some("https://hooks.example.test/old".to_string()),
+                email: Some("ops@example.test".to_string()),
+                is_enabled: true,
+                updated_at: chrono::Utc::now(),
+            });
+
+        let Json(response) = update_health_notification_hook(
+            State(state),
+            Json(IndexerHealthNotificationHookUpdateRequest {
+                indexer_health_notification_hook_public_id: hook_public_id,
+                display_name: Some("  Escalation Pager  ".to_string()),
+                status_threshold: Some("  degraded  ".to_string()),
+                webhook_url: Some("   ".to_string()),
+                email: Some("  alerts@example.test  ".to_string()),
+                is_enabled: Some(false),
+            }),
+        )
+        .await
+        .expect("update should succeed");
+
+        assert_eq!(response.display_name, "Escalation Pager");
+        assert_eq!(response.status_threshold, "degraded");
+        assert_eq!(
+            response.webhook_url,
+            Some("https://hooks.example.test/old".to_string())
+        );
+        assert_eq!(response.email, Some("alerts@example.test".to_string()));
+        assert!(!response.is_enabled);
+    }
+
+    #[tokio::test]
+    async fn delete_health_notification_hook_returns_no_content() {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone()).expect("state should build");
+        let hook_public_id = uuid::Uuid::new_v4();
+        indexers
+            .health_notification_hooks
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(IndexerHealthNotificationHookResponse {
+                indexer_health_notification_hook_public_id: hook_public_id,
+                channel: "webhook".to_string(),
+                display_name: "Pager".to_string(),
+                status_threshold: "failing".to_string(),
+                webhook_url: Some("https://hooks.example.test/pager".to_string()),
+                email: None,
+                is_enabled: true,
+                updated_at: chrono::Utc::now(),
+            });
+
+        let status = delete_health_notification_hook(
+            State(state),
+            Json(IndexerHealthNotificationHookDeleteRequest {
+                indexer_health_notification_hook_public_id: hook_public_id,
+            }),
+        )
+        .await
+        .expect("delete should succeed");
+
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        assert!(
+            indexers
+                .health_notification_hooks
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn delete_health_notification_hook_maps_not_found() {
+        let state = indexer_test_state(Arc::new(RecordingIndexers::default())).expect("state");
+        let err = delete_health_notification_hook(
+            State(state),
+            Json(IndexerHealthNotificationHookDeleteRequest {
+                indexer_health_notification_hook_public_id: uuid::Uuid::new_v4(),
+            }),
+        )
+        .await
+        .expect_err("missing hook should fail");
+
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let problem = parse_problem(response).await;
+        assert_eq!(problem.detail.as_deref(), Some(HOOK_DELETE_FAILED));
+        assert_eq!(
+            problem
+                .context
+                .as_ref()
+                .and_then(|fields| fields.iter().find(|field| field.name == "error_code"))
+                .map(|field| field.value.as_str()),
+            Some("hook_not_found")
+        );
+    }
 }

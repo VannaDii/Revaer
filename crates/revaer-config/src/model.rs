@@ -304,7 +304,10 @@ mod tests {
         assert!(EngineProfile::default_auto_managed().is_enabled());
         assert!(EngineProfile::default_dont_count_slow_torrents().is_enabled());
         assert_eq!(EngineProfile::default_choking_algorithm(), "fixed_slots");
-        assert_eq!(EngineProfile::default_seed_choking_algorithm(), "round_robin");
+        assert_eq!(
+            EngineProfile::default_seed_choking_algorithm(),
+            "round_robin"
+        );
         assert_eq!(EngineProfile::default_storage_mode(), "sparse");
         assert!(EngineProfile::default_use_partfile().is_enabled());
         assert!(EngineProfile::default_coalesce_reads().is_enabled());

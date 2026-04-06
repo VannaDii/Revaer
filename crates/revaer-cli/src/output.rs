@@ -1168,9 +1168,11 @@ mod tests {
     use super::*;
     use chrono::{DateTime, Utc};
     use revaer_api::models::{
+        IndexerHealthEventResponse, IndexerRssSeenItemResponse, IndexerSourceReputationResponse,
         TorrentFileView, TorrentProgressView, TorrentRateLimit, TorrentRatesView,
         TorrentSelectionView, TorrentSettingsView, TorrentStateView, TorrentSummary,
     };
+    use serde::de::DeserializeOwned;
     use std::error::Error;
     use std::io;
     use uuid::Uuid;
@@ -1221,6 +1223,23 @@ mod tests {
             completed_at: None,
             last_updated: timestamp,
         })
+    }
+
+    fn from_json<T>(value: serde_json::Value) -> Result<T>
+    where
+        T: DeserializeOwned,
+    {
+        Ok(serde_json::from_value(value)?)
+    }
+
+    fn render_with_all_formats<F, E>(mut render: F) -> Result<()>
+    where
+        F: FnMut(OutputFormat) -> std::result::Result<(), E>,
+        E: Error + 'static,
+    {
+        render(OutputFormat::Table)?;
+        render(OutputFormat::Json)?;
+        Ok(())
     }
 
     #[test]
@@ -1347,5 +1366,565 @@ mod tests {
         assert!(rendered.contains("\"field_count\":2"));
         assert!(!rendered.contains("secret_public_id"));
         assert!(!rendered.contains("secret_plaintext"));
+    }
+
+    fn render_import_job_resources(
+        import_results: &ImportJobResultsResponse,
+        prepare: &IndexerInstanceTestPrepareResponse,
+        finalize: &IndexerInstanceTestFinalizeResponse,
+    ) -> Result<()> {
+        let import_job = ImportJobResponse {
+            import_job_public_id: Uuid::from_u128(1),
+        };
+        let import_job_status = ImportJobStatusResponse {
+            status: "completed".to_string(),
+            result_total: 4,
+            result_imported_ready: 2,
+            result_imported_needs_secret: 1,
+            result_imported_test_failed: 1,
+            result_unmapped_definition: 0,
+            result_skipped_duplicate: 0,
+        };
+
+        render_with_all_formats(|format| render_import_job_summary(&import_job, format))?;
+        render_with_all_formats(|format| render_import_job_status(&import_job_status, format))?;
+        render_with_all_formats(|format| render_import_job_results(import_results, format))?;
+        render_with_all_formats(|format| render_indexer_instance_test_prepare(prepare, format))?;
+        render_with_all_formats(|format| render_indexer_instance_test_finalize(finalize, format))?;
+        Ok(())
+    }
+
+    fn render_operator_mutation_policy_resources() -> Result<()> {
+        let policy_set = PolicySetResponse {
+            policy_set_public_id: Uuid::from_u128(10),
+        };
+        let policy_rule = PolicyRuleResponse {
+            policy_rule_public_id: Uuid::from_u128(11),
+        };
+        let search_profile = SearchProfileResponse {
+            search_profile_public_id: Uuid::from_u128(12),
+        };
+        let routing_policy = RoutingPolicyResponse {
+            routing_policy_public_id: Uuid::from_u128(13),
+            display_name: "Proxy".to_string(),
+            mode: "http_proxy".to_string(),
+        };
+        let rate_limit_policy = RateLimitPolicyResponse {
+            rate_limit_policy_public_id: Uuid::from_u128(14),
+        };
+
+        render_with_all_formats(|format| render_policy_set_response(&policy_set, format))?;
+        render_with_all_formats(|format| render_policy_rule_response(&policy_rule, format))?;
+        render_with_all_formats(|format| render_search_profile_response(&search_profile, format))?;
+        render_with_all_formats(|format| render_routing_policy_response(&routing_policy, format))?;
+        render_with_all_formats(|format| {
+            render_rate_limit_policy_response(&rate_limit_policy, format)
+        })?;
+        Ok(())
+    }
+
+    fn render_operator_mutation_identity_resources(
+        secret_metadata_list: &SecretMetadataListResponse,
+        timestamp_json: &str,
+    ) -> Result<()> {
+        let torznab_instance = TorznabInstanceResponse {
+            torznab_instance_public_id: Uuid::from_u128(15),
+            api_key_plaintext: "secret".to_string(),
+        };
+        let tag = TagResponse {
+            tag_public_id: Uuid::from_u128(16),
+            tag_key: Some("scene".to_string()),
+            display_name: "Scene".to_string(),
+        };
+        let tag_list: TagListResponse = from_json(json!({
+            "tags": [{
+                "tag_public_id": Uuid::from_u128(17),
+                "tag_key": "anime",
+                "display_name": "Anime",
+                "updated_at": timestamp_json,
+            }]
+        }))?;
+        let secret = SecretResponse {
+            secret_public_id: Uuid::from_u128(18),
+        };
+
+        render_with_all_formats(|format| render_torznab_instance(&torznab_instance, format))?;
+        render_with_all_formats(|format| render_tag_response(&tag, format))?;
+        render_with_all_formats(|format| render_tag_list(&tag_list, format))?;
+        render_with_all_formats(|format| render_secret_response(&secret, format))?;
+        render_with_all_formats(|format| {
+            render_secret_metadata_list(secret_metadata_list, format)
+        })?;
+        Ok(())
+    }
+
+    fn render_operator_inventory_lists(
+        health_hooks: &IndexerHealthNotificationHookListResponse,
+        search_profiles: &SearchProfileListResponse,
+        policy_sets: &PolicySetListResponse,
+        routing_policy_detail: &RoutingPolicyDetailResponse,
+        rate_limits: &RateLimitPolicyListResponse,
+        indexer_instances: &IndexerInstanceListResponse,
+        torznab_instances: &TorznabInstanceListResponse,
+    ) -> Result<()> {
+        let routing_policies: RoutingPolicyListResponse = from_json(json!({
+            "routing_policies": [{
+                "routing_policy_public_id": Uuid::from_u128(25),
+                "display_name": "Proxy",
+                "mode": "http_proxy",
+                "rate_limit_policy_public_id": Uuid::from_u128(14),
+                "rate_limit_display_name": "Burst",
+                "parameter_count": 1,
+                "secret_binding_count": 1,
+            }]
+        }))?;
+
+        render_with_all_formats(|format| {
+            render_indexer_health_notification_hook_response(&health_hooks.hooks[0], format)
+        })?;
+        render_with_all_formats(|format| {
+            render_indexer_health_notification_hook_list(health_hooks, format)
+        })?;
+        render_with_all_formats(|format| render_search_profile_list(search_profiles, format))?;
+        render_with_all_formats(|format| render_policy_set_list(policy_sets, format))?;
+        render_with_all_formats(|format| render_routing_policy_list(&routing_policies, format))?;
+        render_with_all_formats(|format| {
+            render_routing_policy_detail(routing_policy_detail, format)
+        })?;
+        render_with_all_formats(|format| render_rate_limit_policy_list(rate_limits, format))?;
+        render_with_all_formats(|format| render_indexer_instance_list(indexer_instances, format))?;
+        render_with_all_formats(|format| render_torznab_instance_list(torznab_instances, format))?;
+        Ok(())
+    }
+
+    fn render_backup_resources(
+        backup_export: &IndexerBackupExportResponse,
+        backup_restore: &IndexerBackupRestoreResponse,
+        connectivity_profile: &IndexerConnectivityProfileResponse,
+        source_reputation: &IndexerSourceReputationListResponse,
+        health_events: &IndexerHealthEventListResponse,
+    ) -> Result<()> {
+        render_with_all_formats(|format| render_indexer_backup_export(backup_export, format))?;
+        render_with_all_formats(|format| render_indexer_backup_restore(backup_restore, format))?;
+        render_with_all_formats(|format| {
+            render_indexer_connectivity_profile(connectivity_profile, format)
+        })?;
+        render_with_all_formats(|format| {
+            render_indexer_source_reputation_list(source_reputation, format)
+        })?;
+        render_with_all_formats(|format| render_indexer_health_events(health_events, format))?;
+        Ok(())
+    }
+
+    fn render_rss_resources(
+        rss_subscription: &IndexerRssSubscriptionResponse,
+        rss_seen_items: &IndexerRssSeenItemsResponse,
+    ) -> Result<()> {
+        let rss_seen_mark = IndexerRssSeenMarkResponse {
+            item: rss_seen_items.items[0].clone(),
+            inserted: true,
+        };
+
+        render_with_all_formats(|format| {
+            render_indexer_rss_subscription(rss_subscription, format)
+        })?;
+        render_with_all_formats(|format| render_indexer_rss_seen_items(rss_seen_items, format))?;
+        render_with_all_formats(|format| render_indexer_rss_seen_mark(&rss_seen_mark, format))?;
+        Ok(())
+    }
+
+    fn sample_inventory_catalogs(
+        timestamp_json: &str,
+    ) -> Result<(
+        IndexerHealthNotificationHookListResponse,
+        SearchProfileListResponse,
+        PolicySetListResponse,
+    )> {
+        let health_hooks = from_json(json!({
+            "hooks": [{
+                "indexer_health_notification_hook_public_id": Uuid::from_u128(20),
+                "channel": "webhook",
+                "display_name": "Pager",
+                "status_threshold": "degraded",
+                "webhook_url": "https://example.test/hook",
+                "email": null,
+                "is_enabled": true,
+                "updated_at": timestamp_json,
+            }]
+        }))?;
+        let search_profiles = from_json(json!({
+            "search_profiles": [{
+                "search_profile_public_id": Uuid::from_u128(21),
+                "display_name": "Movies",
+                "is_default": true,
+                "page_size": 100,
+                "default_media_domain_key": "movies",
+                "media_domain_keys": ["movies"],
+                "policy_set_public_ids": [Uuid::from_u128(22)],
+                "policy_set_display_names": ["Default"],
+                "allow_indexer_public_ids": [Uuid::from_u128(23)],
+                "block_indexer_public_ids": [],
+                "allow_tag_keys": ["scene"],
+                "block_tag_keys": [],
+                "prefer_tag_keys": ["remux"],
+            }]
+        }))?;
+        let policy_sets = from_json(json!({
+            "policy_sets": [{
+                "policy_set_public_id": Uuid::from_u128(22),
+                "display_name": "Default",
+                "scope": "global",
+                "is_enabled": true,
+                "user_public_id": null,
+                "rules": [{
+                    "policy_rule_public_id": Uuid::from_u128(24),
+                    "rule_type": "block",
+                    "match_field": "title",
+                    "match_operator": "contains",
+                    "sort_order": 10,
+                    "match_value_text": "cam",
+                    "match_value_int": null,
+                    "match_value_uuid": null,
+                    "action": "reject",
+                    "severity": "high",
+                    "is_case_insensitive": true,
+                    "rationale": "low quality",
+                    "expires_at": null,
+                    "is_disabled": false,
+                }]
+            }]
+        }))?;
+        Ok((health_hooks, search_profiles, policy_sets))
+    }
+
+    fn sample_inventory_routing_and_instances() -> Result<(
+        RoutingPolicyDetailResponse,
+        RateLimitPolicyListResponse,
+        IndexerInstanceListResponse,
+        TorznabInstanceListResponse,
+    )> {
+        let routing_policy_detail = from_json(json!({
+            "routing_policy_public_id": Uuid::from_u128(25),
+            "display_name": "Proxy",
+            "mode": "http_proxy",
+            "rate_limit_policy_public_id": Uuid::from_u128(14),
+            "rate_limit_display_name": "Burst",
+            "rate_limit_requests_per_minute": 60,
+            "rate_limit_burst": 10,
+            "rate_limit_concurrent_requests": 2,
+            "parameters": [{
+                "param_key": "proxy_host",
+                "value_plain": "proxy.internal",
+                "value_int": null,
+                "value_bool": null,
+                "secret_public_id": Uuid::from_u128(26),
+                "secret_binding_name": "proxy-password",
+            }]
+        }))?;
+        let rate_limits = from_json(json!({
+            "rate_limit_policies": [{
+                "rate_limit_policy_public_id": Uuid::from_u128(14),
+                "display_name": "Burst",
+                "requests_per_minute": 60,
+                "burst": 10,
+                "concurrent_requests": 2,
+                "is_system": false,
+            }]
+        }))?;
+        let indexer_instances = from_json(json!({
+            "indexer_instances": [{
+                "indexer_instance_public_id": Uuid::from_u128(23),
+                "upstream_slug": "demo",
+                "display_name": "Demo",
+                "instance_status": "enabled",
+                "rss_status": "enabled",
+                "automatic_search_status": "enabled",
+                "interactive_search_status": "enabled",
+                "priority": 50,
+                "trust_tier_key": "trusted",
+                "routing_policy_public_id": Uuid::from_u128(25),
+                "routing_policy_display_name": "Proxy",
+                "connect_timeout_ms": 1500,
+                "read_timeout_ms": 4500,
+                "max_parallel_requests": 4,
+                "rate_limit_policy_public_id": Uuid::from_u128(14),
+                "rate_limit_display_name": "Burst",
+                "rss_subscription_enabled": true,
+                "rss_interval_seconds": 900,
+                "media_domain_keys": ["movies"],
+                "tag_keys": ["scene"],
+                "fields": [],
+            }]
+        }))?;
+        let torznab_instances = from_json(json!({
+            "torznab_instances": [{
+                "torznab_instance_public_id": Uuid::from_u128(27),
+                "display_name": "Torznab Demo",
+                "is_enabled": true,
+                "search_profile_public_id": Uuid::from_u128(21),
+                "search_profile_display_name": "Movies",
+            }]
+        }))?;
+        Ok((
+            routing_policy_detail,
+            rate_limits,
+            indexer_instances,
+            torznab_instances,
+        ))
+    }
+
+    fn sample_backup_export(timestamp_json: &str) -> Result<IndexerBackupExportResponse> {
+        from_json(json!({
+            "snapshot": {
+                "version": "1",
+                "exported_at": timestamp_json,
+                "tags": [{"tag_key": "scene", "display_name": "Scene"}],
+                "rate_limit_policies": [{
+                    "display_name": "Burst",
+                    "requests_per_minute": 60,
+                    "burst": 10,
+                    "concurrent_requests": 2,
+                    "is_system": false,
+                }],
+                "routing_policies": [{
+                    "display_name": "Proxy",
+                    "mode": "http_proxy",
+                    "rate_limit_display_name": "Burst",
+                    "parameters": [{
+                        "param_key": "proxy_host",
+                        "value_plain": "proxy.internal",
+                        "value_int": null,
+                        "value_bool": null,
+                        "secret_public_id": Uuid::from_u128(30),
+                    }]
+                }],
+                "indexer_instances": [{
+                    "upstream_slug": "demo",
+                    "display_name": "Demo",
+                    "instance_status": "enabled",
+                    "rss_status": "enabled",
+                    "automatic_search_status": "enabled",
+                    "interactive_search_status": "enabled",
+                    "priority": 50,
+                    "trust_tier_key": "trusted",
+                    "routing_policy_display_name": "Proxy",
+                    "connect_timeout_ms": 1500,
+                    "read_timeout_ms": 4500,
+                    "max_parallel_requests": 4,
+                    "rate_limit_display_name": "Burst",
+                    "rss_subscription_enabled": true,
+                    "rss_interval_seconds": 900,
+                    "media_domain_keys": ["movies"],
+                    "tag_keys": ["scene"],
+                    "fields": [{
+                        "field_name": "cookie",
+                        "field_type": "text",
+                        "value_plain": "session=abc",
+                        "value_int": null,
+                        "value_decimal": null,
+                        "value_bool": null,
+                        "secret_public_id": Uuid::from_u128(31),
+                    }]
+                }],
+                "secrets": [{
+                    "secret_public_id": Uuid::from_u128(31),
+                    "secret_type": "cookie",
+                }]
+            }
+        }))
+    }
+
+    fn sample_restore_and_runtime_resources(
+        timestamp: DateTime<Utc>,
+    ) -> Result<(
+        IndexerBackupRestoreResponse,
+        IndexerConnectivityProfileResponse,
+        IndexerSourceReputationListResponse,
+        IndexerHealthEventListResponse,
+        IndexerRssSubscriptionResponse,
+        IndexerRssSeenItemsResponse,
+    )> {
+        let backup_restore = from_json(json!({
+            "created_tag_count": 1,
+            "created_rate_limit_policy_count": 1,
+            "created_routing_policy_count": 1,
+            "created_indexer_instance_count": 1,
+            "unresolved_secret_bindings": [{
+                "entity_type": "routing_policy",
+                "entity_display_name": "Proxy",
+                "binding_key": "proxy_password",
+                "secret_public_id": Uuid::from_u128(32),
+            }]
+        }))?;
+        let connectivity_profile = IndexerConnectivityProfileResponse {
+            profile_exists: true,
+            status: Some("healthy".to_string()),
+            error_class: None,
+            latency_p50_ms: Some(120),
+            latency_p95_ms: Some(260),
+            success_rate_1h: Some(0.99),
+            success_rate_24h: Some(0.97),
+            last_checked_at: Some(timestamp),
+        };
+        let source_reputation = IndexerSourceReputationListResponse {
+            items: vec![IndexerSourceReputationResponse {
+                window_key: "24h".to_string(),
+                window_start: timestamp,
+                request_success_rate: 0.99,
+                acquisition_success_rate: 0.95,
+                fake_rate: 0.01,
+                dmca_rate: 0.0,
+                request_count: 100,
+                request_success_count: 99,
+                acquisition_count: 20,
+                acquisition_success_count: 19,
+                min_samples: 10,
+                computed_at: timestamp,
+            }],
+        };
+        let health_events = IndexerHealthEventListResponse {
+            items: vec![IndexerHealthEventResponse {
+                occurred_at: timestamp,
+                event_type: "probe_succeeded".to_string(),
+                latency_ms: Some(140),
+                http_status: Some(200),
+                error_class: None,
+                detail: Some("ok".to_string()),
+            }],
+        };
+        let rss_subscription = IndexerRssSubscriptionResponse {
+            indexer_instance_public_id: Uuid::from_u128(33),
+            instance_status: "enabled".to_string(),
+            rss_setting_status: "enabled".to_string(),
+            subscription_status: "enabled".to_string(),
+            interval_seconds: 900,
+            last_polled_at: Some(timestamp),
+            next_poll_at: Some(timestamp),
+            backoff_seconds: Some(0),
+            last_error_class: None,
+        };
+        let rss_seen_items = IndexerRssSeenItemsResponse {
+            items: vec![IndexerRssSeenItemResponse {
+                item_guid: Some("guid-1".to_string()),
+                infohash_v1: Some("abc".to_string()),
+                infohash_v2: None,
+                magnet_hash: None,
+                first_seen_at: timestamp,
+            }],
+        };
+        Ok((
+            backup_restore,
+            connectivity_profile,
+            source_reputation,
+            health_events,
+            rss_subscription,
+            rss_seen_items,
+        ))
+    }
+
+    #[test]
+    fn render_operator_mutation_responses_support_both_formats() -> Result<()> {
+        let timestamp = sample_timestamp()?;
+        let timestamp_json = timestamp.to_rfc3339();
+        let import_results: ImportJobResultsResponse = from_json(json!({
+            "results": [{
+                "prowlarr_identifier": "demo-indexer",
+                "upstream_slug": "demo",
+                "indexer_instance_public_id": Uuid::from_u128(4),
+                "status": "imported_ready",
+                "detail": "created",
+                "resolved_is_enabled": true,
+                "resolved_priority": 50,
+                "missing_secret_fields": 0,
+                "media_domain_keys": ["movies"],
+                "tag_keys": ["scene"],
+                "created_at": timestamp_json,
+            }]
+        }))?;
+        let secret_metadata_list: SecretMetadataListResponse = from_json(json!({
+            "secrets": [{
+                "secret_public_id": Uuid::from_u128(8),
+                "secret_type": "api_key",
+                "is_revoked": false,
+                "created_at": timestamp_json,
+                "rotated_at": timestamp_json,
+                "binding_count": 2,
+            }]
+        }))?;
+        let prepare = IndexerInstanceTestPrepareResponse {
+            can_execute: true,
+            error_class: None,
+            error_code: None,
+            detail: Some("ready".to_string()),
+            engine: "torznab".to_string(),
+            routing_policy_public_id: Some(Uuid::from_u128(3)),
+            connect_timeout_ms: 1_500,
+            read_timeout_ms: 4_500,
+            field_names: Some(vec!["cookie".to_string(), "priority".to_string()]),
+            field_types: Some(vec!["text".to_string(), "integer".to_string()]),
+            value_plain: Some(vec![Some("session=abc".to_string()), None]),
+            value_int: Some(vec![None, Some(7)]),
+            value_decimal: Some(vec![None, None]),
+            value_bool: Some(vec![None, None]),
+            secret_public_ids: Some(vec![Some(Uuid::from_u128(9)), None]),
+        };
+        let finalize = IndexerInstanceTestFinalizeResponse {
+            ok: true,
+            error_class: None,
+            error_code: None,
+            detail: Some("completed".to_string()),
+            result_count: Some(12),
+        };
+
+        render_import_job_resources(&import_results, &prepare, &finalize)?;
+        render_operator_mutation_policy_resources()?;
+        render_operator_mutation_identity_resources(&secret_metadata_list, &timestamp_json)?;
+        Ok(())
+    }
+
+    #[test]
+    fn render_operator_inventory_resources_support_both_formats() -> Result<()> {
+        let timestamp = sample_timestamp()?;
+        let timestamp_json = timestamp.to_rfc3339();
+        let (health_hooks, search_profiles, policy_sets) =
+            sample_inventory_catalogs(&timestamp_json)?;
+        let (routing_policy_detail, rate_limits, indexer_instances, torznab_instances) =
+            sample_inventory_routing_and_instances()?;
+
+        render_operator_inventory_lists(
+            &health_hooks,
+            &search_profiles,
+            &policy_sets,
+            &routing_policy_detail,
+            &rate_limits,
+            &indexer_instances,
+            &torznab_instances,
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn render_backup_and_health_resources_support_both_formats() -> Result<()> {
+        let timestamp = sample_timestamp()?;
+        let timestamp_json = timestamp.to_rfc3339();
+        let backup_export = sample_backup_export(&timestamp_json)?;
+        let (
+            backup_restore,
+            connectivity_profile,
+            source_reputation,
+            health_events,
+            rss_subscription,
+            rss_seen_items,
+        ) = sample_restore_and_runtime_resources(timestamp)?;
+
+        render_backup_resources(
+            &backup_export,
+            &backup_restore,
+            &connectivity_profile,
+            &source_reputation,
+            &health_events,
+        )?;
+        render_rss_resources(&rss_subscription, &rss_seen_items)?;
+        Ok(())
     }
 }

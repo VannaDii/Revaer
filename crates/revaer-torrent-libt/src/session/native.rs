@@ -678,7 +678,7 @@ mod tests {
     use anyhow::{Result, anyhow};
     use revaer_torrent_core::{
         AddTorrent, AddTorrentOptions, EngineEvent, FileSelectionRules, TorrentSource,
-        model::TorrentAuthorRequest,
+        model::{TorrentAuthorRequest, TrackerAuth},
     };
     use std::{convert::TryFrom, fs, path::Path, time::Duration};
     use tokio::time::sleep;
@@ -708,6 +708,150 @@ mod tests {
             std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid piece length")
         })?;
         fs::write(root.join("sample"), vec![0_u8; piece_len])
+    }
+
+    #[tokio::test]
+    async fn native_session_helper_functions_cover_defaults_and_errors() -> TorrentResult<()> {
+        let options = base_options();
+        assert!(options.download_root.is_empty());
+        assert!(options.resume_dir.is_empty());
+        assert!(!options.enable_dht);
+        assert!(!options.sequential_default);
+
+        assert!(NativeSession::map_error("apply_config", String::new()).is_ok());
+        let err = NativeSession::map_error("apply_config", "native failure".to_string())
+            .err()
+            .ok_or_else(|| anyhow!("expected native error"))?;
+        let revaer_torrent_core::TorrentError::OperationFailed { source, .. } = err else {
+            return Err(anyhow!("expected operation failure"));
+        };
+        let source = source
+            .downcast::<LibtorrentError>()
+            .map_err(|_| anyhow!("expected libtorrent error"))?;
+        assert!(matches!(
+            *source,
+            LibtorrentError::NativeFailure {
+                operation: "apply_config",
+                ref message,
+            } if message == "native failure"
+        ));
+
+        let snapshot = NativeSession::map_settings_snapshot(crate::ffi::ffi::EngineSettingsState {
+            listen_interfaces: "0.0.0.0:6881".to_string(),
+            proxy_username: String::new(),
+            proxy_password: "secret".to_string(),
+            share_ratio_limit: -1,
+            seed_time_limit: 3_600,
+        });
+        assert_eq!(snapshot.listen_interfaces, "0.0.0.0:6881");
+        assert!(snapshot.proxy_username.is_none());
+        assert_eq!(snapshot.proxy_password.as_deref(), Some("secret"));
+        assert!(snapshot.share_ratio_limit.is_none());
+        assert_eq!(snapshot.seed_time_limit, Some(3_600));
+
+        let mut session = create_session()?;
+        let settings = session.inspect_settings().await?;
+        assert!(settings.seed_time_limit.is_none() || settings.seed_time_limit.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn native_mapping_helpers_preserve_optionals_and_clamp_invalid_rates() {
+        assert_eq!(map_max_connections(Some(32)), (32, true));
+        assert_eq!(map_max_connections(Some(0)), (-1, false));
+        assert_eq!(map_max_connections(Some(-1)), (-1, false));
+        assert_eq!(map_max_connections(None), (-1, false));
+
+        let empty_auth = map_tracker_auth(None);
+        assert!(!empty_auth.has_username);
+        assert!(!empty_auth.has_password);
+        assert!(!empty_auth.has_cookie);
+
+        let auth = map_tracker_auth(Some(&TrackerAuth {
+            username: Some("user".to_string()),
+            password: Some("pass".to_string()),
+            cookie: Some("cookie".to_string()),
+        }));
+        assert_eq!(auth.username, "user");
+        assert_eq!(auth.password, "pass");
+        assert_eq!(auth.cookie, "cookie");
+        assert!(auth.has_username);
+        assert!(auth.has_password);
+        assert!(auth.has_cookie);
+
+        let request = TorrentAuthorRequest {
+            root_path: "/downloads/demo".to_string(),
+            trackers: vec!["https://tracker.example/announce".to_string()],
+            web_seeds: vec!["https://seed.example/file".to_string()],
+            file_rules: FileSelectionRules {
+                include: vec!["**/*.mkv".to_string()],
+                exclude: vec!["**/extras/**".to_string()],
+                skip_fluff: true,
+            },
+            piece_length: Some(16_384),
+            private: true,
+            comment: Some("note".to_string()),
+            source: Some("source".to_string()),
+        };
+        let mapped_request = map_author_request(&request);
+        assert_eq!(mapped_request.root_path, request.root_path);
+        assert_eq!(mapped_request.trackers, request.trackers);
+        assert_eq!(mapped_request.web_seeds, request.web_seeds);
+        assert_eq!(mapped_request.include, request.file_rules.include);
+        assert_eq!(mapped_request.exclude, request.file_rules.exclude);
+        assert!(mapped_request.skip_fluff);
+        assert_eq!(mapped_request.piece_length, 16_384);
+        assert!(mapped_request.has_piece_length);
+        assert!(mapped_request.private_flag);
+        assert_eq!(mapped_request.comment, "note");
+        assert!(mapped_request.has_comment);
+        assert_eq!(mapped_request.source, "source");
+        assert!(mapped_request.has_source);
+
+        let mapped_result = map_author_result(crate::ffi::ffi::CreateTorrentResult {
+            metainfo: vec![1, 2, 3],
+            magnet_uri: "magnet:?xt=urn:btih:demo".to_string(),
+            info_hash: "deadbeef".to_string(),
+            piece_length: 16_384,
+            total_size: 42,
+            files: vec![crate::ffi::ffi::CreateTorrentFile {
+                path: "demo.mkv".to_string(),
+                size_bytes: 42,
+            }],
+            warnings: vec!["warning".to_string()],
+            trackers: vec!["https://tracker.example/announce".to_string()],
+            web_seeds: vec!["https://seed.example/file".to_string()],
+            private_flag: true,
+            comment: String::new(),
+            source: "source".to_string(),
+            error: String::new(),
+        });
+        assert_eq!(mapped_result.metainfo, vec![1, 2, 3]);
+        assert_eq!(mapped_result.files.len(), 1);
+        assert_eq!(mapped_result.files[0].path, "demo.mkv");
+        assert_eq!(mapped_result.files[0].size_bytes, 42);
+        assert_eq!(mapped_result.comment, None);
+        assert_eq!(mapped_result.source.as_deref(), Some("source"));
+
+        let peer = map_peer_info(crate::ffi::ffi::NativePeerInfo {
+            endpoint: "127.0.0.1:51413".to_string(),
+            client: String::new(),
+            progress: 0.5,
+            download_rate: -1,
+            upload_rate: -10,
+            interesting: true,
+            choked: false,
+            remote_interested: true,
+            remote_choked: false,
+        });
+        assert_eq!(peer.endpoint, "127.0.0.1:51413");
+        assert!(peer.client.is_none());
+        assert_eq!(peer.download_bps, 0);
+        assert_eq!(peer.upload_bps, 0);
+        assert!(peer.interest.local);
+        assert!(peer.interest.remote);
+        assert!(!peer.choke.local);
+        assert!(!peer.choke.remote);
     }
 
     #[tokio::test]

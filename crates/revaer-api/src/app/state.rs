@@ -321,6 +321,7 @@ mod tests {
         let id = Uuid::new_v4();
         let state = ApiState::new(
             Arc::new(NoopConfig),
+            test_indexers(),
             Metrics::new()?,
             Arc::new(json!({})),
             EventBus::with_capacity(4),
@@ -341,6 +342,7 @@ mod tests {
     fn rate_limit_guard_tracks_missing_limit_and_active_limit() -> Result<()> {
         let state = ApiState::new(
             Arc::new(NoopConfig),
+            test_indexers(),
             Metrics::new()?,
             Arc::new(json!({})),
             EventBus::with_capacity(4),
@@ -371,6 +373,7 @@ mod tests {
     fn rate_limit_enforcement_rejects_when_burst_exhausted() -> Result<()> {
         let state = ApiState::new(
             Arc::new(NoopConfig),
+            test_indexers(),
             Metrics::new()?,
             Arc::new(json!({})),
             EventBus::with_capacity(4),

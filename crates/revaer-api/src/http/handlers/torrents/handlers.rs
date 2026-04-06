@@ -1480,17 +1480,23 @@ mod tests {
             vec!["https://seed.example/a".to_string()]
         );
         assert_eq!(metadata.connections_limit, Some(25));
-        assert_eq!(metadata.download_dir.as_deref(), Some(".server_root/downloads/demo"));
+        assert_eq!(
+            metadata.download_dir.as_deref(),
+            Some(".server_root/downloads/demo")
+        );
         assert_eq!(metadata.auto_managed, Some(false));
         assert_eq!(metadata.queue_position, Some(3));
         assert_eq!(metadata.pex_enabled, Some(true));
         assert_eq!(metadata.selection.include, vec!["*.mkv".to_string()]);
         assert_eq!(metadata.selection.exclude, vec!["*.txt".to_string()]);
         assert!(metadata.selection.skip_fluff);
-        assert_eq!(metadata.rate_limit, Some(TorrentRateLimit {
-            download_bps: Some(1_000),
-            upload_bps: Some(2_000),
-        }));
+        assert_eq!(
+            metadata.rate_limit,
+            Some(TorrentRateLimit {
+                download_bps: Some(1_000),
+                upload_bps: Some(2_000),
+            })
+        );
         Ok(())
     }
 
@@ -2287,10 +2293,13 @@ mod tests {
                 },
             )]
         );
-        assert_eq!(state.get_metadata(&torrent_id).rate_limit, Some(TorrentRateLimit {
-            download_bps: Some(4_000),
-            upload_bps: Some(2_000),
-        }));
+        assert_eq!(
+            state.get_metadata(&torrent_id).rate_limit,
+            Some(TorrentRateLimit {
+                download_bps: Some(4_000),
+                upload_bps: Some(2_000),
+            })
+        );
         Ok(())
     }
 

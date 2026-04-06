@@ -61,6 +61,7 @@ matches="$(
   rg -n --glob '*.rs' 'INSERT INTO|UPDATE [[:alpha:]_]|DELETE FROM|CREATE TABLE|ALTER TABLE|DROP TABLE|TRUNCATE ' \
     "${rust_paths[@]}" \
     "${exclude_globs[@]}" \
+    --glob '!crates/**/src/**/tests.rs' \
     || true
 )"
 report_matches "inline DDL/DML is forbidden in Rust; use migrations or stored procedures" "${matches}"

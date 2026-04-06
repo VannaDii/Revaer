@@ -2604,7 +2604,9 @@ mod tests {
             "settings",
             "patch",
             "--file",
-            file_path.to_str().ok_or_else(|| anyhow!("patch path utf8"))?,
+            file_path
+                .to_str()
+                .ok_or_else(|| anyhow!("patch path utf8"))?,
         ]);
 
         let exit_code = run_with_cli(cli).await;
@@ -2680,7 +2682,9 @@ mod tests {
             "--port",
             "7070",
             "--resume-dir",
-            resume_dir.to_str().ok_or_else(|| anyhow!("resume dir utf8"))?,
+            resume_dir
+                .to_str()
+                .ok_or_else(|| anyhow!("resume dir utf8"))?,
             "--download-root",
             download_root
                 .to_str()

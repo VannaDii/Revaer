@@ -682,7 +682,7 @@ mod tests {
     }
 
     #[test]
-    fn local_network_entries_fall_back_for_invalid_or_empty_values() -> Result<()> {
+    fn local_network_entries_fall_back_for_invalid_or_empty_values() {
         let mut app = AppProfile {
             id: Uuid::new_v4(),
             instance_name: "demo".to_string(),
@@ -703,7 +703,6 @@ mod tests {
         app.local_networks.clear();
         let empty_entries = local_network_entries(&app);
         assert!(!empty_entries.is_empty());
-        Ok(())
     }
 
     #[test]

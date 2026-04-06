@@ -28,7 +28,7 @@ pub mod search_requests;
 pub mod secrets;
 pub mod tags;
 #[cfg(test)]
-mod test_support;
+pub(crate) mod test_support;
 pub mod torznab_instances;
 
 /// System actor identifier for indexer operations.

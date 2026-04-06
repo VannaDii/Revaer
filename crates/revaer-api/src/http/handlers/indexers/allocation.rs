@@ -160,7 +160,7 @@ fn mem_available_bytes_from_platform(memory: &Memory) -> Option<u64> {
 }
 
 #[cfg(not(any(target_os = "linux", target_os = "android")))]
-fn mem_available_bytes_from_platform(_memory: &Memory) -> Option<u64> {
+const fn mem_available_bytes_from_platform(_memory: &Memory) -> Option<u64> {
     None
 }
 

@@ -3026,6 +3026,56 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn limit_and_alt_speed_helpers_normalize_values() {
+        assert_eq!(map_limit(Some(-1)), None);
+        assert_eq!(map_limit(Some(0)), Some(0));
+        assert_eq!(map_limit(Some(64_000)), Some(64_000));
+        assert_eq!(map_limit(None), None);
+
+        let empty_limits = AltSpeedRuntimeConfig {
+            download_bps: None,
+            upload_bps: None,
+            schedule: AltSpeedSchedule {
+                days: vec![Weekday::Mon],
+                start_minutes: 60,
+                end_minutes: 120,
+            },
+        };
+        assert!(alt_speed_plan(empty_limits).is_none());
+
+        let planned = alt_speed_plan(AltSpeedRuntimeConfig {
+            download_bps: Some(120_000),
+            upload_bps: Some(-1),
+            schedule: AltSpeedSchedule {
+                days: vec![Weekday::Tue],
+                start_minutes: 120,
+                end_minutes: 240,
+            },
+        })
+        .expect("expected alt-speed plan");
+        assert_eq!(planned.limits.download_bps, Some(120_000));
+        assert_eq!(planned.limits.upload_bps, None);
+        assert!(!planned.active);
+
+        let empty_rate = TorrentRateLimit {
+            download_bps: None,
+            upload_bps: None,
+        };
+        assert!(!has_rate_limit(&empty_rate));
+        assert!(rate_limit_for_metadata(&empty_rate).is_none());
+
+        let applied_rate = TorrentRateLimit {
+            download_bps: Some(10_000),
+            upload_bps: None,
+        };
+        assert!(has_rate_limit(&applied_rate));
+        assert_eq!(
+            rate_limit_for_metadata(&applied_rate),
+            Some(applied_rate.clone())
+        );
+    }
+
     struct ErrorSession;
 
     #[async_trait::async_trait]

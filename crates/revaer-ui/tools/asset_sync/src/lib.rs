@@ -463,7 +463,11 @@ mod tests {
         let missing_variant = AssetSyncError::MissingPath {
             path: PathBuf::from("static/nexus/missing.css"),
         };
-        assert!(missing_variant.to_string().contains("required path is missing"));
+        assert!(
+            missing_variant
+                .to_string()
+                .contains("required path is missing")
+        );
         assert!(missing_variant.source().is_none());
 
         let expected_file_variant = AssetSyncError::ExpectedFile {
@@ -517,7 +521,11 @@ mod tests {
             path: PathBuf::from("static/nexus/images"),
             message: "not readable".to_string(),
         };
-        assert!(walk_variant.to_string().contains("directory walk failed at"));
+        assert!(
+            walk_variant
+                .to_string()
+                .contains("directory walk failed at")
+        );
         assert!(walk_variant.source().is_none());
     }
 

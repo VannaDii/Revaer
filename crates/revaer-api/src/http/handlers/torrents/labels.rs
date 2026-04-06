@@ -324,6 +324,7 @@ fn ensure_ratio_limit(value: f64, field: &str) -> Result<(), ApiError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::indexers::test_indexers;
     use crate::app::state::ApiState;
     use crate::config::ConfigFacade;
     use anyhow::{Result, anyhow};
@@ -446,6 +447,7 @@ mod tests {
     fn api_state(config: Arc<dyn ConfigFacade>) -> Result<Arc<ApiState>> {
         Ok(Arc::new(ApiState::new(
             config,
+            test_indexers(),
             Metrics::new().map_err(|err| anyhow!(err))?,
             Arc::new(json!({})),
             EventBus::with_capacity(8),

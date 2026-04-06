@@ -1,7 +1,7 @@
 use chrono::Weekday;
 use revaer_config::{
-    ApiKeyPatch, ApiKeyRateLimit, AppMode, ConfigError, ConfigService, SecretPatch,
-    SettingsChangeset, SettingsFacade,
+    ApiKeyPatch, ApiKeyRateLimit, AppMode, ConfigError, ConfigService, DbSessionConfig,
+    SecretPatch, SettingsChangeset, SettingsFacade,
     engine_profile::{AltSpeedConfig, AltSpeedSchedule, MAX_RATE_LIMIT_BPS},
 };
 use revaer_config::{
@@ -255,6 +255,15 @@ async fn setup_token_lifecycle_covers_invalid_and_consumed_states() -> anyhow::R
         .expect_err("zero ttl should be rejected");
     assert!(matches!(invalid_ttl, ConfigError::InvalidField { .. }));
 
+    let missing_before_issue = service
+        .validate_setup_token("missing-token")
+        .await
+        .expect_err("missing active token should fail validation");
+    assert!(matches!(
+        missing_before_issue,
+        ConfigError::SetupTokenMissing
+    ));
+
     let token = service
         .issue_setup_token(Duration::from_secs(60), "tester")
         .await?;
@@ -279,6 +288,47 @@ async fn setup_token_lifecycle_covers_invalid_and_consumed_states() -> anyhow::R
         .await
         .expect_err("consumed token should be missing");
     assert!(matches!(missing, ConfigError::SetupTokenMissing));
+    Ok(())
+}
+
+#[tokio::test]
+async fn config_service_new_with_session_round_trips_encrypted_secrets() -> anyhow::Result<()> {
+    let postgres = match start_postgres() {
+        Ok(db) => db,
+        Err(err) => {
+            eprintln!(
+                "skipping config_service_new_with_session_round_trips_encrypted_secrets: {err}"
+            );
+            return Ok(());
+        }
+    };
+    let service = ConfigService::new_with_session(
+        postgres.connection_string(),
+        Some(DbSessionConfig::new(
+            "integration-session",
+            "session-secret",
+        )),
+    )
+    .await?;
+
+    service
+        .apply_changeset(
+            "tester",
+            "session-secret-roundtrip",
+            SettingsChangeset {
+                secrets: vec![SecretPatch::Set {
+                    name: "session-secret".to_string(),
+                    value: "secret-value".to_string(),
+                }],
+                ..SettingsChangeset::default()
+            },
+        )
+        .await?;
+
+    assert_eq!(
+        service.get_secret("session-secret").await?,
+        Some("secret-value".to_string())
+    );
     Ok(())
 }
 
@@ -334,9 +384,7 @@ async fn config_service_round_trips_comprehensive_settings_update() -> anyhow::R
     let postgres = match start_postgres() {
         Ok(db) => db,
         Err(err) => {
-            eprintln!(
-                "skipping config_service_round_trips_comprehensive_settings_update: {err}"
-            );
+            eprintln!("skipping config_service_round_trips_comprehensive_settings_update: {err}");
             return Ok(());
         }
     };
@@ -563,14 +611,23 @@ async fn config_service_round_trips_comprehensive_settings_update() -> anyhow::R
     assert!(applied.fs_policy.is_some());
 
     let refreshed = service.snapshot().await?;
-    assert_eq!(refreshed.app_profile.instance_name, app_profile.instance_name);
+    assert_eq!(
+        refreshed.app_profile.instance_name,
+        app_profile.instance_name
+    );
     assert_eq!(refreshed.app_profile.mode, AppMode::Active);
     assert_eq!(refreshed.app_profile.auth_mode, AppAuthMode::ApiKey);
     assert_eq!(refreshed.app_profile.http_port, app_profile.http_port);
     assert_eq!(refreshed.app_profile.bind_addr, app_profile.bind_addr);
     assert_eq!(refreshed.app_profile.telemetry, app_profile.telemetry);
-    assert_eq!(refreshed.app_profile.label_policies, app_profile.label_policies);
-    assert_eq!(refreshed.engine_profile.listen_port, engine_profile.listen_port);
+    assert_eq!(
+        refreshed.app_profile.label_policies,
+        app_profile.label_policies
+    );
+    assert_eq!(
+        refreshed.engine_profile.listen_port,
+        engine_profile.listen_port
+    );
     assert_eq!(
         refreshed.engine_profile.listen_interfaces,
         engine_profile.listen_interfaces
@@ -579,7 +636,10 @@ async fn config_service_round_trips_comprehensive_settings_update() -> anyhow::R
     assert_eq!(refreshed.engine_profile.tracker, engine_profile.tracker);
     assert_eq!(refreshed.engine_profile.alt_speed, engine_profile.alt_speed);
     assert_eq!(refreshed.engine_profile.ip_filter, engine_profile.ip_filter);
-    assert_eq!(refreshed.engine_profile.peer_classes, engine_profile.peer_classes);
+    assert_eq!(
+        refreshed.engine_profile.peer_classes,
+        engine_profile.peer_classes
+    );
     assert_eq!(refreshed.fs_policy, fs_policy);
     assert_eq!(
         service.get_secret("wide-secret").await?,
@@ -843,6 +903,14 @@ async fn config_service_handles_auth_edge_cases_and_binary_secrets() -> anyhow::
     );
 
     data_config::update_api_key_enabled(service.pool(), "edge-key", true).await?;
+    data_config::update_api_key_expires_at(service.pool(), "edge-key", None).await?;
+    assert!(
+        service
+            .authenticate_api_key("edge-key", "edge-secret")
+            .await?
+            .is_none()
+    );
+
     data_config::update_api_key_expires_at(
         service.pool(),
         "edge-key",
@@ -892,7 +960,9 @@ async fn settings_stream_and_watcher_cover_notifications_and_polling() -> anyhow
     let postgres = match start_postgres() {
         Ok(db) => db,
         Err(err) => {
-            eprintln!("skipping settings_stream_and_watcher_cover_notifications_and_polling: {err}");
+            eprintln!(
+                "skipping settings_stream_and_watcher_cover_notifications_and_polling: {err}"
+            );
             return Ok(());
         }
     };
@@ -900,7 +970,8 @@ async fn settings_stream_and_watcher_cover_notifications_and_polling() -> anyhow
 
     let mut stream = service.subscribe_changes().await?;
     notify_settings_change(&service, "mystery:42:DELETE").await?;
-    let change = tokio::time::timeout(Duration::from_secs(5), stream.next()).await?
+    let change = tokio::time::timeout(Duration::from_secs(5), stream.next())
+        .await?
         .ok_or_else(|| anyhow::anyhow!("settings stream closed"))??;
     assert_eq!(change.table, "mystery");
     assert_eq!(change.revision, 42);
@@ -908,11 +979,15 @@ async fn settings_stream_and_watcher_cover_notifications_and_polling() -> anyhow
     assert!(matches!(change.payload, SettingsPayload::None));
 
     notify_settings_change(&service, "invalid-payload").await?;
-    let err = tokio::time::timeout(Duration::from_secs(5), stream.next()).await?
+    let err = tokio::time::timeout(Duration::from_secs(5), stream.next())
+        .await?
         .ok_or_else(|| anyhow::anyhow!("settings stream closed"))?
         .err()
         .ok_or_else(|| anyhow::anyhow!("expected notification parsing error"))?;
-    assert!(matches!(err, ConfigError::NotificationPayloadMissingRevision));
+    assert!(matches!(
+        err,
+        ConfigError::NotificationPayloadMissingRevision
+    ));
 
     let (snapshot, mut watcher) = service.watch_settings(Duration::from_millis(10)).await?;
     watcher.disable_listen();
@@ -933,6 +1008,100 @@ async fn settings_stream_and_watcher_cover_notifications_and_polling() -> anyhow
     let updated = tokio::time::timeout(Duration::from_secs(5), watcher.next()).await??;
     assert!(updated.revision >= applied.revision);
     assert_eq!(updated.app_profile.instance_name, "Poll fallback");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn settings_stream_maps_known_tables_to_typed_payloads() -> anyhow::Result<()> {
+    let postgres = match start_postgres() {
+        Ok(db) => db,
+        Err(err) => {
+            eprintln!("skipping settings_stream_maps_known_tables_to_typed_payloads: {err}");
+            return Ok(());
+        }
+    };
+    let service = ConfigService::new(postgres.connection_string()).await?;
+    let mut stream = service.subscribe_changes().await?;
+    let snapshot = service.snapshot().await?;
+    let (download_root, resume_dir, library_root) = build_temp_paths()?;
+
+    let mut app_profile = snapshot.app_profile.clone();
+    app_profile.instance_name = "Typed payload app".to_string();
+    service
+        .apply_changeset(
+            "tester",
+            "typed-app-payload",
+            SettingsChangeset {
+                app_profile: Some(app_profile.clone()),
+                ..SettingsChangeset::default()
+            },
+        )
+        .await?;
+    let app_change = tokio::time::timeout(Duration::from_secs(5), stream.next())
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("settings stream closed"))??;
+    assert_eq!(app_change.table, "app_profile");
+    match app_change.payload {
+        SettingsPayload::AppProfile(payload) => {
+            assert_eq!(payload.instance_name, app_profile.instance_name);
+            assert_eq!(payload.mode, app_profile.mode);
+        }
+        other => return Err(anyhow::anyhow!("unexpected app payload: {other:?}")),
+    }
+
+    let mut engine_profile = snapshot.engine_profile.clone();
+    engine_profile.listen_port = Some(snapshot.engine_profile.listen_port.unwrap_or(6881) + 1);
+    engine_profile.dht = !snapshot.engine_profile.dht;
+    engine_profile.resume_dir = resume_dir;
+    engine_profile.download_root = download_root;
+    service
+        .apply_changeset(
+            "tester",
+            "typed-engine-payload",
+            SettingsChangeset {
+                engine_profile: Some(engine_profile.clone()),
+                ..SettingsChangeset::default()
+            },
+        )
+        .await?;
+    let engine_change = tokio::time::timeout(Duration::from_secs(5), stream.next())
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("settings stream closed"))??;
+    assert_eq!(engine_change.table, "engine_profile");
+    match engine_change.payload {
+        SettingsPayload::EngineProfile(payload) => {
+            assert_eq!(payload.dht, engine_profile.dht);
+            assert_eq!(payload.download_root, engine_profile.download_root);
+            assert_eq!(payload.resume_dir, engine_profile.resume_dir);
+        }
+        other => return Err(anyhow::anyhow!("unexpected engine payload: {other:?}")),
+    }
+
+    let mut fs_policy = snapshot.fs_policy.clone();
+    fs_policy.library_root = library_root;
+    fs_policy.flatten = !snapshot.fs_policy.flatten;
+    service
+        .apply_changeset(
+            "tester",
+            "typed-fs-payload",
+            SettingsChangeset {
+                fs_policy: Some(fs_policy.clone()),
+                ..SettingsChangeset::default()
+            },
+        )
+        .await?;
+    let fs_change = tokio::time::timeout(Duration::from_secs(5), stream.next())
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("settings stream closed"))??;
+    assert_eq!(fs_change.table, "fs_policy");
+    match fs_change.payload {
+        SettingsPayload::FsPolicy(payload) => {
+            assert_eq!(payload.library_root, fs_policy.library_root);
+            assert_eq!(payload.flatten, fs_policy.flatten);
+        }
+        other => return Err(anyhow::anyhow!("unexpected fs payload: {other:?}")),
+    }
 
     Ok(())
 }
@@ -959,6 +1128,198 @@ async fn apply_empty_changeset_does_not_advance_revision() -> anyhow::Result<()>
     assert!(applied.engine_profile.is_none());
     assert!(applied.fs_policy.is_none());
     assert_eq!(after.revision, before.revision);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn config_service_clears_optional_settings_and_label_policies() -> anyhow::Result<()> {
+    let postgres = match start_postgres() {
+        Ok(db) => db,
+        Err(err) => {
+            eprintln!("skipping config_service_clears_optional_settings_and_label_policies: {err}");
+            return Ok(());
+        }
+    };
+    let service = ConfigService::new(postgres.connection_string()).await?;
+    let snapshot = service.snapshot().await?;
+    let (download_root, resume_dir, library_root) = build_temp_paths()?;
+
+    let category_dir = PathBuf::from(&library_root).join("movies");
+    fs::create_dir_all(&category_dir)?;
+
+    let mut seeded_app = snapshot.app_profile.clone();
+    seeded_app.mode = AppMode::Active;
+    seeded_app.telemetry = TelemetryConfig {
+        level: Some("debug".to_string()),
+        format: Some("json".to_string()),
+        otel_enabled: Some(true),
+        otel_service_name: Some("revaer-clear-test".to_string()),
+        otel_endpoint: Some("http://127.0.0.1:4318".to_string()),
+    };
+    seeded_app.label_policies = vec![LabelPolicy {
+        kind: LabelKind::Category,
+        name: "movies".to_string(),
+        download_dir: Some(path_to_string(category_dir)),
+        rate_limit_download_bps: Some(1_000_000),
+        rate_limit_upload_bps: Some(500_000),
+        queue_position: Some(2),
+        auto_managed: Some(true),
+        seed_ratio_limit: Some(1.5),
+        seed_time_limit: Some(3600),
+        cleanup_seed_ratio_limit: Some(2.5),
+        cleanup_seed_time_limit: Some(1800),
+        cleanup_remove_data: Some(false),
+    }];
+
+    let mut seeded_engine = snapshot.engine_profile.clone();
+    seeded_engine.download_root = download_root.clone();
+    seeded_engine.resume_dir = resume_dir.clone();
+    seeded_engine.listen_interfaces = vec!["0.0.0.0:6889".to_string()];
+    seeded_engine.alt_speed = AltSpeedConfig {
+        download_bps: Some(1234),
+        upload_bps: Some(5678),
+        schedule: Some(AltSpeedSchedule {
+            days: vec![Weekday::Mon, Weekday::Fri],
+            start_minutes: 60,
+            end_minutes: 120,
+        }),
+    };
+    seeded_engine.tracker = TrackerConfig {
+        default: vec!["udp://tracker.example:80/announce".to_string()],
+        extra: vec!["https://backup.example/announce".to_string()],
+        replace: true,
+        user_agent: Some("Revaer/Clear".to_string()),
+        announce_ip: Some("198.51.100.5".to_string()),
+        listen_interface: Some("eth0".to_string()),
+        request_timeout_ms: Some(5000),
+        announce_to_all: true,
+        proxy: Some(TrackerProxyConfig {
+            host: "proxy.example".to_string(),
+            port: 8443,
+            username_secret: Some("proxy-user".to_string()),
+            password_secret: Some("proxy-pass".to_string()),
+            kind: TrackerProxyType::Https,
+            proxy_peers: true,
+        }),
+        ssl_cert: Some("cert.pem".to_string()),
+        ssl_private_key: Some("key.pem".to_string()),
+        ssl_ca_cert: Some("ca.pem".to_string()),
+        ssl_tracker_verify: false,
+        auth: Some(TrackerAuthConfig {
+            username_secret: Some("tracker-user".to_string()),
+            password_secret: Some("tracker-pass".to_string()),
+            cookie_secret: Some("tracker-cookie".to_string()),
+        }),
+    };
+    seeded_engine.dht_bootstrap_nodes = vec!["router.bittorrent.com:6881".to_string()];
+    seeded_engine.dht_router_nodes = vec!["router.utorrent.com:6881".to_string()];
+    seeded_engine.ip_filter = IpFilterConfig {
+        cidrs: vec!["10.0.0.0/8".to_string()],
+        blocklist_url: Some("https://example.invalid/blocklist.txt".to_string()),
+        etag: Some("etag-value".to_string()),
+        last_updated_at: None,
+        last_error: Some("fetch failed".to_string()),
+    };
+    seeded_engine.peer_classes = PeerClassesConfig {
+        classes: vec![PeerClassConfig {
+            id: 1,
+            label: "seedbox".to_string(),
+            download_priority: 6,
+            upload_priority: 5,
+            connection_limit_factor: 150,
+            ignore_unchoke_slots: true,
+        }],
+        default: vec![1],
+    };
+
+    let mut seeded_fs = snapshot.fs_policy.clone();
+    seeded_fs.library_root = library_root.clone();
+    seeded_fs.cleanup_keep = vec!["**/*.mkv".to_string()];
+    seeded_fs.cleanup_drop = vec!["**/*.nfo".to_string()];
+    seeded_fs.chmod_file = Some("640".to_string());
+    seeded_fs.chmod_dir = Some("750".to_string());
+    seeded_fs.owner = Some("media".to_string());
+    seeded_fs.group = Some("media".to_string());
+    seeded_fs.umask = Some("027".to_string());
+    seeded_fs.allow_paths = vec![download_root.clone(), library_root.clone()];
+
+    service
+        .apply_changeset(
+            "tester",
+            "seed-clearable-state",
+            SettingsChangeset {
+                app_profile: Some(seeded_app),
+                engine_profile: Some(seeded_engine),
+                fs_policy: Some(seeded_fs),
+                ..SettingsChangeset::default()
+            },
+        )
+        .await?;
+
+    let mut cleared_app = service.get_app_profile().await?;
+    cleared_app.telemetry = TelemetryConfig::default();
+    cleared_app.label_policies = Vec::new();
+
+    let mut cleared_engine = service.get_engine_profile().await?;
+    cleared_engine.listen_interfaces = Vec::new();
+    cleared_engine.alt_speed = AltSpeedConfig::default();
+    cleared_engine.tracker = TrackerConfig::default();
+    cleared_engine.dht_bootstrap_nodes = Vec::new();
+    cleared_engine.dht_router_nodes = Vec::new();
+    cleared_engine.ip_filter = IpFilterConfig::default();
+    cleared_engine.peer_classes = PeerClassesConfig::default();
+
+    let mut cleared_fs = service.get_fs_policy().await?;
+    cleared_fs.cleanup_keep = Vec::new();
+    cleared_fs.cleanup_drop = Vec::new();
+    cleared_fs.chmod_file = None;
+    cleared_fs.chmod_dir = None;
+    cleared_fs.owner = None;
+    cleared_fs.group = None;
+    cleared_fs.umask = None;
+    cleared_fs.allow_paths = vec![library_root.clone()];
+
+    service
+        .apply_changeset(
+            "tester",
+            "clear-optional-state",
+            SettingsChangeset {
+                app_profile: Some(cleared_app),
+                engine_profile: Some(cleared_engine),
+                fs_policy: Some(cleared_fs),
+                ..SettingsChangeset::default()
+            },
+        )
+        .await?;
+
+    let refreshed = service.snapshot().await?;
+    assert!(refreshed.app_profile.label_policies.is_empty());
+    assert_eq!(refreshed.app_profile.telemetry, TelemetryConfig::default());
+    assert!(refreshed.engine_profile.listen_interfaces.is_empty());
+    assert_eq!(
+        refreshed.engine_profile.alt_speed,
+        AltSpeedConfig::default()
+    );
+    assert_eq!(refreshed.engine_profile.tracker, TrackerConfig::default());
+    assert!(refreshed.engine_profile.dht_bootstrap_nodes.is_empty());
+    assert!(refreshed.engine_profile.dht_router_nodes.is_empty());
+    assert_eq!(
+        refreshed.engine_profile.ip_filter,
+        IpFilterConfig::default()
+    );
+    assert_eq!(
+        refreshed.engine_profile.peer_classes,
+        PeerClassesConfig::default()
+    );
+    assert!(refreshed.fs_policy.cleanup_keep.is_empty());
+    assert!(refreshed.fs_policy.cleanup_drop.is_empty());
+    assert_eq!(refreshed.fs_policy.chmod_file, None);
+    assert_eq!(refreshed.fs_policy.chmod_dir, None);
+    assert_eq!(refreshed.fs_policy.owner, None);
+    assert_eq!(refreshed.fs_policy.group, None);
+    assert_eq!(refreshed.fs_policy.umask, None);
+    assert_eq!(refreshed.fs_policy.allow_paths, vec![library_root]);
 
     Ok(())
 }
@@ -999,10 +1360,6 @@ fn path_to_string(path: PathBuf) -> String {
 }
 
 async fn notify_settings_change(service: &ConfigService, payload: &str) -> anyhow::Result<()> {
-    sqlx::query("SELECT pg_notify($1, $2)")
-        .bind(data_config::SETTINGS_CHANNEL)
-        .bind(payload)
-        .execute(service.pool())
-        .await?;
+    data_config::notify_settings_changed(service.pool(), payload).await?;
     Ok(())
 }

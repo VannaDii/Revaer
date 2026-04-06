@@ -14,9 +14,7 @@
 )]
 
 //! Shared test helpers used across integration suites.
-//! Layout: fixtures.rs (env/helpers), postgres.rs (docker-backed fixtures), mocks.rs (fake clients), assert.rs (test assertions).
+//! Layout: fixtures.rs (env/helpers) and postgres.rs (database fixtures).
 
-pub mod assert;
 pub mod fixtures;
-pub mod mocks;
 pub mod postgres;

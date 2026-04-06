@@ -3,7 +3,9 @@ use std::path::Path;
 use revaer_data::RuntimeStore;
 use revaer_events::TorrentState;
 use revaer_test_support::postgres::start_postgres;
-use revaer_torrent_core::{FilePriority, TorrentFile, TorrentProgress, TorrentRates, TorrentStatus};
+use revaer_torrent_core::{
+    FilePriority, TorrentFile, TorrentProgress, TorrentRates, TorrentStatus,
+};
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
 
@@ -227,7 +229,12 @@ async fn runtime_store_rejects_non_utf8_fs_job_paths() -> anyhow::Result<()> {
     ));
 
     let completed_err = store
-        .mark_fs_job_completed(torrent_id, Path::new(".server_root/source"), &invalid_path, None)
+        .mark_fs_job_completed(
+            torrent_id,
+            Path::new(".server_root/source"),
+            &invalid_path,
+            None,
+        )
         .await
         .expect_err("invalid destination path should be rejected");
     assert!(matches!(

@@ -72,6 +72,7 @@ pub use bridge::ffi;
 #[cfg(test)]
 mod tests {
     use super::ffi;
+    use crate::ffi::SessionHandleError;
     use std::mem;
 
     #[test]
@@ -94,5 +95,15 @@ mod tests {
         assert_eq!(proxy, 128, "{sizes}");
         assert_eq!(tracker, 544, "{sizes}");
         assert_eq!(options, 944, "{sizes}");
+    }
+
+    #[test]
+    fn session_handle_error_display_is_stable() {
+        let error = SessionHandleError::NullSession;
+        assert_eq!(
+            error.to_string(),
+            "native session initialization returned null"
+        );
+        assert!(std::error::Error::source(&error).is_none());
     }
 }

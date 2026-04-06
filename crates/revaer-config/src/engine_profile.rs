@@ -1886,7 +1886,10 @@ mod tests {
         assert_eq!(ChokingAlgorithm::FixedSlots.as_str(), "fixed_slots");
         assert_eq!(ChokingAlgorithm::RateBased.as_str(), "rate_based");
         assert_eq!(SeedChokingAlgorithm::RoundRobin.as_str(), "round_robin");
-        assert_eq!(SeedChokingAlgorithm::FastestUpload.as_str(), "fastest_upload");
+        assert_eq!(
+            SeedChokingAlgorithm::FastestUpload.as_str(),
+            "fastest_upload"
+        );
         assert_eq!(SeedChokingAlgorithm::AntiLeech.as_str(), "anti_leech");
         assert_eq!(StorageMode::Sparse.as_str(), "sparse");
         assert_eq!(StorageMode::Allocate.as_str(), "allocate");
@@ -1922,13 +1925,11 @@ mod tests {
         assert_eq!(rules.len(), 2);
         assert!(rules[0].start <= rules[0].end);
         assert!(rules[1].start <= rules[1].end);
-        assert!(matches!(config.rules(), Ok(_)));
+        assert!(config.rules().is_ok());
         Ok(())
     }
 
-    #[test]
-    fn normalize_engine_profile_sanitizes_tracker_storage_and_peer_classes() {
-        let mut profile = sample_profile();
+    fn configure_invalid_tracker_storage_and_peer_classes(profile: &mut EngineProfile) {
         profile.listen_port = Some(70_000);
         profile.listen_interfaces = vec![
             " ".to_string(),
@@ -2017,34 +2018,49 @@ mod tests {
             ],
             default: vec![1, 2, 1],
         };
+    }
 
-        let effective = normalize_engine_profile(&profile);
-
+    fn assert_normalized_tracker_storage_and_peer_classes(effective: &EngineProfileEffective) {
         assert_eq!(effective.storage.download_root, ".server_root/downloads");
         assert_eq!(effective.storage.resume_dir, ".server_root/resume");
         assert_eq!(effective.storage.storage_mode, StorageMode::Sparse);
         assert_eq!(effective.storage.disk_read_mode, None);
-        assert_eq!(effective.storage.disk_write_mode, Some(DiskIoMode::WriteThrough));
+        assert_eq!(
+            effective.storage.disk_write_mode,
+            Some(DiskIoMode::WriteThrough)
+        );
         assert_eq!(effective.network.ipv6_mode, EngineIpv6Mode::Disabled);
         assert!(effective.network.force_proxy.is_enabled());
         assert_eq!(
             effective.network.listen_interfaces,
             vec!["HOST:6881".to_string()]
         );
-        assert_eq!(effective.tracker.default, vec!["udp://tracker.example".to_string()]);
-        assert_eq!(effective.tracker.extra, vec!["https://extra.example".to_string()]);
+        assert_eq!(
+            effective.tracker.default,
+            vec!["udp://tracker.example".to_string()]
+        );
+        assert_eq!(
+            effective.tracker.extra,
+            vec!["https://extra.example".to_string()]
+        );
         assert!(effective.tracker.user_agent.is_none());
         assert_eq!(effective.tracker.listen_interface.as_deref(), Some("eth0"));
         assert_eq!(effective.tracker.request_timeout_ms, None);
         assert!(effective.tracker.proxy.is_some());
         assert!(effective.tracker.auth.is_none());
-        assert_eq!(effective.network.ip_filter.cidrs, vec!["10.0.0.0/24".to_string()]);
+        assert_eq!(
+            effective.network.ip_filter.cidrs,
+            vec!["10.0.0.0/24".to_string()]
+        );
         assert!(effective.network.ip_filter.blocklist_url.is_none());
         assert_eq!(effective.peer_classes.classes.len(), 1);
         assert_eq!(effective.peer_classes.classes[0].label, "class_1");
         assert_eq!(effective.peer_classes.classes[0].download_priority, 1);
         assert_eq!(effective.peer_classes.classes[0].upload_priority, 1);
-        assert_eq!(effective.peer_classes.classes[0].connection_limit_factor, 100);
+        assert_eq!(
+            effective.peer_classes.classes[0].connection_limit_factor,
+            100
+        );
         assert_eq!(effective.peer_classes.default, vec![1]);
         assert!(
             effective
@@ -2064,5 +2080,15 @@ mod tests {
                 .iter()
                 .any(|warning| warning.contains("peer_classes.default contains undefined id"))
         );
+    }
+
+    #[test]
+    fn normalize_engine_profile_sanitizes_tracker_storage_and_peer_classes() {
+        let mut profile = sample_profile();
+        configure_invalid_tracker_storage_and_peer_classes(&mut profile);
+
+        let effective = normalize_engine_profile(&profile);
+
+        assert_normalized_tracker_storage_and_peer_classes(&effective);
     }
 }

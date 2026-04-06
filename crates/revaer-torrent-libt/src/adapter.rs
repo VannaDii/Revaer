@@ -392,4 +392,19 @@ mod tests {
         );
         Ok(())
     }
+
+    #[tokio::test]
+    async fn inspect_settings_returns_snapshot_from_worker() -> Result<()> {
+        let events = EventBus::with_capacity(4);
+        let engine = LibtorrentEngine::new(events)?;
+
+        let settings = engine.inspect_settings().await?;
+
+        assert_eq!(settings.listen_interfaces, "0.0.0.0:6881,[::]:6881");
+        assert_eq!(settings.proxy_username, None);
+        assert_eq!(settings.proxy_password, None);
+        assert_eq!(settings.share_ratio_limit, Some(200));
+        assert_eq!(settings.seed_time_limit, Some(86_400));
+        Ok(())
+    }
 }

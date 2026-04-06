@@ -393,35 +393,16 @@ fn map_policy_error(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app::indexers::{
-        CategoryMappingServiceError, CategoryMappingServiceErrorKind, IndexerCfStateResetParams,
-        IndexerDefinitionServiceError, IndexerDefinitionServiceErrorKind, IndexerFacade,
-        IndexerInstanceFieldError, IndexerInstanceFieldErrorKind, IndexerInstanceFieldValueParams,
-        IndexerInstanceServiceError, IndexerInstanceServiceErrorKind,
-        IndexerInstanceTestFinalizeParams, IndexerInstanceUpdateParams,
-        RateLimitPolicyServiceError, RateLimitPolicyServiceErrorKind, RoutingPolicyServiceError,
-        RoutingPolicyServiceErrorKind, SearchProfileServiceError, SearchProfileServiceErrorKind,
-        SecretServiceError, SecretServiceErrorKind, TagServiceError, TagServiceErrorKind,
-        TorznabInstanceCredentials, TorznabInstanceServiceError, TorznabInstanceServiceErrorKind,
+    use crate::app::indexers::{PolicyServiceError, PolicyServiceErrorKind};
+    use crate::http::handlers::indexers::test_support::{
+        RecordingIndexers, indexer_test_state, parse_problem,
     };
-    use crate::config::ConfigFacade;
-    use crate::models::{
-        IndexerCfStateResponse, IndexerDefinitionResponse, IndexerInstanceTestFinalizeResponse,
-        IndexerInstanceTestPrepareResponse, ProblemDetails,
-    };
-    use async_trait::async_trait;
+    use crate::models::{PolicyRuleListItemResponse, PolicySetListItemResponse};
     use axum::response::IntoResponse;
-    use revaer_config::{
-        ApiKeyAuth, AppMode, AppProfile, AppliedChanges, ConfigError, ConfigResult, ConfigSnapshot,
-        SettingsChangeset, SetupToken, TelemetryConfig, validate::default_local_networks,
-    };
-    use revaer_events::EventBus;
-    use revaer_telemetry::Metrics;
-    use serde_json::json;
-    use std::sync::{Arc, Mutex};
-    use std::time::Duration;
+    use std::sync::Arc;
     use uuid::Uuid;
 
+    /*
     #[derive(Clone)]
     struct StubConfig;
 
@@ -516,11 +497,25 @@ mod tests {
     }
 
     type PolicySetCreateCall = (Uuid, String, String, Option<bool>);
+    type PolicySetUpdateCall = (Uuid, Uuid, Option<String>);
+    type PolicySetToggleCall = (Uuid, Uuid);
+    type PolicySetReorderCall = (Uuid, Vec<Uuid>);
+    type PolicyRuleToggleCall = (Uuid, Uuid);
+    type PolicyRuleReorderCall = (Uuid, Uuid, Vec<Uuid>);
 
     #[derive(Default)]
     struct RecordingIndexers {
+        policy_list_calls: Mutex<Vec<Uuid>>,
         policy_calls: Mutex<Vec<PolicySetCreateCall>>,
+        policy_update_calls: Mutex<Vec<PolicySetUpdateCall>>,
+        policy_enable_calls: Mutex<Vec<PolicySetToggleCall>>,
+        policy_disable_calls: Mutex<Vec<PolicySetToggleCall>>,
+        policy_reorder_calls: Mutex<Vec<PolicySetReorderCall>>,
         policy_rule_calls: Mutex<Vec<PolicyRuleCreateParams>>,
+        policy_rule_enable_calls: Mutex<Vec<PolicyRuleToggleCall>>,
+        policy_rule_disable_calls: Mutex<Vec<PolicyRuleToggleCall>>,
+        policy_rule_reorder_calls: Mutex<Vec<PolicyRuleReorderCall>>,
+        policy_set_list_items: Mutex<Vec<PolicySetListItemResponse>>,
     }
 
     #[async_trait]
@@ -813,6 +808,59 @@ mod tests {
             Ok(Uuid::new_v4())
         }
 
+        async fn policy_set_update(
+            &self,
+            actor_user_public_id: Uuid,
+            policy_set_public_id: Uuid,
+            display_name: Option<&str>,
+        ) -> Result<Uuid, PolicyServiceError> {
+            self.policy_update_calls
+                .lock()
+                .expect("lock poisoned")
+                .push((
+                    actor_user_public_id,
+                    policy_set_public_id,
+                    display_name.map(ToOwned::to_owned),
+                ));
+            Ok(policy_set_public_id)
+        }
+
+        async fn policy_set_enable(
+            &self,
+            actor_user_public_id: Uuid,
+            policy_set_public_id: Uuid,
+        ) -> Result<(), PolicyServiceError> {
+            self.policy_enable_calls
+                .lock()
+                .expect("lock poisoned")
+                .push((actor_user_public_id, policy_set_public_id));
+            Ok(())
+        }
+
+        async fn policy_set_disable(
+            &self,
+            actor_user_public_id: Uuid,
+            policy_set_public_id: Uuid,
+        ) -> Result<(), PolicyServiceError> {
+            self.policy_disable_calls
+                .lock()
+                .expect("lock poisoned")
+                .push((actor_user_public_id, policy_set_public_id));
+            Ok(())
+        }
+
+        async fn policy_set_reorder(
+            &self,
+            actor_user_public_id: Uuid,
+            ordered_policy_set_public_ids: &[Uuid],
+        ) -> Result<(), PolicyServiceError> {
+            self.policy_reorder_calls
+                .lock()
+                .expect("lock poisoned")
+                .push((actor_user_public_id, ordered_policy_set_public_ids.to_vec()));
+            Ok(())
+        }
+
         async fn policy_rule_create(
             &self,
             params: PolicyRuleCreateParams,
@@ -822,6 +870,62 @@ mod tests {
                 .expect("lock poisoned")
                 .push(params);
             Ok(Uuid::new_v4())
+        }
+
+        async fn policy_rule_enable(
+            &self,
+            actor_user_public_id: Uuid,
+            policy_rule_public_id: Uuid,
+        ) -> Result<(), PolicyServiceError> {
+            self.policy_rule_enable_calls
+                .lock()
+                .expect("lock poisoned")
+                .push((actor_user_public_id, policy_rule_public_id));
+            Ok(())
+        }
+
+        async fn policy_rule_disable(
+            &self,
+            actor_user_public_id: Uuid,
+            policy_rule_public_id: Uuid,
+        ) -> Result<(), PolicyServiceError> {
+            self.policy_rule_disable_calls
+                .lock()
+                .expect("lock poisoned")
+                .push((actor_user_public_id, policy_rule_public_id));
+            Ok(())
+        }
+
+        async fn policy_rule_reorder(
+            &self,
+            actor_user_public_id: Uuid,
+            policy_set_public_id: Uuid,
+            ordered_policy_rule_public_ids: &[Uuid],
+        ) -> Result<(), PolicyServiceError> {
+            self.policy_rule_reorder_calls
+                .lock()
+                .expect("lock poisoned")
+                .push((
+                    actor_user_public_id,
+                    policy_set_public_id,
+                    ordered_policy_rule_public_ids.to_vec(),
+                ));
+            Ok(())
+        }
+
+        async fn policy_set_list(
+            &self,
+            actor_user_public_id: Uuid,
+        ) -> Result<Vec<PolicySetListItemResponse>, PolicyServiceError> {
+            self.policy_list_calls
+                .lock()
+                .expect("lock poisoned")
+                .push(actor_user_public_id);
+            Ok(self
+                .policy_set_list_items
+                .lock()
+                .expect("lock poisoned")
+                .clone())
         }
 
         async fn tracker_category_mapping_upsert(
@@ -1607,11 +1711,12 @@ mod tests {
             context: None,
         })
     }
+    */
 
     #[tokio::test]
     async fn create_policy_set_trims_and_returns_payload() -> Result<(), ApiError> {
         let indexers = Arc::new(RecordingIndexers::default());
-        let state = api_state(indexers.clone())?;
+        let state = indexer_test_state(indexers.clone())?;
         let request = PolicySetCreateRequest {
             display_name: " Policies ".to_string(),
             scope: " global ".to_string(),
@@ -1622,7 +1727,10 @@ mod tests {
         assert_eq!(status, StatusCode::CREATED);
         assert_ne!(response.policy_set_public_id, Uuid::nil());
 
-        let calls = indexers.policy_calls.lock().expect("lock poisoned");
+        let calls = indexers
+            .policy_set_create_calls
+            .lock()
+            .expect("lock poisoned");
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].0, SYSTEM_ACTOR_PUBLIC_ID);
         assert_eq!(calls[0].1, "Policies");
@@ -1633,9 +1741,155 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn list_policy_sets_returns_payload() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let policy_set_public_id = Uuid::new_v4();
+        let policy_rule_public_id = Uuid::new_v4();
+        indexers
+            .policy_set_list_items
+            .lock()
+            .expect("lock poisoned")
+            .push(PolicySetListItemResponse {
+                policy_set_public_id,
+                display_name: "Default".to_string(),
+                scope: "global".to_string(),
+                is_enabled: true,
+                user_public_id: None,
+                rules: vec![PolicyRuleListItemResponse {
+                    policy_rule_public_id,
+                    rule_type: "block_release_group".to_string(),
+                    match_field: "release_group".to_string(),
+                    match_operator: "equals".to_string(),
+                    sort_order: 1,
+                    match_value_text: Some("group".to_string()),
+                    match_value_int: None,
+                    match_value_uuid: None,
+                    action: "drop".to_string(),
+                    severity: "hard".to_string(),
+                    is_case_insensitive: false,
+                    rationale: Some("operator".to_string()),
+                    expires_at: None,
+                    is_disabled: false,
+                }],
+            });
+        let state = indexer_test_state(indexers.clone())?;
+
+        let Json(response) = list_policy_sets(State(state)).await?;
+        assert_eq!(response.policy_sets.len(), 1);
+        assert_eq!(
+            response.policy_sets[0].policy_set_public_id,
+            policy_set_public_id
+        );
+        assert_eq!(
+            response.policy_sets[0].rules[0].policy_rule_public_id,
+            policy_rule_public_id
+        );
+
+        let calls = indexers
+            .policy_set_list_calls
+            .lock()
+            .expect("lock poisoned")
+            .clone();
+        assert_eq!(calls.as_slice(), &[SYSTEM_ACTOR_PUBLIC_ID]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn update_policy_set_trims_optional_display_name() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+        let policy_set_public_id = Uuid::new_v4();
+        let request = PolicySetUpdateRequest {
+            display_name: Some("  Movies  ".to_string()),
+        };
+
+        let Json(response) =
+            update_policy_set(Path(policy_set_public_id), State(state), Json(request)).await?;
+        assert_eq!(response.policy_set_public_id, policy_set_public_id);
+
+        let calls = indexers
+            .policy_set_update_calls
+            .lock()
+            .expect("lock poisoned")
+            .clone();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].0, SYSTEM_ACTOR_PUBLIC_ID);
+        assert_eq!(calls[0].1, policy_set_public_id);
+        assert_eq!(calls[0].2.as_deref(), Some("Movies"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn enable_policy_set_records_identifier() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+        let policy_set_public_id = Uuid::new_v4();
+
+        let status = enable_policy_set(Path(policy_set_public_id), State(state)).await?;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let calls = indexers
+            .policy_set_enable_calls
+            .lock()
+            .expect("lock poisoned")
+            .clone();
+        assert_eq!(
+            calls.as_slice(),
+            &[(SYSTEM_ACTOR_PUBLIC_ID, policy_set_public_id)]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn disable_policy_set_records_identifier() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+        let policy_set_public_id = Uuid::new_v4();
+
+        let status = disable_policy_set(Path(policy_set_public_id), State(state)).await?;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let calls = indexers
+            .policy_set_disable_calls
+            .lock()
+            .expect("lock poisoned")
+            .clone();
+        assert_eq!(
+            calls.as_slice(),
+            &[(SYSTEM_ACTOR_PUBLIC_ID, policy_set_public_id)]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn reorder_policy_sets_records_order() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+        let first = Uuid::new_v4();
+        let second = Uuid::new_v4();
+        let request = PolicySetReorderRequest {
+            ordered_policy_set_public_ids: vec![first, second],
+        };
+
+        let status = reorder_policy_sets(State(state), Json(request)).await?;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let calls = indexers
+            .policy_set_reorder_calls
+            .lock()
+            .expect("lock poisoned")
+            .clone();
+        assert_eq!(
+            calls.as_slice(),
+            &[(SYSTEM_ACTOR_PUBLIC_ID, vec![first, second])]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn create_policy_rule_parses_expiry() -> Result<(), ApiError> {
         let indexers = Arc::new(RecordingIndexers::default());
-        let state = api_state(indexers.clone())?;
+        let state = indexer_test_state(indexers.clone())?;
         let request = PolicyRuleCreateRequest {
             rule_type: " block_title_regex ".to_string(),
             match_field: " title ".to_string(),
@@ -1662,7 +1916,10 @@ mod tests {
         assert_eq!(status, StatusCode::CREATED);
         assert_ne!(response.policy_rule_public_id, Uuid::nil());
 
-        let calls = indexers.policy_rule_calls.lock().expect("lock poisoned");
+        let calls = indexers
+            .policy_rule_create_calls
+            .lock()
+            .expect("lock poisoned");
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].policy_set_public_id, policy_set_public_id);
         assert_eq!(calls[0].rule_type, "block_title_regex");
@@ -1679,7 +1936,7 @@ mod tests {
     #[tokio::test]
     async fn create_policy_rule_invalid_expiry_returns_bad_request() -> Result<(), ApiError> {
         let indexers = Arc::new(RecordingIndexers::default());
-        let state = api_state(indexers)?;
+        let state = indexer_test_state(indexers)?;
         let request = PolicyRuleCreateRequest {
             rule_type: "block_title_regex".to_string(),
             match_field: "title".to_string(),
@@ -1711,12 +1968,89 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn enable_policy_rule_records_identifier() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+        let policy_rule_public_id = Uuid::new_v4();
+
+        let status = enable_policy_rule(Path(policy_rule_public_id), State(state)).await?;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let calls = indexers
+            .policy_rule_enable_calls
+            .lock()
+            .expect("lock poisoned")
+            .clone();
+        assert_eq!(
+            calls.as_slice(),
+            &[(SYSTEM_ACTOR_PUBLIC_ID, policy_rule_public_id)]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn disable_policy_rule_records_identifier() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+        let policy_rule_public_id = Uuid::new_v4();
+
+        let status = disable_policy_rule(Path(policy_rule_public_id), State(state)).await?;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let calls = indexers
+            .policy_rule_disable_calls
+            .lock()
+            .expect("lock poisoned")
+            .clone();
+        assert_eq!(
+            calls.as_slice(),
+            &[(SYSTEM_ACTOR_PUBLIC_ID, policy_rule_public_id)]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn reorder_policy_rules_records_scope_and_order() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+        let policy_set_public_id = Uuid::new_v4();
+        let first = Uuid::new_v4();
+        let second = Uuid::new_v4();
+        let request = PolicyRuleReorderRequest {
+            ordered_policy_rule_public_ids: vec![first, second],
+        };
+
+        let status =
+            reorder_policy_rules(Path(policy_set_public_id), State(state), Json(request)).await?;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let calls = indexers
+            .policy_rule_reorder_calls
+            .lock()
+            .expect("lock poisoned")
+            .clone();
+        assert_eq!(
+            calls.as_slice(),
+            &[(
+                SYSTEM_ACTOR_PUBLIC_ID,
+                policy_set_public_id,
+                vec![first, second]
+            )]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn policy_set_conflict_maps_conflict() -> Result<(), ApiError> {
-        let indexers = Arc::new(ErrorIndexers {
-            error: PolicyServiceError::new(PolicyServiceErrorKind::Conflict)
-                .with_code("global_policy_set_exists"),
-        });
-        let state = api_state(indexers)?;
+        let indexers = Arc::new(RecordingIndexers::default());
+        *indexers
+            .policy_set_create_result
+            .lock()
+            .expect("lock poisoned") = Some(Err(PolicyServiceError::new(
+            PolicyServiceErrorKind::Conflict,
+        )
+        .with_code("global_policy_set_exists")));
+        let state = indexer_test_state(indexers)?;
         let request = PolicySetCreateRequest {
             display_name: "Policies".to_string(),
             scope: "global".to_string(),

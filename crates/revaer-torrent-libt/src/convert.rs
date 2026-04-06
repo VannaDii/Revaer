@@ -283,4 +283,276 @@ mod tests {
             _ => Err(anyhow!("unexpected event kind")),
         }
     }
+
+    fn test_native_event(
+        torrent_id: uuid::Uuid,
+        kind: NativeEventKind,
+        state: NativeTorrentState,
+    ) -> NativeEvent {
+        NativeEvent {
+            id: torrent_id.to_string(),
+            kind,
+            state,
+            name: String::new(),
+            download_dir: String::new(),
+            library_path: String::new(),
+            bytes_downloaded: 0,
+            bytes_total: 0,
+            download_bps: 0,
+            upload_bps: 0,
+            ratio: 0.0,
+            files: Vec::new(),
+            resume_data: Vec::new(),
+            message: String::new(),
+            tracker_statuses: Vec::new(),
+            component: String::new(),
+            comment: String::new(),
+            source: String::new(),
+            private_flag: false,
+            has_private: false,
+        }
+    }
+
+    #[test]
+    fn files_discovered_event_is_mapped() {
+        let torrent_id = uuid::Uuid::new_v4();
+        let mut native = test_native_event(
+            torrent_id,
+            NativeEventKind::FilesDiscovered,
+            NativeTorrentState::Downloading,
+        );
+        native.files = vec![crate::ffi::ffi::NativeFile {
+            index: 7,
+            path: "season/episode.mkv".to_string(),
+            size_bytes: 42,
+        }];
+
+        let files = map_native_event(Some(torrent_id), native);
+        assert!(matches!(
+            files.first(),
+            Some(EngineEvent::FilesDiscovered { torrent_id: id, files })
+                if *id == torrent_id
+                    && files.len() == 1
+                    && files[0].index == 7
+                    && files[0].path == "season/episode.mkv"
+                    && files[0].size_bytes == 42
+                    && files[0].selected
+                    && files[0].priority == FilePriority::Normal
+        ));
+    }
+
+    #[test]
+    fn progress_event_is_mapped() {
+        let torrent_id = uuid::Uuid::new_v4();
+        let mut native = test_native_event(
+            torrent_id,
+            NativeEventKind::Progress,
+            NativeTorrentState::Downloading,
+        );
+        native.bytes_downloaded = 128;
+        native.bytes_total = 512;
+        native.download_bps = 4096;
+        native.upload_bps = 2048;
+        native.ratio = 1.5;
+
+        let progress = map_native_event(Some(torrent_id), native);
+        assert!(matches!(
+            progress.first(),
+            Some(EngineEvent::Progress { torrent_id: id, progress, rates })
+                if *id == torrent_id
+                    && progress.bytes_downloaded == 128
+                    && progress.bytes_total == 512
+                    && rates.download_bps == 4096
+                    && rates.upload_bps == 2048
+                    && (rates.ratio - 1.5).abs() < f64::EPSILON
+        ));
+    }
+
+    #[test]
+    fn state_changed_event_is_mapped() {
+        let torrent_id = uuid::Uuid::new_v4();
+        let state = map_native_event(
+            Some(torrent_id),
+            test_native_event(
+                torrent_id,
+                NativeEventKind::StateChanged,
+                NativeTorrentState::Completed,
+            ),
+        );
+        assert!(matches!(
+            state.first(),
+            Some(EngineEvent::StateChanged { torrent_id: id, state: EventState::Completed })
+                if *id == torrent_id
+        ));
+    }
+
+    #[test]
+    fn completed_event_is_mapped() {
+        let torrent_id = uuid::Uuid::new_v4();
+        let mut native = test_native_event(
+            torrent_id,
+            NativeEventKind::Completed,
+            NativeTorrentState::Completed,
+        );
+        native.library_path = "/library/demo".to_string();
+
+        let completed = map_native_event(Some(torrent_id), native);
+        assert!(matches!(
+            completed.first(),
+            Some(EngineEvent::Completed { torrent_id: id, library_path }) if *id == torrent_id && library_path == "/library/demo"
+        ));
+    }
+
+    #[test]
+    fn metadata_updated_event_is_mapped() {
+        let torrent_id = uuid::Uuid::new_v4();
+        let mut native = test_native_event(
+            torrent_id,
+            NativeEventKind::MetadataUpdated,
+            NativeTorrentState::Downloading,
+        );
+        native.name = "demo".to_string();
+        native.download_dir = "/downloads".to_string();
+        native.comment = "comment".to_string();
+        native.source = "source".to_string();
+        native.private_flag = true;
+        native.has_private = true;
+
+        let metadata = map_native_event(Some(torrent_id), native);
+        assert!(matches!(
+            metadata.first(),
+            Some(EngineEvent::MetadataUpdated {
+                torrent_id: id,
+                name,
+                download_dir,
+                comment,
+                source,
+                private,
+            }) if *id == torrent_id
+                && name.as_deref() == Some("demo")
+                && download_dir.as_deref() == Some("/downloads")
+                && comment.as_deref() == Some("comment")
+                && source.as_deref() == Some("source")
+                && *private == Some(true)
+        ));
+    }
+
+    #[test]
+    fn resume_data_event_is_mapped() {
+        let torrent_id = uuid::Uuid::new_v4();
+        let mut native = test_native_event(
+            torrent_id,
+            NativeEventKind::ResumeData,
+            NativeTorrentState::Downloading,
+        );
+        native.resume_data = vec![1, 2, 3];
+
+        let resume = map_native_event(Some(torrent_id), native);
+        assert!(matches!(
+            resume.first(),
+            Some(EngineEvent::ResumeData { torrent_id: id, payload }) if *id == torrent_id && payload == &vec![1, 2, 3]
+        ));
+    }
+
+    #[test]
+    fn error_event_is_mapped() {
+        let torrent_id = uuid::Uuid::new_v4();
+        let mut native = test_native_event(
+            torrent_id,
+            NativeEventKind::Error,
+            NativeTorrentState::Failed,
+        );
+        native.message = "disk error".to_string();
+
+        let error = map_native_event(Some(torrent_id), native);
+        assert!(matches!(
+            error.first(),
+            Some(EngineEvent::Error { torrent_id: id, message }) if *id == torrent_id && message == "disk error"
+        ));
+    }
+
+    #[test]
+    fn helpers_drop_missing_ids_and_cover_state_priority_variants() {
+        let unsupported = map_native_event(
+            None,
+            NativeEvent {
+                id: String::new(),
+                kind: NativeEventKind::FilesDiscovered,
+                state: NativeTorrentState::Downloading,
+                name: String::new(),
+                download_dir: String::new(),
+                library_path: String::new(),
+                bytes_downloaded: 0,
+                bytes_total: 0,
+                download_bps: 0,
+                upload_bps: 0,
+                ratio: 0.0,
+                files: vec![crate::ffi::ffi::NativeFile {
+                    index: 0,
+                    path: "ignored".to_string(),
+                    size_bytes: 1,
+                }],
+                resume_data: Vec::new(),
+                message: String::new(),
+                tracker_statuses: Vec::new(),
+                component: String::new(),
+                comment: String::new(),
+                source: String::new(),
+                private_flag: false,
+                has_private: false,
+            },
+        );
+        assert!(unsupported.is_empty());
+        assert!(map_files_event(uuid::Uuid::nil(), Vec::new()).is_empty());
+
+        assert!(matches!(
+            map_state(NativeTorrentState::Queued),
+            EventState::Queued
+        ));
+        assert!(matches!(
+            map_state(NativeTorrentState::FetchingMetadata),
+            EventState::FetchingMetadata
+        ));
+        assert!(matches!(
+            map_state(NativeTorrentState::Downloading),
+            EventState::Downloading
+        ));
+        assert!(matches!(
+            map_state(NativeTorrentState::Seeding),
+            EventState::Seeding
+        ));
+        assert!(matches!(
+            map_state(NativeTorrentState::Completed),
+            EventState::Completed
+        ));
+        assert!(matches!(
+            map_state(NativeTorrentState::Failed),
+            EventState::Failed { .. }
+        ));
+        assert!(matches!(
+            map_state(NativeTorrentState::Stopped),
+            EventState::Stopped
+        ));
+
+        assert_eq!(map_priority(FilePriority::Skip), 0);
+        assert_eq!(map_priority(FilePriority::Low), 1);
+        assert_eq!(map_priority(FilePriority::Normal), 4);
+        assert_eq!(map_priority(FilePriority::High), 7);
+
+        let tracker_event = map_tracker_update(
+            uuid::Uuid::nil(),
+            vec![NativeTrackerStatus {
+                url: "https://tracker.example/announce".to_string(),
+                status: String::new(),
+                message: String::new(),
+            }],
+        );
+        assert!(matches!(
+            tracker_event,
+            EngineEvent::TrackerStatus { trackers, .. }
+                if trackers.len() == 1
+                    && trackers[0].status.is_none()
+                    && trackers[0].message.is_none()
+        ));
+    }
 }

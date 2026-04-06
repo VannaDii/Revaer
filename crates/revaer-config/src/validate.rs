@@ -425,11 +425,13 @@ mod tests {
             if section == "api_keys" && field == "rate_limit.per_seconds" && reason == "must be at least 1 second"
         ));
 
-        assert!(validate_api_key_rate_limit(&ApiKeyRateLimit {
-            burst: 5,
-            replenish_period: Duration::from_secs(10),
-        })
-        .is_ok());
+        assert!(
+            validate_api_key_rate_limit(&ApiKeyRateLimit {
+                burst: 5,
+                replenish_period: Duration::from_secs(10),
+            })
+            .is_ok()
+        );
     }
 
     #[test]
