@@ -42,7 +42,9 @@ All authenticated requests must include `x-revaer-api-key: key_id:secret`.
 
 - Container runs as a non-root `revaer` user with `/data` and `/config` volumes.
 - Healthcheck targets `/health/full`.
-- For production, run with a read-only root filesystem and persist `/data` and `/config`.
+- For production, run with a read-only root filesystem, persist `/data` and `/config`, and provide a writable `tmpfs` for `/tmp` if your runtime enforces `--read-only`.
+- Drop ambient Linux capabilities unless your orchestrator adds them by default; normal operation does not require elevated capabilities.
+- Published images are scanned in CI, built with SBOM/provenance attestations, and signed with Cosign during the image publish workflow.
 
 ## SSE and resume
 

@@ -38,6 +38,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+      security-events: write
+      id-token: write
     strategy:
       matrix: ${{ fromJSON(inputs.matrix) }}
     steps:
@@ -61,6 +63,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build & Push Image
+        id: build_image
         env:
           PLATFORM: ${{ matrix.platform }}
           ARCH_TAG: ${{ matrix.arch_tag }}
@@ -78,16 +81,43 @@ jobs:
           REVISION="${GIT_SHA_SHORT}"
 
           echo "Building ${IMAGE_TAG} for ${PLATFORM}"
+          echo "image_tag=${IMAGE_TAG}" >> "${GITHUB_OUTPUT}"
 
           docker buildx build \
             --platform "${PLATFORM}" \
             -t "${IMAGE_TAG}" \
             --push \
+            --attest type=provenance,mode=max \
+            --attest type=sbom \
             --build-arg RUST_TARGET="${RUST_TARGET}" \
             --build-arg BUILD_DATE="${BUILD_DATE}" \
             --build-arg VERSION="${VERSION_TAG}" \
             --build-arg REVISION="${REVISION}" \
             .
+
+      - name: Scan pushed image
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        env:
+          TRIVY_IMAGE_SRC: remote
+          TRIVY_PLATFORM: ${{ matrix.platform }}
+        with:
+          image-ref: ${{ steps.build_image.outputs.image_tag }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: HIGH,CRITICAL
+          exit-code: ${{ github.event_name == 'pull_request' && '0' || '1' }}
+
+      - name: Upload scan results
+        if: always() && hashFiles('trivy-results.sarif') != ''
+        uses: github/codeql-action/upload-sarif@5c8a8a642e79153f5d047b10ec1cba1d1cc65699 # v3
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+
+      - name: Sign pushed image
+        run: cosign sign --yes "${{ steps.build_image.outputs.image_tag }}"
 
   create-manifest:
     name: Multi-arch Manifest
@@ -96,6 +126,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -154,3 +185,31 @@ jobs:
             ${TAG_ARGS} \
             "${AMD64_TAG}" \
             "${ARM64_TAG}"
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+
+      - name: Sign multi-arch tags
+        env:
+          IMAGE_NAME: ${{ inputs.image_name }}
+          VERSION_TAG: ${{ inputs.version_tag }}
+          ALIAS_TAG: ${{ inputs.alias_tag }}
+          INCLUDE_SHA_TAG: ${{ inputs.include_sha_tag }}
+        run: |
+          set -euo pipefail
+
+          GIT_SHA_SHORT=$(git rev-parse --short HEAD)
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_BASE="ghcr.io/${REPO_OWNER}/${IMAGE_NAME}"
+
+          TAGS=("${IMAGE_BASE}:${VERSION_TAG}")
+          if [ -n "${ALIAS_TAG}" ]; then
+            TAGS+=("${IMAGE_BASE}:${ALIAS_TAG}")
+          fi
+          if [ "${INCLUDE_SHA_TAG}" = "true" ]; then
+            TAGS+=("${IMAGE_BASE}:${GIT_SHA_SHORT}")
+          fi
+
+          for tag in "${TAGS[@]}"; do
+            cosign sign --yes "${tag}"
+          done

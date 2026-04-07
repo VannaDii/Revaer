@@ -93,6 +93,26 @@ pub enum FsOpsError {
         /// Optional value that triggered the unsupported error.
         value: Option<String>,
     },
+    /// External command execution failed.
+    #[error("fsops process execution failed")]
+    Process {
+        /// Operation that triggered the process failure.
+        operation: &'static str,
+        /// Program that was invoked.
+        program: String,
+        /// Exit code if the process exited normally.
+        status: Option<i32>,
+        /// Captured stderr for diagnostics.
+        stderr: String,
+    },
+    /// Required external tool was not available on the system.
+    #[error("fsops external tool missing")]
+    MissingTool {
+        /// Operation that required the external tool.
+        operation: &'static str,
+        /// Candidate executable names that were attempted.
+        programs: Vec<String>,
+    },
     /// Required state was missing from the pipeline.
     #[error("fsops missing state")]
     MissingState {

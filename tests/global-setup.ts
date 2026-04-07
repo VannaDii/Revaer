@@ -4,6 +4,7 @@ import fs from 'fs';
 import http from 'http';
 import https from 'https';
 import net from 'net';
+import { randomBytes } from 'node:crypto';
 import path from 'path';
 
 import { cleanupE2EState } from './support/e2e-cleanup';
@@ -41,6 +42,9 @@ export default async function globalSetup(): Promise<void> {
   const root = repoRoot();
   const testsDir = path.join(root, 'tests');
   dotenv.config({ path: path.join(testsDir, '.env') });
+  if (!process.env.REVAER_E2E_STATE_KEY) {
+    process.env.REVAER_E2E_STATE_KEY = randomBytes(32).toString('hex');
+  }
 
   try {
     const apiBaseUrl = process.env.E2E_API_BASE_URL ?? 'http://localhost:7070';

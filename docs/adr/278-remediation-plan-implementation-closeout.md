@@ -1,0 +1,58 @@
+# Remediation plan implementation closeout
+
+- Status: Accepted
+- Date: 2026-04-04
+- Context:
+  - `REMEDIATION_PLAN.md` identified verified gaps in dashboard metrics, qBittorrent compatibility, OTEL export wiring, operational automation, container hardening, and stale status docs.
+  - The repo rules require task records to capture motivation, design notes, test coverage, observability impact, rollback posture, and dependency rationale for any new crates.
+  - The implementation needed to prefer repo truth over stale roadmap claims and avoid leaving the remediation checklist itself outdated.
+- Decision:
+  - Replace the stubbed dashboard handler with a runtime-backed snapshot sourced from injected torrent state plus filesystem inspection, including explicit degraded fallbacks.
+  - Extend the qB compatibility façade to the bounded Phase One mutation surface: rename, relocate, category/tag changes, reannounce, and recheck, while persisting the façade-facing metadata that those routes expose.
+  - Wire OTEL to a real OTLP tracing exporter behind explicit configuration and enable that path in `revaer-app`, keeping the exporter dormant unless requested.
+  - Add a `just runbook` automation path that packages Playwright-driven validation artifacts and update the operator runbook to point at the checked-in automation entrypoint.
+  - Promote image scanning plus provenance/SBOM attestation into the image workflow and refresh roadmap/operator docs so they describe current repo reality.
+  - Alternatives considered:
+    - Leave the plan/documentation updates separate from code changes: rejected because the repo already had stale status drift.
+    - Add a larger observability stack or a custom exporter wrapper: rejected in favor of the smallest OTLP integration that closes the placeholder gap.
+    - Attempt the full FsOps PAR2/checksum/archive tranche in the same pass: deferred because it is materially larger and remained the main open gap after the safer remediations landed.
+- Consequences:
+  - Positive outcomes:
+    - `/v1/dashboard` now returns live metrics instead of placeholders.
+    - The qB façade now covers the intended Phase One mutation scope with tests.
+    - OTEL configuration reaches a real exporter path and operator docs describe the supported env vars.
+    - `just runbook` creates repeatable validation artifacts instead of relying only on a manual checklist.
+    - Image builds now include CI scanning and provenance/SBOM attestation.
+  - Risks or trade-offs:
+    - OTEL introduces one new dependency edge and more release-build surface area.
+    - The automated runbook still delegates some fault-injection drills to manual follow-up.
+    - FsOps archive/PAR2/checksum remediation remains open and continues to be tracked in `REMEDIATION_PLAN.md`.
+- Follow-up:
+  - Implementation tasks:
+    - Finish the FsOps archive/PAR2/checksum tranche and re-baseline the remediation checklist afterward.
+    - Decide whether image signing is required in addition to provenance/SBOM and implement it if the release posture demands it.
+    - Tighten OTEL startup validation for malformed exporter settings.
+  - Review checkpoints:
+    - Re-run `just ci` and `just ui-e2e` in an environment with the required local browser/DB/runtime dependencies.
+    - Keep `docs/phase-one-roadmap.md`, `README.md`, and `REMEDIATION_PLAN.md` aligned whenever status claims change.
+
+## Task Record
+
+- Motivation:
+  - Close the highest-signal remediation items with real implementation and remove stale planning noise that was obscuring the remaining work.
+- Design notes:
+  - Dashboard aggregation lives in `ApiState` so the handler remains thin and fallback behavior is centralized.
+  - qB mutation endpoints update metadata through the existing injected state/workflow surfaces instead of introducing a separate compatibility state store.
+  - OTEL uses the smallest viable OTLP tracing path and standard endpoint override semantics.
+- Test coverage summary:
+  - Added targeted API tests for dashboard live/fallback behavior and qB mutation/metadata behavior.
+  - Verified app-side OTEL configuration tests and feature-gated telemetry compilation.
+- Observability updates:
+  - Dashboard metrics are now sourced from live runtime state.
+  - OTEL tracing can be exported to an OTLP collector when explicitly enabled.
+- Risk & rollback plan:
+  - The changes are isolated to API handlers/state, telemetry bootstrap, docs, and workflow automation; rollback is straightforward by reverting the affected files if regressions surface.
+- Dependency rationale:
+  - Added `opentelemetry-otlp` to `revaer-telemetry`.
+  - Why this: it matches the existing `opentelemetry`/`tracing-opentelemetry` stack already in use and enables a real OTLP exporter without introducing a parallel telemetry abstraction.
+  - Alternatives considered: keeping placeholder-only OTEL wiring, or adding a custom exporter wrapper; both were rejected because they would preserve the verified gap while adding little value.

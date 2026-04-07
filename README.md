@@ -76,7 +76,7 @@ The native libtorrent integration test suite is opt-in to keep default runs dete
 
 ## Optional OpenTelemetry Export
 
-Set `REVAER_ENABLE_OTEL=true` to attach the (stubbed) OpenTelemetry layer. The exporter is disabled by default; when the flag is present the app uses `REVAER_OTEL_SERVICE_NAME` (defaults to `revaer-app`) and records the optional `REVAER_OTEL_EXPORTER` endpoint for future wiring. This keeps the instrumentation tree dormant unless you explicitly request it in environments that provide an OTLP collector.
+Set `REVAER_ENABLE_OTEL=true` to attach the OTLP tracing exporter. The exporter is disabled by default; when the flag is present the app uses `REVAER_OTEL_SERVICE_NAME` (defaults to `revaer-app`) and sends traces to `REVAER_OTEL_EXPORTER` or the standard `OTEL_EXPORTER_OTLP_ENDPOINT` when provided. This keeps the instrumentation tree dormant unless you explicitly request it in environments that provide an OTLP collector.
 
 ### Required Tooling
 

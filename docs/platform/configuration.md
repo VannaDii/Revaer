@@ -105,7 +105,7 @@ The `/.well-known/revaer.json` endpoint, the authenticated `GET /v1/config` rout
 | --- | --- | --- |
 | `library_root` | string | Destination directory for completed artifacts. |
 | `extract` | bool | Whether completed payloads are extracted. |
-| `par2` | string | `disabled`, `verify`, or `repair`. |
+| `par2` | string | `disabled`, `verify`, or `repair` (`verify` is also the compatibility behavior for legacy `enabled`). |
 | `flatten` | bool | Collapse single-file directories when moving into the library. |
 | `move_mode` | string | `copy`, `move`, or `hardlink`. |
 | `cleanup_keep` / `cleanup_drop` | array | Glob patterns retaining or removing files. |
@@ -113,6 +113,8 @@ The `/.well-known/revaer.json` endpoint, the authenticated `GET /v1/config` rout
 | `owner` / `group` | string? | Optional ownership override (Unix only). |
 | `umask` | string? | Umask used to derive default permissions. |
 | `allow_paths` | array | Allowed staging/library paths. |
+
+Extraction is built in for `zip`, `tar`, `tar.gz`, and `tgz`. `7z` and `rar` extraction use external tools (`7zz`, `7z`, `unar`, or `unrar`) and fail with a structured FsOps error if none are installed. PAR2 verification/repair requires the `par2` CLI when `par2` is set to `verify` or `repair`. On non-Unix platforms, ownership overrides remain unsupported and FsOps returns an explicit error instead of silently drifting from policy.
 
 ## API keys and secrets
 
@@ -140,7 +142,7 @@ The API server enforces bucketed rate limits if `rate_limit` is supplied (`burst
 
 ## Telemetry toggle
 
-Revaer boots with structured logging and Prometheus metrics by default. OpenTelemetry export remains opt-in: set `REVAER_ENABLE_OTEL=true` alongside your `revaer-app` process (optionally overriding `REVAER_OTEL_SERVICE_NAME` and `REVAER_OTEL_EXPORTER`) to attach the stubbed tracing layer. When the flag is absent, no OpenTelemetry dependencies are activated.
+Revaer boots with structured logging and Prometheus metrics by default. OpenTelemetry export remains opt-in: set `REVAER_ENABLE_OTEL=true` alongside your `revaer-app` process (optionally overriding `REVAER_OTEL_SERVICE_NAME` and `REVAER_OTEL_EXPORTER`, or using `OTEL_EXPORTER_OTLP_ENDPOINT`) to attach the OTLP tracing exporter. When the flag is absent, no OpenTelemetry exporter is initialized.
 
 ## Change workflows
 

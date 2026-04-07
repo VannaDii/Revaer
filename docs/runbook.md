@@ -1,6 +1,24 @@
 # Phase One Runbook
 
 This runbook exercises the end-to-end control plane, validating FsOps, telemetry, and guard rails.
+The primary automated entrypoint is `just runbook`, which wraps the Playwright-backed API/UI validation flow, collects artifacts, and provides a repeatable baseline before any manual drills.
+
+## Automated Validation
+
+Run the automated baseline first:
+
+```sh
+just runbook
+```
+
+Expected outputs:
+
+- `artifacts/runbook/summary.txt`
+- `artifacts/runbook/playwright-report/index.html`
+- `artifacts/runbook/test-results/`
+- `artifacts/runbook/logs/`
+
+The automated runbook currently covers the bootstrap, dashboard/API health, settings, and torrent-management control-plane paths exercised by `just ui-e2e`. Keep the manual checks below only for deployment-specific fault-injection drills that require operator intervention against real mounts, permissions, and restart boundaries.
 
 ## Prerequisites
 
@@ -44,10 +62,16 @@ This runbook exercises the end-to-end control plane, validating FsOps, telemetry
     - Observe `fsops_failed` events, `HealthChanged` with `["fsops"]`, and guard-rail telemetry.
     - Restore permissions and confirm recovery events.
 
+Manual-only rationale:
+
+- Permission failures and restart/resume drills depend on the actual runtime mount layout, writable volumes, and supervisor behavior of the target deployment.
+- The checked-in automation covers the repeatable control-plane baseline; these remaining drills intentionally stay manual so operators can validate their real environment rather than a simulated local-only shell.
+
 ## Verification Artifacts
 
--   Archive CLI telemetry emitted to `REVAER_TELEMETRY_ENDPOINT`.
--   Capture Prometheus scrapings (`/metrics`) before and after the run.
+-   Review `artifacts/runbook/summary.txt` from `just runbook`.
+-   Archive CLI telemetry emitted to `REVAER_TELEMETRY_ENDPOINT` when the manual scenario enables it.
+-   Capture Prometheus scrapings (`/metrics`) before and after the manual drills.
 -   Record `/health/full` JSON snapshots for each phase.
 
 Successful completion of this runbook satisfies the operational validation gate defined in `AGENT.md`.

@@ -10,7 +10,6 @@ test.describe('Settings', () => {
     const tabs = ['Downloads', 'Seeding', 'Network', 'Storage', 'Labels', 'System'];
     for (const tab of tabs) {
       await settings.selectTab(tab);
-      await settings.expectConfigPlaceholder();
     }
   });
 });

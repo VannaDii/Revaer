@@ -17,7 +17,7 @@ const viewportWidth = parseNumber(process.env.E2E_VIEWPORT_WIDTH, 1440);
 const viewportHeight = parseNumber(process.env.E2E_VIEWPORT_HEIGHT, 900);
 const retries = parseNumber(process.env.E2E_RETRIES, process.env.CI ? 2 : 0);
 const workers = parseOptionalNumber(process.env.E2E_WORKERS);
-const uiWorkers = parseOptionalNumber(process.env.E2E_UI_WORKERS) ?? 6;
+const uiWorkers = parseOptionalNumber(process.env.E2E_UI_WORKERS) ?? 1;
 const coverageShardSuffix = shardSuffix();
 
 const testTimeout = parseNumber(process.env.E2E_TEST_TIMEOUT_MS, 30_000);
@@ -90,6 +90,7 @@ export default defineConfig({
       use: { browserName: name },
       workers: uiWorkers,
       metadata: {
+        authMode: 'api_key',
         coverageFile: `test-results/ui-coverage-ui-${name}${coverageShardSuffix}.json`,
       },
     })),

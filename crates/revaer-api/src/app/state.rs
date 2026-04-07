@@ -1,6 +1,7 @@
 //! API application state, health tracking, and helpers.
 
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
@@ -9,6 +10,7 @@ use revaer_events::{Event as CoreEvent, EventBus, TorrentState};
 use revaer_telemetry::Metrics;
 use revaer_torrent_core::TorrentStatus;
 use serde_json::Value;
+use systemstat::{Platform, System};
 use tracing::{error, warn};
 use uuid::Uuid;
 
@@ -17,6 +19,7 @@ use crate::app::indexers::IndexerFacade;
 use crate::config::ConfigFacade;
 use crate::http::rate_limit::{RateLimitError, RateLimitSnapshot, RateLimiter};
 use crate::http::torrents::TorrentMetadata;
+use crate::models::DashboardResponse;
 
 #[cfg(test)]
 mod tests {
@@ -337,6 +340,8 @@ pub(crate) struct CompatSession {
 
 #[cfg(feature = "compat-qb")]
 pub(crate) const COMPAT_SESSION_TTL: Duration = Duration::from_secs(30 * 60);
+const DASHBOARD_TORRENTS_COMPONENT: &str = "dashboard_torrents";
+const DASHBOARD_DISK_COMPONENT: &str = "dashboard_disk";
 
 impl ApiState {
     pub(crate) fn new(
@@ -426,6 +431,56 @@ impl ApiState {
             }
         } else {
             self.record_torrent_metrics(&[]);
+        }
+    }
+
+    pub(crate) async fn dashboard_snapshot(&self, library_root: &Path) -> DashboardResponse {
+        let statuses = self.dashboard_statuses().await;
+        let (download_bps, upload_bps, active, paused, completed) =
+            aggregate_dashboard_counts(&statuses);
+        let (disk_total_gb, disk_used_gb) = match dashboard_disk_usage_gb(library_root) {
+            Ok(snapshot) => {
+                self.remove_degraded_component(DASHBOARD_DISK_COMPONENT);
+                snapshot
+            }
+            Err(err) => {
+                self.add_degraded_component(DASHBOARD_DISK_COMPONENT);
+                warn!(
+                    error = %err,
+                    library_root = %library_root.display(),
+                    "failed to read dashboard disk usage"
+                );
+                (0, 0)
+            }
+        };
+
+        DashboardResponse {
+            download_bps,
+            upload_bps,
+            active,
+            paused,
+            completed,
+            disk_total_gb,
+            disk_used_gb,
+        }
+    }
+
+    async fn dashboard_statuses(&self) -> Vec<TorrentStatus> {
+        if let Some(handles) = &self.torrent {
+            match handles.inspector().list().await {
+                Ok(statuses) => {
+                    self.remove_degraded_component(DASHBOARD_TORRENTS_COMPONENT);
+                    statuses
+                }
+                Err(err) => {
+                    self.add_degraded_component(DASHBOARD_TORRENTS_COMPONENT);
+                    warn!(error = %err, "failed to list torrents for dashboard snapshot");
+                    Vec::new()
+                }
+            }
+        } else {
+            self.remove_degraded_component(DASHBOARD_TORRENTS_COMPONENT);
+            Vec::new()
         }
     }
 
@@ -537,4 +592,46 @@ impl ApiState {
             }
         }
     }
+}
+
+fn aggregate_dashboard_counts(statuses: &[TorrentStatus]) -> (u64, u64, u32, u32, u32) {
+    let mut download_bps = 0_u64;
+    let mut upload_bps = 0_u64;
+    let mut active = 0_u32;
+    let mut paused = 0_u32;
+    let mut completed = 0_u32;
+
+    for status in statuses {
+        download_bps = download_bps.saturating_add(status.rates.download_bps);
+        upload_bps = upload_bps.saturating_add(status.rates.upload_bps);
+        match status.state {
+            TorrentState::FetchingMetadata | TorrentState::Downloading | TorrentState::Seeding => {
+                active = active.saturating_add(1);
+            }
+            TorrentState::Queued | TorrentState::Stopped => {
+                paused = paused.saturating_add(1);
+            }
+            TorrentState::Completed => {
+                completed = completed.saturating_add(1);
+            }
+            TorrentState::Failed { .. } => {}
+        }
+    }
+
+    (download_bps, upload_bps, active, paused, completed)
+}
+
+fn dashboard_disk_usage_gb(path: &Path) -> std::io::Result<(u32, u32)> {
+    let mount = System::new().mount_at(path)?;
+    let total_bytes = mount.total.as_u64();
+    let used_bytes = total_bytes.saturating_sub(mount.avail.as_u64());
+    Ok((
+        bytes_to_whole_gb(total_bytes),
+        bytes_to_whole_gb(used_bytes),
+    ))
+}
+
+fn bytes_to_whole_gb(bytes: u64) -> u32 {
+    let gigabytes = bytes / 1_000_000_000;
+    u32::try_from(gigabytes).unwrap_or(u32::MAX)
 }

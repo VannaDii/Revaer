@@ -2742,7 +2742,7 @@ mod tests {
             id: Uuid::new_v4(),
             library_root: "/library".to_string(),
             extract: true,
-            par2: "enabled".to_string(),
+            par2: "verify".to_string(),
             flatten: false,
             move_mode: "copy".to_string(),
             cleanup_keep: vec!["**/*.mkv".to_string()],

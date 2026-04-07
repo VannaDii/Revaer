@@ -60,6 +60,22 @@ pub enum TelemetryError {
         /// Underlying IO error.
         source: std::io::Error,
     },
+    /// Initialising the OpenTelemetry exporter failed.
+    #[cfg(feature = "otel")]
+    OtelConfig {
+        /// Telemetry field that failed validation.
+        field: &'static str,
+        /// Validation reason code.
+        reason: &'static str,
+        /// Invalid value when it is safe to report.
+        value: Option<String>,
+    },
+    /// Initialising the OpenTelemetry exporter failed.
+    #[cfg(feature = "otel")]
+    OtelInstall {
+        /// Underlying OpenTelemetry error.
+        source: opentelemetry_otlp::ExporterBuildError,
+    },
 }
 
 impl Display for TelemetryError {
@@ -83,6 +99,12 @@ impl Display for TelemetryError {
                 formatter.write_str("failed to create openapi output directory")
             }
             Self::OpenApiWrite { .. } => formatter.write_str("failed to write openapi artifact"),
+            #[cfg(feature = "otel")]
+            Self::OtelConfig { .. } => formatter.write_str("invalid opentelemetry configuration"),
+            #[cfg(feature = "otel")]
+            Self::OtelInstall { .. } => {
+                formatter.write_str("failed to initialize opentelemetry exporter")
+            }
         }
     }
 }
@@ -99,6 +121,10 @@ impl Error for TelemetryError {
             Self::OpenApiCreateDir { source, .. } | Self::OpenApiWrite { source, .. } => {
                 Some(source)
             }
+            #[cfg(feature = "otel")]
+            Self::OtelConfig { .. } => None,
+            #[cfg(feature = "otel")]
+            Self::OtelInstall { source } => Some(source),
         }
     }
 }
@@ -191,5 +217,18 @@ mod tests {
             assert!(err.source().is_some());
         }
         Ok(())
+    }
+
+    #[cfg(feature = "otel")]
+    #[test]
+    fn otel_config_error_has_no_source() {
+        let error = TelemetryError::OtelConfig {
+            field: "endpoint",
+            reason: "invalid_scheme",
+            value: Some("ftp://collector".to_string()),
+        };
+
+        assert_eq!(error.to_string(), "invalid opentelemetry configuration");
+        assert!(error.source().is_none());
     }
 }

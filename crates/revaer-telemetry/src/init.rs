@@ -14,9 +14,11 @@ use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberI
 use crate::log_stream::log_stream_writer;
 
 #[cfg(feature = "otel")]
-use opentelemetry::{global, trace::TracerProvider};
+use opentelemetry::{KeyValue, global, trace::TracerProvider as _};
 #[cfg(feature = "otel")]
-use opentelemetry_sdk::trace as sdktrace;
+use opentelemetry_otlp::{Protocol, WithExportConfig, WithHttpConfig};
+#[cfg(feature = "otel")]
+use opentelemetry_sdk::{Resource, trace as sdktrace};
 #[cfg(feature = "otel")]
 use tracing_opentelemetry::OpenTelemetryLayer;
 
@@ -55,7 +57,7 @@ pub fn init_logging_with_otel<'a>(
 
     #[cfg(feature = "otel")]
     if let Some(otel_config) = otel.filter(|cfg| cfg.enabled) {
-        let telemetry = build_otel_layer(otel_config);
+        let telemetry = build_otel_layer(otel_config)?;
         let guard = install_with_otel_layer(config, telemetry)?;
         return Ok(Some(guard));
     }
@@ -126,7 +128,7 @@ pub struct OpenTelemetryConfig<'a> {
     pub enabled: bool,
     /// Logical service name recorded in span resources.
     pub service_name: Cow<'a, str>,
-    /// Optional endpoint placeholder for future exporters.
+    /// Optional OTLP collector endpoint.
     pub endpoint: Option<Cow<'a, str>>,
 }
 
@@ -139,16 +141,15 @@ struct TelemetryLayer {
 /// Guard returned when OpenTelemetry instrumentation is active.
 pub struct OpenTelemetryGuard {
     #[cfg(feature = "otel")]
-    provider: sdktrace::TracerProvider,
-    #[cfg(not(feature = "otel"))]
-    _private: (),
+    tracer_provider: sdktrace::SdkTracerProvider,
 }
 
 #[cfg(feature = "otel")]
 impl Drop for OpenTelemetryGuard {
     fn drop(&mut self) {
-        let _ = &self.provider;
-        global::shutdown_tracer_provider();
+        if let Err(source) = self.tracer_provider.shutdown() {
+            tracing::error!(?source, "failed to shut down otel tracer provider");
+        }
     }
 }
 
@@ -196,15 +197,73 @@ fn build_env_filter(level: &str) -> EnvFilter {
 }
 
 #[cfg(feature = "otel")]
-fn build_otel_layer(config: &OpenTelemetryConfig) -> TelemetryLayer {
-    let provider = sdktrace::TracerProvider::builder().build();
-    let tracer = provider.tracer(Cow::Owned(config.service_name.clone().into_owned()));
-    global::set_tracer_provider(provider.clone());
+fn build_otel_layer(config: &OpenTelemetryConfig) -> Result<TelemetryLayer> {
+    validate_otel_config(config)?;
+    let tracer_provider = build_otel_tracer_provider(config)?;
+    global::set_tracer_provider(tracer_provider.clone());
+    let tracer = tracer_provider.tracer(config.service_name.to_string());
     let layer = tracing_opentelemetry::layer().with_tracer(tracer);
-    TelemetryLayer {
+    Ok(TelemetryLayer {
         layer,
-        guard: OpenTelemetryGuard { provider },
+        guard: OpenTelemetryGuard { tracer_provider },
+    })
+}
+
+#[cfg(feature = "otel")]
+fn validate_otel_config(config: &OpenTelemetryConfig) -> Result<()> {
+    if config.service_name.trim().is_empty() {
+        return Err(TelemetryError::OtelConfig {
+            field: "service_name",
+            reason: "empty",
+            value: None,
+        });
     }
+
+    if let Some(endpoint) = config.endpoint.as_deref() {
+        let trimmed = endpoint.trim();
+        if trimmed.is_empty() {
+            return Err(TelemetryError::OtelConfig {
+                field: "endpoint",
+                reason: "empty",
+                value: None,
+            });
+        }
+        if !(trimmed.starts_with("http://") || trimmed.starts_with("https://")) {
+            return Err(TelemetryError::OtelConfig {
+                field: "endpoint",
+                reason: "invalid_scheme",
+                value: Some(trimmed.to_string()),
+            });
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(feature = "otel")]
+fn build_otel_tracer_provider(config: &OpenTelemetryConfig) -> Result<sdktrace::SdkTracerProvider> {
+    let service_name = config.service_name.trim();
+    let resource = Resource::builder_empty()
+        .with_attributes([KeyValue::new("service.name", service_name.to_string())])
+        .build();
+
+    let mut exporter = opentelemetry_otlp::SpanExporter::builder()
+        .with_http()
+        .with_http_client(reqwest::Client::new())
+        .with_protocol(Protocol::HttpBinary);
+
+    if let Some(endpoint) = config.endpoint.as_deref() {
+        exporter = exporter.with_endpoint(endpoint.trim().to_string());
+    }
+
+    let exporter = exporter
+        .build()
+        .map_err(|source| TelemetryError::OtelInstall { source })?;
+
+    Ok(sdktrace::SdkTracerProvider::builder()
+        .with_resource(resource)
+        .with_batch_exporter(exporter)
+        .build())
 }
 
 #[cfg(feature = "otel")]
@@ -312,5 +371,61 @@ mod tests {
     fn build_env_filter_smoke() {
         let filter = build_env_filter("info");
         assert!(!filter.to_string().is_empty());
+    }
+
+    #[cfg(feature = "otel")]
+    #[test]
+    fn validate_otel_config_rejects_empty_service_name() {
+        let config = OpenTelemetryConfig {
+            enabled: true,
+            service_name: Cow::Borrowed("   "),
+            endpoint: Some(Cow::Borrowed("http://collector")),
+        };
+
+        assert!(matches!(
+            validate_otel_config(&config),
+            Err(TelemetryError::OtelConfig {
+                field: "service_name",
+                reason: "empty",
+                value: None,
+            })
+        ));
+    }
+
+    #[cfg(feature = "otel")]
+    #[test]
+    fn validate_otel_config_rejects_invalid_endpoint_scheme() {
+        let config = OpenTelemetryConfig {
+            enabled: true,
+            service_name: Cow::Borrowed("revaer"),
+            endpoint: Some(Cow::Borrowed("ftp://collector")),
+        };
+
+        assert!(matches!(
+            validate_otel_config(&config),
+            Err(TelemetryError::OtelConfig {
+                field: "endpoint",
+                reason: "invalid_scheme",
+                value: Some(value),
+            }) if value == "ftp://collector"
+        ));
+    }
+
+    #[cfg(feature = "otel")]
+    #[test]
+    fn build_otel_tracer_provider_accepts_http_endpoint() -> Result<()> {
+        let config = OpenTelemetryConfig {
+            enabled: true,
+            service_name: Cow::Borrowed("revaer"),
+            endpoint: Some(Cow::Borrowed("http://collector:4318")),
+        };
+
+        let provider = build_otel_tracer_provider(&config)?;
+        if let Err(source) = provider.shutdown() {
+            return Err(TelemetryError::OtelInstall {
+                source: opentelemetry_otlp::ExporterBuildError::InternalFailure(source.to_string()),
+            });
+        }
+        Ok(())
     }
 }

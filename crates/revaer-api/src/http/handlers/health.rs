@@ -90,21 +90,17 @@ pub(crate) async fn dashboard(
     State(state): State<Arc<ApiState>>,
 ) -> Result<Json<DashboardResponse>, ApiError> {
     info!("dashboard request");
-    let app = state.config.get_app_profile().await.map_err(|err| {
-        error!(error = %err, "failed to load app profile for dashboard");
-        ApiError::internal("failed to load app profile")
+    let snapshot = state.config.snapshot().await.map_err(|err| {
+        error!(error = %err, "failed to load configuration snapshot for dashboard");
+        ApiError::internal("failed to load configuration snapshot")
     })?;
-    record_app_mode(app.mode.as_str());
+    record_app_mode(snapshot.app_profile.mode.as_str());
 
-    Ok(Json(DashboardResponse {
-        download_bps: 0,
-        upload_bps: 0,
-        active: 0,
-        paused: 0,
-        completed: 0,
-        disk_total_gb: 0,
-        disk_used_gb: 0,
-    }))
+    Ok(Json(
+        state
+            .dashboard_snapshot(std::path::Path::new(&snapshot.fs_policy.library_root))
+            .await,
+    ))
 }
 
 pub(crate) async fn metrics(State(state): State<Arc<ApiState>>) -> Result<Response, ApiError> {
@@ -132,6 +128,7 @@ mod tests {
     use super::*;
     use crate::app::indexers::test_indexers;
     use crate::config::ConfigFacade;
+    use crate::http::torrents::TorrentHandles;
     use anyhow::{Result, anyhow};
     use async_trait::async_trait;
     use chrono::Utc;
@@ -144,7 +141,11 @@ mod tests {
     };
     use revaer_events::EventBus;
     use revaer_telemetry::Metrics;
-    use std::time::Duration;
+    use revaer_torrent_core::{
+        AddTorrent, PeerSnapshot, RemoveTorrent, TorrentInspector, TorrentProgress, TorrentRates,
+        TorrentResult, TorrentStatus, TorrentWorkflow,
+    };
+    use std::{path::PathBuf, sync::Arc as StdArc, time::Duration};
     use uuid::Uuid;
 
     #[derive(Clone)]
@@ -239,6 +240,46 @@ mod tests {
 
         async fn factory_reset(&self) -> ConfigResult<()> {
             self.maybe_fail("health.factory_reset", ())
+        }
+    }
+
+    #[derive(Clone, Default)]
+    struct StubWorkflow;
+
+    #[async_trait]
+    impl TorrentWorkflow for StubWorkflow {
+        async fn add_torrent(&self, _request: AddTorrent) -> TorrentResult<()> {
+            Ok(())
+        }
+
+        async fn remove_torrent(&self, _id: Uuid, _options: RemoveTorrent) -> TorrentResult<()> {
+            Ok(())
+        }
+    }
+
+    struct StubInspector {
+        statuses: Vec<TorrentStatus>,
+        fail_list: bool,
+    }
+
+    #[async_trait]
+    impl TorrentInspector for StubInspector {
+        async fn list(&self) -> TorrentResult<Vec<TorrentStatus>> {
+            if self.fail_list {
+                Err(revaer_torrent_core::TorrentError::Unsupported {
+                    operation: "dashboard.list",
+                })
+            } else {
+                Ok(self.statuses.clone())
+            }
+        }
+
+        async fn get(&self, id: Uuid) -> TorrentResult<Option<TorrentStatus>> {
+            Ok(self.statuses.iter().find(|status| status.id == id).cloned())
+        }
+
+        async fn peers(&self, _id: Uuid) -> TorrentResult<Vec<PeerSnapshot>> {
+            Ok(Vec::new())
         }
     }
 
@@ -340,6 +381,46 @@ mod tests {
         }
     }
 
+    fn state_with_handles(
+        config: Arc<dyn ConfigFacade>,
+        inspector: StubInspector,
+    ) -> Result<Arc<ApiState>> {
+        let telemetry = Metrics::new()?;
+        let handles = TorrentHandles::new(StdArc::new(StubWorkflow), StdArc::new(inspector));
+        Ok(Arc::new(ApiState::new(
+            config,
+            test_indexers(),
+            telemetry,
+            Arc::new(serde_json::json!({})),
+            EventBus::new(),
+            Some(handles),
+        )))
+    }
+
+    struct TestDir {
+        path: PathBuf,
+    }
+
+    impl TestDir {
+        fn path(&self) -> &std::path::Path {
+            &self.path
+        }
+    }
+
+    impl Drop for TestDir {
+        fn drop(&mut self) {
+            let _result = std::fs::remove_dir_all(&self.path);
+        }
+    }
+
+    fn temp_dir() -> Result<TestDir> {
+        let base = std::path::PathBuf::from(".server_root");
+        std::fs::create_dir_all(&base)?;
+        let path = base.join(format!("revaer-health-{}", Uuid::new_v4().simple()));
+        std::fs::create_dir_all(&path)?;
+        Ok(TestDir { path })
+    }
+
     #[tokio::test]
     async fn health_success_clears_degraded_component() -> Result<()> {
         let config: Arc<dyn ConfigFacade> = Arc::new(StubConfig::healthy(AppMode::Active));
@@ -410,6 +491,108 @@ mod tests {
             .ok_or_else(|| anyhow!("expected dashboard failure"))?;
         assert_eq!(result.status(), StatusCode::INTERNAL_SERVER_ERROR);
         assert_eq!(result.kind(), crate::http::constants::PROBLEM_INTERNAL);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn dashboard_returns_live_torrent_metrics() -> Result<()> {
+        let temp = temp_dir()?;
+        let library_root = temp.path().join("library");
+        std::fs::create_dir_all(&library_root)?;
+        std::fs::write(library_root.join("artifact.bin"), vec![0_u8; 16])?;
+
+        let mut snapshot = sample_snapshot(AppMode::Active);
+        snapshot.fs_policy.library_root = library_root.to_string_lossy().into_owned();
+        let config: Arc<dyn ConfigFacade> = Arc::new(StubConfig {
+            snapshot,
+            fail: false,
+        });
+        let state = state_with_handles(
+            config,
+            StubInspector {
+                statuses: vec![
+                    TorrentStatus {
+                        id: Uuid::new_v4(),
+                        state: revaer_events::TorrentState::Downloading,
+                        rates: TorrentRates {
+                            download_bps: 128,
+                            upload_bps: 64,
+                            ratio: 0.5,
+                        },
+                        progress: TorrentProgress {
+                            bytes_downloaded: 5,
+                            bytes_total: 10,
+                            eta_seconds: Some(5),
+                        },
+                        ..TorrentStatus::default()
+                    },
+                    TorrentStatus {
+                        id: Uuid::new_v4(),
+                        state: revaer_events::TorrentState::Stopped,
+                        ..TorrentStatus::default()
+                    },
+                    TorrentStatus {
+                        id: Uuid::new_v4(),
+                        state: revaer_events::TorrentState::Completed,
+                        rates: TorrentRates {
+                            download_bps: 1,
+                            upload_bps: 2,
+                            ratio: 1.0,
+                        },
+                        progress: TorrentProgress {
+                            bytes_downloaded: 10,
+                            bytes_total: 10,
+                            eta_seconds: None,
+                        },
+                        ..TorrentStatus::default()
+                    },
+                ],
+                fail_list: false,
+            },
+        )?;
+
+        let Json(body) = dashboard(State(state)).await?;
+        assert_eq!(body.download_bps, 129);
+        assert_eq!(body.upload_bps, 66);
+        assert_eq!(body.active, 1);
+        assert_eq!(body.paused, 1);
+        assert_eq!(body.completed, 1);
+        assert!(body.disk_total_gb >= body.disk_used_gb);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn dashboard_falls_back_when_torrent_snapshot_fails() -> Result<()> {
+        let temp = temp_dir()?;
+        let library_root = temp.path().join("library");
+        std::fs::create_dir_all(&library_root)?;
+
+        let mut snapshot = sample_snapshot(AppMode::Active);
+        snapshot.fs_policy.library_root = library_root.to_string_lossy().into_owned();
+        let config: Arc<dyn ConfigFacade> = Arc::new(StubConfig {
+            snapshot,
+            fail: false,
+        });
+        let state = state_with_handles(
+            config,
+            StubInspector {
+                statuses: Vec::new(),
+                fail_list: true,
+            },
+        )?;
+
+        let Json(body) = dashboard(State(Arc::clone(&state))).await?;
+        assert_eq!(body.download_bps, 0);
+        assert_eq!(body.upload_bps, 0);
+        assert_eq!(body.active, 0);
+        assert_eq!(body.paused, 0);
+        assert_eq!(body.completed, 0);
+        assert!(
+            state
+                .current_health_degraded()
+                .iter()
+                .any(|component| component == "dashboard_torrents")
+        );
         Ok(())
     }
 }

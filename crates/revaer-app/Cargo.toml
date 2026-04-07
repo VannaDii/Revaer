@@ -16,7 +16,7 @@ tracing.workspace = true
 revaer-api = { path = "../revaer-api" }
 revaer-config = { path = "../revaer-config" }
 revaer-fsops = { path = "../revaer-fsops" }
-revaer-telemetry = { path = "../revaer-telemetry" }
+revaer-telemetry = { path = "../revaer-telemetry", features = ["otel"] }
 revaer-torrent-core = { path = "../revaer-torrent-core" }
 revaer-torrent-libt = { path = "../revaer-torrent-libt", default-features = false }
 revaer-events = { path = "../revaer-events" }

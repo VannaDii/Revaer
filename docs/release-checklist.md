@@ -17,10 +17,12 @@
     - Checksum: `sha256sum target/release/revaer-app`
     - OpenAPI: `docs/api/openapi.json`
     - Docker image: `just docker-build && just docker-scan`
+    - Published GHCR image: verify Trivy scan, SBOM/provenance attestations, and Cosign signatures from the image workflow
 
 4. **Runbook Execution**
 
-    - Follow `docs/runbook.md`
+    - Run `just runbook`
+    - Follow the remaining manual-only drills in `docs/runbook.md`
     - Archive CLI telemetry, `/metrics`, `/health/full` snapshots.
 
 5. **Documentation Refresh**

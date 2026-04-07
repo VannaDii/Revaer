@@ -289,3 +289,9 @@
 -   [275](275-pr-output-redaction-and-review-followup.md) – PR output redaction and review follow-up
 -   [276](276-ci-cache-trim-for-runner-disk.md) – CI cache trim for runner disk pressure
 -   [277](277-pr-review-handler-normalization-followup.md) – PR review handler normalization follow-up
+-   [278](278-remediation-plan-implementation-closeout.md) – Remediation plan implementation closeout
+-   [279](279-remediation-plan-gap-closure.md) – Remediation plan gap closure
+-   [280](280-pr-21-feedback-closeout.md) – PR 21 feedback closeout
+-   [281](281-pr-21-sonar-and-review-closeout.md) – PR 21 Sonar and review closeout
+-   [282](282-pr-21-final-feedback-closeout.md) – PR 21 final feedback closeout
+-   [283](283-pr-21-trivy-action-pin-refresh.md) – PR 21 Trivy action pin refresh
