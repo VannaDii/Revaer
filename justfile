@@ -146,6 +146,9 @@ cov:
     DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}"; \
         export REVAER_TEST_DATABASE_URL DATABASE_URL; \
     just db-start
+    RUST_TEST_THREADS="${RUST_TEST_THREADS:-1}" \
+    CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-1}" \
+        cargo llvm-cov --workspace --all-features --no-report
     fail_list=""; \
         while IFS= read -r member; do \
             manifest="${member}/Cargo.toml"; \
@@ -161,7 +164,7 @@ cov:
                 continue; \
             fi; \
             echo "== coverage: ${name} =="; \
-            if ! RUST_TEST_THREADS="${RUST_TEST_THREADS:-1}" cargo llvm-cov --package "${name}" --fail-under-lines 90; then \
+            if ! cargo llvm-cov report --package "${name}" --json --summary-only --fail-under-lines 90 >/dev/null; then \
                 fail_list="${fail_list} ${name}"; \
             fi; \
         done < <(awk ' \
@@ -175,12 +178,6 @@ cov:
         fi
     rm -rf coverage
     mkdir -p coverage
-    cargo llvm-cov clean --workspace
-    REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/postgres}" \
-    DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}" \
-    RUST_TEST_THREADS="${RUST_TEST_THREADS:-1}" \
-    CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-1}" \
-        cargo llvm-cov --workspace --all-features --no-report
     cargo llvm-cov report --lcov --output-path coverage/lcov.info
     cargo llvm-cov report --html --output-dir coverage
 

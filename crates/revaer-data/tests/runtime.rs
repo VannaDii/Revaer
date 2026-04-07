@@ -178,9 +178,20 @@ async fn runtime_store_round_trips_files_and_failed_state() -> anyhow::Result<()
     assert_eq!(persisted.source.as_deref(), Some("source"));
     assert_eq!(persisted.private, Some(true));
     assert!(persisted.sequential);
-    assert_eq!(persisted.added_at, added_at);
-    assert_eq!(persisted.completed_at, Some(completed_at));
-    assert_eq!(persisted.last_updated, last_updated);
+    assert_eq!(
+        persisted.added_at.timestamp_micros(),
+        added_at.timestamp_micros()
+    );
+    assert_eq!(
+        persisted
+            .completed_at
+            .map(|timestamp| timestamp.timestamp_micros()),
+        Some(completed_at.timestamp_micros())
+    );
+    assert_eq!(
+        persisted.last_updated.timestamp_micros(),
+        last_updated.timestamp_micros()
+    );
     let files = persisted
         .files
         .as_ref()

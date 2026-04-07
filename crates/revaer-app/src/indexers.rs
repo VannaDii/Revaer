@@ -206,7 +206,7 @@ impl IndexerService {
         for tag in tags {
             self.tag_create(actor_user_public_id, &tag.tag_key, &tag.display_name)
                 .await
-                .map_err(map_backup_tag_service_error)?;
+                .map_err(|error| map_indexer_backup_tag_error(&error))?;
             created_tag_count += 1;
         }
         Ok(created_tag_count)
@@ -220,7 +220,7 @@ impl IndexerService {
         let existing_system_policy_ids = self
             .rate_limit_policy_list(actor_user_public_id)
             .await
-            .map_err(map_backup_rate_limit_service_error)?
+            .map_err(|error| map_indexer_backup_rate_limit_error(&error))?
             .into_iter()
             .filter(|policy| policy.is_system)
             .map(|policy| (policy.display_name, policy.rate_limit_policy_public_id))
@@ -246,7 +246,7 @@ impl IndexerService {
                     policy.concurrent_requests,
                 )
                 .await
-                .map_err(map_backup_rate_limit_service_error)?;
+                .map_err(|error| map_indexer_backup_rate_limit_error(&error))?;
             rate_limit_id_by_name.insert(policy.display_name.clone(), policy_public_id);
             created_rate_limit_policy_count += 1;
         }
@@ -274,7 +274,7 @@ impl IndexerService {
             let routing_policy_public_id = self
                 .routing_policy_create(actor_user_public_id, &policy.display_name, &policy.mode)
                 .await
-                .map_err(map_backup_routing_service_error)?;
+                .map_err(|error| map_indexer_backup_routing_error(&error))?;
             routing_policy_id_by_name.insert(policy.display_name.clone(), routing_policy_public_id);
             if let Some(rate_limit_display_name) = policy.rate_limit_display_name.as_deref() {
                 let rate_limit_policy_public_id = lookup_backup_reference(
@@ -288,7 +288,7 @@ impl IndexerService {
                     Some(rate_limit_policy_public_id),
                 )
                 .await
-                .map_err(map_backup_rate_limit_service_error)?;
+                .map_err(|error| map_indexer_backup_rate_limit_error(&error))?;
             }
             for parameter in &policy.parameters {
                 self.restore_backup_routing_parameter(
@@ -331,7 +331,7 @@ impl IndexerService {
                 parameter.value_bool,
             )
             .await
-            .map_err(map_backup_routing_service_error)?;
+            .map_err(|error| map_indexer_backup_routing_error(&error))?;
         }
         if let Some(secret_public_id) = parameter.secret_public_id {
             match self
@@ -352,7 +352,7 @@ impl IndexerService {
                         secret_public_id,
                     });
                 }
-                Err(error) => return Err(map_backup_routing_service_error(error)),
+                Err(error) => return Err(map_indexer_backup_routing_error(&error)),
             }
         }
         Ok(())
@@ -390,7 +390,7 @@ impl IndexerService {
                     routing_policy_public_id,
                 )
                 .await
-                .map_err(map_backup_indexer_service_error)?;
+                .map_err(|error| map_indexer_backup_indexer_error(&error))?;
             self.indexer_instance_update(IndexerInstanceUpdateParams {
                 actor_user_public_id,
                 indexer_instance_public_id,
@@ -404,7 +404,7 @@ impl IndexerService {
                 enable_interactive_search: Some(instance.interactive_search_status == "enabled"),
             })
             .await
-            .map_err(map_backup_indexer_service_error)?;
+            .map_err(|error| map_indexer_backup_indexer_error(&error))?;
 
             self.restore_backup_indexer_instance_links(
                 actor_user_public_id,
@@ -429,7 +429,7 @@ impl IndexerService {
                         interval_seconds: instance.rss_interval_seconds,
                     })
                     .await
-                    .map_err(map_backup_indexer_service_error)?;
+                    .map_err(|error| map_indexer_backup_indexer_error(&error))?;
             }
             created_indexer_instance_count += 1;
         }
@@ -456,7 +456,7 @@ impl IndexerService {
                 Some(rate_limit_policy_public_id),
             )
             .await
-            .map_err(map_backup_rate_limit_service_error)?;
+            .map_err(|error| map_indexer_backup_rate_limit_error(&error))?;
         }
         if !instance.media_domain_keys.is_empty() {
             self.indexer_instance_set_media_domains(
@@ -465,7 +465,7 @@ impl IndexerService {
                 &instance.media_domain_keys,
             )
             .await
-            .map_err(map_backup_indexer_service_error)?;
+            .map_err(|error| map_indexer_backup_indexer_error(&error))?;
         }
         if !instance.tag_keys.is_empty() {
             self.indexer_instance_set_tags(
@@ -475,7 +475,7 @@ impl IndexerService {
                 Some(&instance.tag_keys),
             )
             .await
-            .map_err(map_backup_indexer_service_error)?;
+            .map_err(|error| map_indexer_backup_indexer_error(&error))?;
         }
         Ok(())
     }
@@ -499,7 +499,7 @@ impl IndexerService {
                     value_bool: field.value_bool,
                 })
                 .await
-                .map_err(map_backup_field_service_error)?;
+                .map_err(|error| map_indexer_backup_field_error(&error))?;
             }
             if let Some(secret_public_id) = field.secret_public_id {
                 match self
@@ -520,7 +520,7 @@ impl IndexerService {
                             secret_public_id,
                         });
                     }
-                    Err(error) => return Err(map_backup_field_service_error(error)),
+                    Err(error) => return Err(map_indexer_backup_field_error(&error)),
                 }
             }
         }
@@ -4756,30 +4756,6 @@ fn lookup_backup_reference(
     ids_by_name.get(display_name).copied().ok_or_else(|| {
         IndexerBackupServiceError::new(IndexerBackupServiceErrorKind::Invalid).with_code(error_code)
     })
-}
-
-fn map_backup_tag_service_error(error: TagServiceError) -> IndexerBackupServiceError {
-    map_indexer_backup_tag_error(&error)
-}
-
-fn map_backup_rate_limit_service_error(
-    error: RateLimitPolicyServiceError,
-) -> IndexerBackupServiceError {
-    map_indexer_backup_rate_limit_error(&error)
-}
-
-fn map_backup_routing_service_error(error: RoutingPolicyServiceError) -> IndexerBackupServiceError {
-    map_indexer_backup_routing_error(&error)
-}
-
-fn map_backup_indexer_service_error(
-    error: IndexerInstanceServiceError,
-) -> IndexerBackupServiceError {
-    map_indexer_backup_indexer_error(&error)
-}
-
-fn map_backup_field_service_error(error: IndexerInstanceFieldError) -> IndexerBackupServiceError {
-    map_indexer_backup_field_error(&error)
 }
 
 fn map_indexer_backup_tag_error(error: &TagServiceError) -> IndexerBackupServiceError {

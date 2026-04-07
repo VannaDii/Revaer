@@ -47,7 +47,10 @@ uses_matches="$(
         next;
       }
 
-      if (ref !~ /@[0-9a-f]{40}$/) {
+      sha = ref;
+      sub(/^.*@/, "", sha);
+
+      if (ref !~ /@/ || length(sha) != 40 || sha !~ /^[0-9a-f]+$/) {
         printf "%s:%d:%s\n", FILENAME, FNR, $0;
         next;
       }

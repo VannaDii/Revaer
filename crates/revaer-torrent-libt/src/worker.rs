@@ -1570,8 +1570,9 @@ mod tests {
     use revaer_torrent_core::{
         AddTorrent, AddTorrentOptions, FilePriority, FilePriorityOverride, FileSelectionRules,
         FileSelectionUpdate, PeerChoke, PeerInterest, PeerSnapshot, RemoveTorrent,
-        TorrentCleanupPolicy, TorrentProgress, TorrentRateLimit, TorrentRates, TorrentSource,
-        model::TorrentOptionsUpdate,
+        TorrentCleanupPolicy, TorrentFile, TorrentProgress, TorrentRateLimit, TorrentRates,
+        TorrentSource,
+        model::{TorrentAuthorRequest, TorrentOptionsUpdate},
     };
     use std::fs;
     use std::path::PathBuf;
@@ -1603,7 +1604,7 @@ mod tests {
     fn repo_root() -> PathBuf {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         for ancestor in manifest_dir.ancestors() {
-            if ancestor.join("AGENT.md").is_file() {
+            if ancestor.join("AGENTS.md").is_file() {
                 return ancestor.to_path_buf();
             }
         }
@@ -1889,6 +1890,42 @@ mod tests {
         assert_eq!(peers.len(), 1);
         assert_eq!(peers[0].endpoint, peer.endpoint);
         assert_eq!(peers[0].download_bps, peer.download_bps);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn create_torrent_command_uses_session_response() -> Result<()> {
+        let bus = EventBus::with_capacity(4);
+        let session: Box<dyn LibTorrentSession> = Box::new(StubSession::default());
+        let mut worker = Worker::new(bus, session, None);
+        let request = TorrentAuthorRequest {
+            root_path: ".server_root/downloads/source".to_string(),
+            trackers: vec!["https://tracker.example/announce".to_string()],
+            web_seeds: vec!["https://seed.example/file".to_string()],
+            file_rules: FileSelectionRules::default(),
+            piece_length: Some(16_384),
+            private: true,
+            comment: Some("fixture".to_string()),
+            source: Some("revaer".to_string()),
+        };
+        let (respond_to, rx) = oneshot::channel();
+
+        worker
+            .handle(EngineCommand::CreateTorrent {
+                request: request.clone(),
+                respond_to,
+            })
+            .await?;
+
+        let authored = rx
+            .await
+            .map_err(|_| anyhow!("expected authoring response"))??;
+        assert!(!authored.magnet_uri.is_empty());
+        assert_eq!(authored.trackers, request.trackers);
+        assert_eq!(authored.web_seeds, request.web_seeds);
+        assert_eq!(authored.comment, request.comment);
+        assert_eq!(authored.source, request.source);
+        assert!(authored.private);
         Ok(())
     }
 
@@ -2240,6 +2277,30 @@ mod tests {
             cached_dir.as_deref(),
             Some(".server_root/downloads/relocated")
         );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn reannounce_and_recheck_commands_succeed() -> Result<()> {
+        let bus = EventBus::with_capacity(4);
+        let session: Box<dyn LibTorrentSession> = Box::new(StubSession::default());
+        let mut worker = Worker::new(bus, session, None);
+        let torrent_id = Uuid::new_v4();
+
+        worker
+            .handle(EngineCommand::Add(Box::new(AddTorrent {
+                id: torrent_id,
+                source: TorrentSource::magnet("magnet:?xt=urn:btih:reannounce"),
+                options: AddTorrentOptions::default(),
+            })))
+            .await?;
+        worker
+            .handle(EngineCommand::Reannounce { id: torrent_id })
+            .await?;
+        worker
+            .handle(EngineCommand::Recheck { id: torrent_id })
+            .await?;
 
         Ok(())
     }
@@ -2739,6 +2800,90 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn files_discovered_event_publishes_payload() -> Result<()> {
+        let bus = EventBus::with_capacity(8);
+        let session: Box<dyn LibTorrentSession> = Box::new(StubSession::default());
+        let mut worker = Worker::new(bus.clone(), session, None);
+        let mut stream = bus.subscribe(None);
+        let torrent_id = Uuid::new_v4();
+        let mut actions = Vec::new();
+
+        worker.publish_engine_event(
+            EngineEvent::FilesDiscovered {
+                torrent_id,
+                files: vec![TorrentFile {
+                    index: 0,
+                    path: "Season 01/Episode 01.mkv".to_string(),
+                    size_bytes: 42,
+                    bytes_completed: 42,
+                    priority: FilePriority::Normal,
+                    selected: true,
+                }],
+            },
+            &mut actions,
+        );
+        worker.apply_actions(actions).await?;
+
+        match next_event_with_timeout(&mut stream, 50).await {
+            Some(Event::FilesDiscovered {
+                torrent_id: id,
+                files,
+            }) => {
+                assert_eq!(id, torrent_id);
+                assert_eq!(files.len(), 1);
+                assert_eq!(files[0].path, "Season 01/Episode 01.mkv");
+                assert_eq!(files[0].size_bytes, 42);
+            }
+            _ => return Err(anyhow!("expected files discovered event")),
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn completed_event_publishes_state_and_completion() -> Result<()> {
+        let bus = EventBus::with_capacity(8);
+        let session: Box<dyn LibTorrentSession> = Box::new(StubSession::default());
+        let mut worker = Worker::new(bus.clone(), session, None);
+        let mut stream = bus.subscribe(None);
+        let torrent_id = Uuid::new_v4();
+        let mut actions = Vec::new();
+
+        worker.publish_engine_event(
+            EngineEvent::Completed {
+                torrent_id,
+                library_path: "/library/Example".to_string(),
+            },
+            &mut actions,
+        );
+        worker.apply_actions(actions).await?;
+
+        match next_event_with_timeout(&mut stream, 50).await {
+            Some(Event::StateChanged {
+                torrent_id: id,
+                state,
+            }) => {
+                assert_eq!(id, torrent_id);
+                assert!(matches!(state, TorrentState::Completed));
+            }
+            _ => return Err(anyhow!("expected completed state change")),
+        }
+
+        match next_event_with_timeout(&mut stream, 50).await {
+            Some(Event::Completed {
+                torrent_id: id,
+                library_path,
+            }) => {
+                assert_eq!(id, torrent_id);
+                assert_eq!(library_path, "/library/Example");
+            }
+            _ => return Err(anyhow!("expected completed event")),
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn rate_limit_violations_emit_health_degradation() -> Result<()> {
         let bus = EventBus::with_capacity(16);
         let session: Box<dyn LibTorrentSession> = Box::new(StubSession::default());
@@ -2844,6 +2989,47 @@ mod tests {
                 assert_eq!(degraded, vec!["network".to_string()]);
             }
             _ => return Err(anyhow!("expected health change event")),
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn error_event_marks_session_failed() -> Result<()> {
+        let bus = EventBus::with_capacity(8);
+        let session: Box<dyn LibTorrentSession> = Box::new(StubSession::default());
+        let mut worker = Worker::new(bus.clone(), session, None);
+        let mut stream = bus.subscribe(None);
+        let torrent_id = Uuid::new_v4();
+        let mut actions = Vec::new();
+
+        worker.publish_engine_event(
+            EngineEvent::Error {
+                torrent_id,
+                message: "disk full".to_string(),
+            },
+            &mut actions,
+        );
+        worker.apply_actions(actions).await?;
+
+        match next_event_with_timeout(&mut stream, 50).await {
+            Some(Event::StateChanged {
+                torrent_id: id,
+                state,
+            }) => {
+                assert_eq!(id, torrent_id);
+                assert!(
+                    matches!(state, TorrentState::Failed { message } if message == "disk full")
+                );
+            }
+            _ => return Err(anyhow!("expected failed state event")),
+        }
+
+        match next_event_with_timeout(&mut stream, 50).await {
+            Some(Event::HealthChanged { degraded }) => {
+                assert_eq!(degraded, vec!["session".to_string()]);
+            }
+            _ => return Err(anyhow!("expected session degradation event")),
         }
 
         Ok(())

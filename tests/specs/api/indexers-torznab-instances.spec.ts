@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '../../fixtures/api';
+import { apiFetchRaw } from '../../support/api/raw';
 
 test.describe('Torznab instances', () => {
-  test('covers torznab instance management endpoints', async ({ api, publicApi, session }) => {
+  test('covers torznab instance management endpoints', async ({ api, publicApi, baseUrl, session }) => {
     const suffix = Date.now().toString();
     const displayName = `Torznab ${suffix}`;
 
@@ -47,68 +48,78 @@ test.describe('Torznab instances', () => {
     }
 
     if (hasCreatedInstance) {
-      const capsMissingKey = await publicApi.GET('/torznab/{torznab_instance_public_id}/api', {
-        params: { path: { torznab_instance_public_id: createdInstanceId! }, query: { t: 'caps' } },
+      const capsMissingKey = await apiFetchRaw({
+        baseUrl,
+        method: 'GET',
+        route: '/torznab/{torznab_instance_public_id}/api',
+        path: { torznab_instance_public_id: createdInstanceId! },
+        query: { t: 'caps' },
       });
-      expect(capsMissingKey.response.status).toBe(401);
+      expect(capsMissingKey.status).toBe(401);
 
-      const capsInvalidKey = await publicApi.GET('/torznab/{torznab_instance_public_id}/api', {
-        params: {
-          path: { torznab_instance_public_id: createdInstanceId! },
-          query: { apikey: 'invalid', t: 'caps' },
-        },
+      const capsInvalidKey = await apiFetchRaw({
+        baseUrl,
+        method: 'GET',
+        route: '/torznab/{torznab_instance_public_id}/api',
+        path: { torznab_instance_public_id: createdInstanceId! },
+        query: { apikey: 'invalid', t: 'caps' },
       });
-      expect(capsInvalidKey.response.status).toBe(401);
+      expect(capsInvalidKey.status).toBe(401);
 
-      const caps = await publicApi.GET('/torznab/{torznab_instance_public_id}/api', {
-        params: {
-          path: { torznab_instance_public_id: createdInstanceId! },
-          query: { apikey: createdApiKey!, t: 'caps' },
-        },
+      const caps = await apiFetchRaw({
+        baseUrl,
+        method: 'GET',
+        route: '/torznab/{torznab_instance_public_id}/api',
+        path: { torznab_instance_public_id: createdInstanceId! },
+        query: { apikey: createdApiKey!, t: 'caps' },
       });
-      expect(caps.response.status).toBe(200);
-      const capsBody = await caps.response.text();
+      expect(caps.status).toBe(200);
+      const capsBody = await caps.text();
       expect(capsBody).toContain('<caps>');
 
-      const unsupportedQuery = await publicApi.GET('/torznab/{torznab_instance_public_id}/api', {
-        params: {
-          path: { torznab_instance_public_id: createdInstanceId! },
-          query: { apikey: createdApiKey!, t: 'invalid-query' },
-        },
+      const unsupportedQuery = await apiFetchRaw({
+        baseUrl,
+        method: 'GET',
+        route: '/torznab/{torznab_instance_public_id}/api',
+        path: { torznab_instance_public_id: createdInstanceId! },
+        query: { apikey: createdApiKey!, t: 'invalid-query' },
       });
-      expect(unsupportedQuery.response.status).toBe(200);
-      const unsupportedBody = await unsupportedQuery.response.text();
+      expect(unsupportedQuery.status).toBe(200);
+      const unsupportedBody = await unsupportedQuery.text();
       expect(unsupportedBody).toContain('<rss');
 
-      const genericSearch = await publicApi.GET('/torznab/{torznab_instance_public_id}/api', {
-        params: {
-          path: { torznab_instance_public_id: createdInstanceId! },
-          query: { apikey: createdApiKey!, t: 'search', q: 'example', offset: '5', limit: '2' },
-        },
+      const genericSearch = await apiFetchRaw({
+        baseUrl,
+        method: 'GET',
+        route: '/torznab/{torznab_instance_public_id}/api',
+        path: { torznab_instance_public_id: createdInstanceId! },
+        query: { apikey: createdApiKey!, t: 'search', q: 'example', offset: '5', limit: '2' },
       });
-      expect(genericSearch.response.status).toBe(200);
-      const genericBody = await genericSearch.response.text();
+      expect(genericSearch.status).toBe(200);
+      const genericBody = await genericSearch.text();
       expect(genericBody).toContain('<rss');
       expect(genericBody).toContain('torznab:response offset="5"');
 
-      const invalidTvCombo = await publicApi.GET('/torznab/{torznab_instance_public_id}/api', {
-        params: {
-          path: { torznab_instance_public_id: createdInstanceId! },
-          query: { apikey: createdApiKey!, t: 'tvsearch', ep: '2' },
-        },
+      const invalidTvCombo = await apiFetchRaw({
+        baseUrl,
+        method: 'GET',
+        route: '/torznab/{torznab_instance_public_id}/api',
+        path: { torznab_instance_public_id: createdInstanceId! },
+        query: { apikey: createdApiKey!, t: 'tvsearch', ep: '2' },
       });
-      expect(invalidTvCombo.response.status).toBe(200);
-      const invalidTvBody = await invalidTvCombo.response.text();
+      expect(invalidTvCombo.status).toBe(200);
+      const invalidTvBody = await invalidTvCombo.text();
       expect(invalidTvBody).toContain('torznab:response offset="0" total="0"');
 
-      const invalidCategory = await publicApi.GET('/torznab/{torznab_instance_public_id}/api', {
-        params: {
-          path: { torznab_instance_public_id: createdInstanceId! },
-          query: { apikey: createdApiKey!, t: 'search', cat: '999999' },
-        },
+      const invalidCategory = await apiFetchRaw({
+        baseUrl,
+        method: 'GET',
+        route: '/torznab/{torznab_instance_public_id}/api',
+        path: { torznab_instance_public_id: createdInstanceId! },
+        query: { apikey: createdApiKey!, t: 'search', cat: '999999' },
       });
-      expect(invalidCategory.response.status).toBe(200);
-      const invalidCategoryBody = await invalidCategory.response.text();
+      expect(invalidCategory.status).toBe(200);
+      const invalidCategoryBody = await invalidCategory.text();
       expect(invalidCategoryBody).toContain('torznab:response offset="0" total="0"');
     }
 
@@ -132,43 +143,39 @@ test.describe('Torznab instances', () => {
     );
     expect(updateState.response.status).toBe(404);
 
-    const unknownCaps = await publicApi.GET('/torznab/{torznab_instance_public_id}/api', {
-      params: {
-        path: { torznab_instance_public_id: instanceId },
-        query: { apikey: 'invalid', t: 'caps' },
-      },
+    const unknownCaps = await apiFetchRaw({
+      baseUrl,
+      method: 'GET',
+      route: '/torznab/{torznab_instance_public_id}/api',
+      path: { torznab_instance_public_id: instanceId },
+      query: { apikey: 'invalid', t: 'caps' },
     });
-    expect(unknownCaps.response.status).toBe(404);
+    expect(unknownCaps.status).toBe(404);
 
     if (session.authMode === 'api_key') {
-      const missingKey = await publicApi.GET(
-        '/torznab/{torznab_instance_public_id}/download/{canonical_torrent_source_public_id}',
-        {
-          params: {
-            path: {
-              torznab_instance_public_id: instanceId,
-              canonical_torrent_source_public_id: sourceId,
-            },
-            query: {},
-          },
-        }
-      );
-      expect(missingKey.response.status).toBe(401);
+      const missingKey = await apiFetchRaw({
+        baseUrl,
+        method: 'GET',
+        route: '/torznab/{torznab_instance_public_id}/download/{canonical_torrent_source_public_id}',
+        path: {
+          torznab_instance_public_id: instanceId,
+          canonical_torrent_source_public_id: sourceId,
+        },
+      });
+      expect(missingKey.status).toBe(401);
     }
 
-    const download = await publicApi.GET(
-      '/torznab/{torznab_instance_public_id}/download/{canonical_torrent_source_public_id}',
-      {
-        params: {
-          path: {
-            torznab_instance_public_id: instanceId,
-            canonical_torrent_source_public_id: sourceId,
-          },
-          query: { apikey: 'invalid' },
-        },
-      }
-    );
-    expect(download.response.status).toBe(404);
+    const download = await apiFetchRaw({
+      baseUrl,
+      method: 'GET',
+      route: '/torznab/{torznab_instance_public_id}/download/{canonical_torrent_source_public_id}',
+      path: {
+        torznab_instance_public_id: instanceId,
+        canonical_torrent_source_public_id: sourceId,
+      },
+      query: { apikey: 'invalid' },
+    });
+    expect(download.status).toBe(404);
 
     if (hasCreatedInstance) {
       const disabled = await api.PUT(
@@ -187,47 +194,40 @@ test.describe('Torznab instances', () => {
       );
       expect(disabledInstance?.is_enabled).toBe(false);
 
-      const createdDownloadMissingKey = await publicApi.GET(
-        '/torznab/{torznab_instance_public_id}/download/{canonical_torrent_source_public_id}',
-        {
-          params: {
-            path: {
-              torznab_instance_public_id: createdInstanceId!,
-              canonical_torrent_source_public_id: sourceId,
-            },
-            query: {},
-          },
-        }
-      );
-      expect(createdDownloadMissingKey.response.status).toBe(401);
+      const createdDownloadMissingKey = await apiFetchRaw({
+        baseUrl,
+        method: 'GET',
+        route: '/torznab/{torznab_instance_public_id}/download/{canonical_torrent_source_public_id}',
+        path: {
+          torznab_instance_public_id: createdInstanceId!,
+          canonical_torrent_source_public_id: sourceId,
+        },
+      });
+      expect(createdDownloadMissingKey.status).toBe(401);
 
-      const createdDownloadInvalidKey = await publicApi.GET(
-        '/torznab/{torznab_instance_public_id}/download/{canonical_torrent_source_public_id}',
-        {
-          params: {
-            path: {
-              torznab_instance_public_id: createdInstanceId!,
-              canonical_torrent_source_public_id: sourceId,
-            },
-            query: { apikey: 'invalid' },
-          },
-        }
-      );
-      expect(createdDownloadInvalidKey.response.status).toBe(401);
+      const createdDownloadInvalidKey = await apiFetchRaw({
+        baseUrl,
+        method: 'GET',
+        route: '/torznab/{torznab_instance_public_id}/download/{canonical_torrent_source_public_id}',
+        path: {
+          torznab_instance_public_id: createdInstanceId!,
+          canonical_torrent_source_public_id: sourceId,
+        },
+        query: { apikey: 'invalid' },
+      });
+      expect(createdDownloadInvalidKey.status).toBe(404);
 
-      const createdDownloadMissingSource = await publicApi.GET(
-        '/torznab/{torznab_instance_public_id}/download/{canonical_torrent_source_public_id}',
-        {
-          params: {
-            path: {
-              torznab_instance_public_id: createdInstanceId!,
-              canonical_torrent_source_public_id: sourceId,
-            },
-            query: { apikey: createdApiKey! },
-          },
-        }
-      );
-      expect(createdDownloadMissingSource.response.status).toBe(404);
+      const createdDownloadMissingSource = await apiFetchRaw({
+        baseUrl,
+        method: 'GET',
+        route: '/torznab/{torznab_instance_public_id}/download/{canonical_torrent_source_public_id}',
+        path: {
+          torznab_instance_public_id: createdInstanceId!,
+          canonical_torrent_source_public_id: sourceId,
+        },
+        query: { apikey: createdApiKey! },
+      });
+      expect(createdDownloadMissingSource.status).toBe(404);
     }
 
     const remove = await api.DELETE(

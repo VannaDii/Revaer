@@ -2,12 +2,29 @@ use super::*;
 use revaer_config::{SettingsChangeset, SettingsFacade};
 use revaer_events::Event;
 use revaer_test_support::postgres::start_postgres;
-use std::ffi::OsString;
 use std::net::TcpListener;
-use std::os::unix::ffi::OsStringExt;
 use tokio::runtime::Runtime;
 use tokio::time::timeout;
 use tokio_stream::StreamExt;
+
+#[cfg(unix)]
+fn non_unicode_os_string() -> std::ffi::OsString {
+    use std::os::unix::ffi::OsStringExt;
+
+    std::ffi::OsString::from_vec(vec![0xff])
+}
+
+#[cfg(windows)]
+fn non_unicode_os_string() -> std::ffi::OsString {
+    use std::os::windows::ffi::OsStringExt;
+
+    std::ffi::OsString::from_wide(&[0xd800])
+}
+
+#[cfg(not(any(unix, windows)))]
+fn non_unicode_os_string() -> std::ffi::OsString {
+    std::ffi::OsString::from("invalid")
+}
 
 async fn get_app_profile_with_retry(
     config: &ConfigService,
@@ -78,9 +95,7 @@ fn secret_session_from_values_validate_presence_and_bounds() {
 #[test]
 fn optional_env_var_with_rejects_non_unicode_values() {
     let error = optional_env_var_with("REVAER_SECRET_KEY", |_| {
-        Err(std::env::VarError::NotUnicode(OsString::from_vec(vec![
-            0xff,
-        ])))
+        Err(std::env::VarError::NotUnicode(non_unicode_os_string()))
     })
     .expect_err("non-unicode env vars should be rejected");
 
@@ -262,7 +277,7 @@ async fn run_bootstrap_services_rejects_public_setup_bind_from_dependencies() ->
     dependencies.snapshot.app_profile.mode = AppMode::Setup;
     dependencies.snapshot.app_profile.bind_addr = IpAddr::from([10, 0, 0, 1]);
 
-    let err = run_bootstrap_services(dependencies)
+    let err = Box::pin(run_bootstrap_services(dependencies))
         .await
         .expect_err("public setup bind should fail before starting services");
     assert!(matches!(
@@ -292,7 +307,7 @@ async fn run_bootstrap_services_rejects_zero_http_port_from_dependencies() -> Ap
         BootstrapDependencies::from_database_url(postgres.connection_string().to_string()).await?;
     dependencies.snapshot.app_profile.http_port = 0;
 
-    let err = run_bootstrap_services(dependencies)
+    let err = Box::pin(run_bootstrap_services(dependencies))
         .await
         .expect_err("zero http port should fail before starting services");
     assert!(matches!(
@@ -341,7 +356,7 @@ async fn run_bootstrap_services_surfaces_bind_failures_for_valid_snapshot() -> A
     dependencies.snapshot.app_profile.bind_addr = IpAddr::from([127, 0, 0, 1]);
     dependencies.snapshot.app_profile.http_port = reserved_port;
 
-    let err = run_bootstrap_services(dependencies)
+    let err = Box::pin(run_bootstrap_services(dependencies))
         .await
         .expect_err("occupied listener should fail api server startup");
     assert!(matches!(err, AppError::ApiServer { .. }), "{err:?}");
@@ -741,9 +756,7 @@ fn secret_session_secret_too_long_errors() {
 #[test]
 fn optional_env_var_rejects_non_unicode_values() {
     let result = optional_env_var_with("REVAER_SECRET_KEY_ID", |_| {
-        Err(std::env::VarError::NotUnicode(std::ffi::OsString::from(
-            "invalid",
-        )))
+        Err(std::env::VarError::NotUnicode(non_unicode_os_string()))
     });
 
     assert!(matches!(

@@ -53,3 +53,50 @@ fn admin_urls(base_url: &Url) -> Vec<String> { let mut admin_url = base_url.clon
 
 #[rustfmt::skip]
 fn run_admin_operation(connection_string: &str, sql: &str, error_context: &'static str) -> Result<()> { let connection_string = connection_string.to_owned(); let sql = sql.to_owned(); thread::spawn(move || { let config = postgres::Config::from_str(&connection_string)?; let mut client = config.connect(NoTls)?; client.simple_query(&sql).map(|_| ()).context(error_context) }).join().map_err(|_| anyhow::Error::msg("postgres admin worker panicked"))? }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn database_connection_string_replaces_database_name() {
+        let base_url = Url::parse("postgres://revaer:revaer@localhost:5432/postgres")
+            .expect("valid postgres url");
+
+        let connection_string = database_connection_string(&base_url, "revaer_test_fixture");
+
+        assert_eq!(
+            connection_string,
+            "postgres://revaer:revaer@localhost:5432/revaer_test_fixture"
+        );
+    }
+
+    #[test]
+    fn admin_urls_include_base_when_database_is_not_postgres() {
+        let base_url =
+            Url::parse("postgres://revaer:revaer@localhost:5432/revaer").expect("valid url");
+
+        let admin_urls = admin_urls(&base_url);
+
+        assert_eq!(
+            admin_urls,
+            vec![
+                "postgres://revaer:revaer@localhost:5432/postgres".to_string(),
+                "postgres://revaer:revaer@localhost:5432/revaer".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn admin_urls_deduplicate_postgres_database() {
+        let base_url =
+            Url::parse("postgres://revaer:revaer@localhost:5432/postgres").expect("valid url");
+
+        let admin_urls = admin_urls(&base_url);
+
+        assert_eq!(
+            admin_urls,
+            vec!["postgres://revaer:revaer@localhost:5432/postgres".to_string()]
+        );
+    }
+}

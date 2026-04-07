@@ -1423,7 +1423,7 @@ fn assert_indexer_instance_field_detail_kinds() {
     }
 }
 
-fn assert_backup_mapping_helpers_and_secret_lookup() {
+fn assert_backup_mapping_helpers() {
     let tag_backup = map_indexer_backup_tag_error(
         &TagServiceError::new(TagServiceErrorKind::Conflict)
             .with_code("tag_deleted")
@@ -1471,67 +1471,9 @@ fn assert_backup_mapping_helpers_and_secret_lookup() {
             .with_sqlstate("P0001"),
     );
     assert_eq!(field_backup.kind(), IndexerBackupServiceErrorKind::Conflict);
+}
 
-    let tag_backup_from_owned = map_backup_tag_service_error(
-        TagServiceError::new(TagServiceErrorKind::Conflict)
-            .with_code("tag_deleted")
-            .with_sqlstate("23505"),
-    );
-    assert_eq!(tag_backup_from_owned.kind(), tag_backup.kind());
-    assert_eq!(tag_backup_from_owned.code(), tag_backup.code());
-    assert_eq!(tag_backup_from_owned.sqlstate(), tag_backup.sqlstate());
-
-    let rate_limit_backup_from_owned = map_backup_rate_limit_service_error(
-        RateLimitPolicyServiceError::new(RateLimitPolicyServiceErrorKind::Invalid)
-            .with_code("capacity_invalid")
-            .with_sqlstate("22023"),
-    );
-    assert_eq!(
-        rate_limit_backup_from_owned.kind(),
-        rate_limit_backup.kind()
-    );
-    assert_eq!(
-        rate_limit_backup_from_owned.code(),
-        rate_limit_backup.code()
-    );
-    assert_eq!(
-        rate_limit_backup_from_owned.sqlstate(),
-        rate_limit_backup.sqlstate()
-    );
-
-    let routing_backup_from_owned = map_backup_routing_service_error(
-        RoutingPolicyServiceError::new(RoutingPolicyServiceErrorKind::Unauthorized)
-            .with_code("actor_unauthorized")
-            .with_sqlstate("42501"),
-    );
-    assert_eq!(routing_backup_from_owned.kind(), routing_backup.kind());
-    assert_eq!(routing_backup_from_owned.code(), routing_backup.code());
-    assert_eq!(
-        routing_backup_from_owned.sqlstate(),
-        routing_backup.sqlstate()
-    );
-
-    let indexer_backup_from_owned = map_backup_indexer_service_error(
-        IndexerInstanceServiceError::new(IndexerInstanceServiceErrorKind::NotFound)
-            .with_code("definition_not_found")
-            .with_sqlstate("P0001"),
-    );
-    assert_eq!(indexer_backup_from_owned.kind(), indexer_backup.kind());
-    assert_eq!(indexer_backup_from_owned.code(), indexer_backup.code());
-    assert_eq!(
-        indexer_backup_from_owned.sqlstate(),
-        indexer_backup.sqlstate()
-    );
-
-    let field_backup_from_owned = map_backup_field_service_error(
-        IndexerInstanceFieldError::new(IndexerInstanceFieldErrorKind::Conflict)
-            .with_code("field_requires_secret")
-            .with_sqlstate("P0001"),
-    );
-    assert_eq!(field_backup_from_owned.kind(), field_backup.kind());
-    assert_eq!(field_backup_from_owned.code(), field_backup.code());
-    assert_eq!(field_backup_from_owned.sqlstate(), field_backup.sqlstate());
-
+fn assert_backup_secret_lookup() {
     let present = BTreeMap::from([(String::from("Burst"), Uuid::new_v4())]);
     assert_eq!(
         lookup_backup_reference(&present, "Burst", "missing").ok(),
@@ -1562,5 +1504,6 @@ fn remaining_database_detail_classifiers_cover_domain_contracts() {
 #[test]
 fn torznab_secret_indexer_and_backup_helpers_cover_contracts() {
     assert_torznab_secret_and_indexer_detail_kinds();
-    assert_backup_mapping_helpers_and_secret_lookup();
+    assert_backup_mapping_helpers();
+    assert_backup_secret_lookup();
 }

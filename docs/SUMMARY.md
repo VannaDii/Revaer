@@ -314,3 +314,4 @@
     -   [282: PR 21 final feedback closeout](adr/282-pr-21-final-feedback-closeout.md)
     -   [283: PR 21 Trivy action pin refresh](adr/283-pr-21-trivy-action-pin-refresh.md)
     -   [284: Instruction refresh and Sonar scope hardening](adr/284-instruction-refresh-and-sonar-scope.md)
+    -   [285: PR 19 review and lint closeout](adr/285-pr-19-review-and-lint-closeout.md)

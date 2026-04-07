@@ -112,10 +112,10 @@ collect_matches lint_control_matches \
   "scripts/workflow-guardrails.sh" \
   "scripts/instruction-drift-check.sh"
 collect_matches devops_matches \
-  ".github/workflows/*" \
-  ".github/actions/*" \
+  ".github/workflows/**" \
+  ".github/actions/**" \
   "Dockerfile" \
-  "release/*"
+  "release/**"
 collect_matches sonar_matches \
   ".github/workflows/sonar.yml" \
   "sonar-project.properties"

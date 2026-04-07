@@ -38,4 +38,6 @@ applyTo:
 - Keep `scripts/workflow-guardrails.sh` aligned with the live workflow policy when GitHub Actions pinning or shell-safety rules change.
 - Keep version comments synchronized with the pinned release tag so reviewers can compare the local workflow state against the upstream action release quickly.
 - `pr.yml` and `ci.yml` must pass explicit base/head SHAs into `just instruction-drift` so pull requests and `main` pushes are checked against the real reviewed diff, not an incidental worktree state.
+- Drift coverage for actions and release assets is recursive. Changes under `.github/actions/**`, `.github/workflows/**`, and `release/**` must keep matching the devops instruction update rule.
+- Reusable workflows that publish images must preserve `packages: write` on the caller job because the callee cannot elevate a more restrictive token.
 - Keep the Sonar PR gate blocking and decoration-based. Do not add `sonar.qualitygate.wait=true` to PR scans unless the branch-protection model cannot consume Sonar’s status directly.

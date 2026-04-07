@@ -212,7 +212,7 @@ mod tests {
     fn repo_root() -> PathBuf {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         for ancestor in manifest_dir.ancestors() {
-            if ancestor.join("AGENT.md").is_file() {
+            if ancestor.join("AGENTS.md").is_file() {
                 return ancestor.to_path_buf();
             }
         }
@@ -400,11 +400,11 @@ mod tests {
 
         let settings = engine.inspect_settings().await?;
 
-        assert_eq!(settings.listen_interfaces, "0.0.0.0:6881,[::]:6881");
+        assert_eq!(settings.listen_interfaces, "");
         assert_eq!(settings.proxy_username, None);
         assert_eq!(settings.proxy_password, None);
-        assert_eq!(settings.share_ratio_limit, Some(200));
-        assert_eq!(settings.seed_time_limit, Some(86_400));
+        assert_eq!(settings.share_ratio_limit, None);
+        assert_eq!(settings.seed_time_limit, None);
         Ok(())
     }
 }

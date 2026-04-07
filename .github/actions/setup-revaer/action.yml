@@ -90,7 +90,7 @@ runs:
 
         for package in "${packages[@]}"; do
           case "${package}" in
-            [A-Za-z0-9.+:-]*)
+            [A-Za-z0-9][A-Za-z0-9.+:-]*)
               ;;
             *)
               echo "Invalid apt package token: ${package}" >&2
@@ -100,7 +100,7 @@ runs:
         done
 
         sudo apt-get update
-        sudo apt-get install -y "${packages[@]}"
+        sudo apt-get install -y -- "${packages[@]}"
 
     - name: Configure sccache
       shell: bash

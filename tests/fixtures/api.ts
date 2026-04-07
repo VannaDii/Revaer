@@ -10,6 +10,7 @@ type ApiFixtures = {
   api: ApiClient;
   publicApi: ApiClient;
   session: ApiSession;
+  baseUrl: string;
 };
 
 type CoverageFixture = {
@@ -69,6 +70,9 @@ export const test = base.extend<ApiFixtures & CoverageFixture>({
     },
     { scope: 'worker' },
   ],
+  baseUrl: async ({}, use, testInfo) => {
+    await use(resolveBaseUrl(testInfo));
+  },
   api: async ({ session }, use, testInfo) => {
     const baseUrl = resolveBaseUrl(testInfo);
     const headers = session.apiKey ? { 'x-revaer-api-key': session.apiKey } : undefined;

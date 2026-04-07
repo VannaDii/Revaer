@@ -485,6 +485,9 @@ jobs:
       (startsWith(github.ref, 'refs/tags/') &&
         !contains(github.ref_name, '-') &&
         needs.load-matrix.result == 'success')
+    permissions:
+      contents: read
+      packages: write
     uses: ./.github/workflows/build-images.yml
     with:
       matrix: ${{ needs.load-matrix.outputs.matrix }}

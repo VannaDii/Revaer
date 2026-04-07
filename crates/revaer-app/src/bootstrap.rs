@@ -234,7 +234,7 @@ pub(crate) async fn run_app_with(dependencies: BootstrapDependencies) -> AppResu
     let _otel_guard = init_bootstrap_logging(&dependencies)?;
     let _context = GlobalContextGuard::new("bootstrap");
     info!("Revaer application bootstrap starting");
-    run_bootstrap_services(dependencies).await
+    Box::pin(run_bootstrap_services(dependencies)).await
 }
 
 fn init_bootstrap_logging(
