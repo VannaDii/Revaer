@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-02379307.js";
+            window.path_to_searchindex_js = "../searchindex-1492387e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-5cc33c76.js"></script>
+        <script src="../toc-db012d23.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -285,7 +285,7 @@
 <tbody>
 <tr><td><code>library_root</code></td><td>string</td><td>Destination directory for completed artifacts.</td></tr>
 <tr><td><code>extract</code></td><td>bool</td><td>Whether completed payloads are extracted.</td></tr>
-<tr><td><code>par2</code></td><td>string</td><td><code>disabled</code>, <code>verify</code>, or <code>repair</code>.</td></tr>
+<tr><td><code>par2</code></td><td>string</td><td><code>disabled</code>, <code>verify</code>, or <code>repair</code> (<code>verify</code> is also the compatibility behavior for legacy <code>enabled</code>).</td></tr>
 <tr><td><code>flatten</code></td><td>bool</td><td>Collapse single-file directories when moving into the library.</td></tr>
 <tr><td><code>move_mode</code></td><td>string</td><td><code>copy</code>, <code>move</code>, or <code>hardlink</code>.</td></tr>
 <tr><td><code>cleanup_keep</code> / <code>cleanup_drop</code></td><td>array</td><td>Glob patterns retaining or removing files.</td></tr>
@@ -296,6 +296,7 @@
 </tbody>
 </table>
 </div>
+<p>Extraction is built in for <code>zip</code>, <code>tar</code>, <code>tar.gz</code>, and <code>tgz</code>. <code>7z</code> and <code>rar</code> extraction use external tools (<code>7zz</code>, <code>7z</code>, <code>unar</code>, or <code>unrar</code>) and fail with a structured FsOps error if none are installed. PAR2 verification/repair requires the <code>par2</code> CLI when <code>par2</code> is set to <code>verify</code> or <code>repair</code>. On non-Unix platforms, ownership overrides remain unsupported and FsOps returns an explicit error instead of silently drifting from policy.</p>
 <h2 id="api-keys-and-secrets"><a class="header" href="#api-keys-and-secrets">API keys and secrets</a></h2>
 <p>Patches can create, update, or revoke keys and named secrets. The request format mirrors <code>SettingsChangeset</code>:</p>
 <pre><code class="language-json">{
@@ -316,7 +317,7 @@
 </code></pre>
 <p>The API server enforces bucketed rate limits if <code>rate_limit</code> is supplied (<code>burst</code> per <code>per_seconds</code>). Invalid field names or mutations against <code>immutable_keys</code> yield RFC9457 <code>ProblemDetails</code> responses with an <code>invalid_params</code> array matching the JSON pointer returned by <code>ConfigError</code>.</p>
 <h2 id="telemetry-toggle"><a class="header" href="#telemetry-toggle">Telemetry toggle</a></h2>
-<p>Revaer boots with structured logging and Prometheus metrics by default. OpenTelemetry export remains opt-in: set <code>REVAER_ENABLE_OTEL=true</code> alongside your <code>revaer-app</code> process (optionally overriding <code>REVAER_OTEL_SERVICE_NAME</code> and <code>REVAER_OTEL_EXPORTER</code>) to attach the stubbed tracing layer. When the flag is absent, no OpenTelemetry dependencies are activated.</p>
+<p>Revaer boots with structured logging and Prometheus metrics by default. OpenTelemetry export remains opt-in: set <code>REVAER_ENABLE_OTEL=true</code> alongside your <code>revaer-app</code> process (optionally overriding <code>REVAER_OTEL_SERVICE_NAME</code> and <code>REVAER_OTEL_EXPORTER</code>, or using <code>OTEL_EXPORTER_OTLP_ENDPOINT</code>) to attach the OTLP tracing exporter. When the flag is absent, no OpenTelemetry exporter is initialized.</p>
 <h2 id="change-workflows"><a class="header" href="#change-workflows">Change workflows</a></h2>
 <ul>
 <li><strong>Setup</strong> - <code>POST /admin/setup/start</code> issues a one-time token. <code>POST /admin/setup/complete</code> consumes that token, applies the provided <code>SettingsChangeset</code>, forces <code>app_profile.mode</code> to <code>active</code>, and returns the hydrated snapshot along with the generated API key.</li>

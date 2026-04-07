@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "searchindex-02379307.js";
+            window.path_to_searchindex_js = "searchindex-1492387e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-5cc33c76.js"></script>
+        <script src="toc-db012d23.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -178,7 +178,20 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="phase-one-runbook"><a class="header" href="#phase-one-runbook">Phase One Runbook</a></h1>
-<p>This runbook exercises the end-to-end control plane, validating FsOps, telemetry, and guard rails.</p>
+<p>This runbook exercises the end-to-end control plane, validating FsOps, telemetry, and guard rails.
+The primary automated entrypoint is <code>just runbook</code>, which wraps the Playwright-backed API/UI validation flow, collects artifacts, and provides a repeatable baseline before any manual drills.</p>
+<h2 id="automated-validation"><a class="header" href="#automated-validation">Automated Validation</a></h2>
+<p>Run the automated baseline first:</p>
+<pre><code class="language-sh">just runbook
+</code></pre>
+<p>Expected outputs:</p>
+<ul>
+<li><code>artifacts/runbook/summary.txt</code></li>
+<li><code>artifacts/runbook/playwright-report/index.html</code></li>
+<li><code>artifacts/runbook/test-results/</code></li>
+<li><code>artifacts/runbook/logs/</code></li>
+</ul>
+<p>The automated runbook currently covers the bootstrap, dashboard/API health, settings, and torrent-management control-plane paths exercised by <code>just ui-e2e</code>. Keep the manual checks below only for deployment-specific fault-injection drills that require operator intervention against real mounts, permissions, and restart boundaries.</p>
 <h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
 <ul>
 <li>Docker image <code>revaer:ci</code> (built via <code>just docker-build</code>) or a local <code>revaer-app</code> binary (<code>just build-release</code>).</li>
@@ -235,10 +248,16 @@
 </ul>
 </li>
 </ol>
+<p>Manual-only rationale:</p>
+<ul>
+<li>Permission failures and restart/resume drills depend on the actual runtime mount layout, writable volumes, and supervisor behavior of the target deployment.</li>
+<li>The checked-in automation covers the repeatable control-plane baseline; these remaining drills intentionally stay manual so operators can validate their real environment rather than a simulated local-only shell.</li>
+</ul>
 <h2 id="verification-artifacts"><a class="header" href="#verification-artifacts">Verification Artifacts</a></h2>
 <ul>
-<li>Archive CLI telemetry emitted to <code>REVAER_TELEMETRY_ENDPOINT</code>.</li>
-<li>Capture Prometheus scrapings (<code>/metrics</code>) before and after the run.</li>
+<li>Review <code>artifacts/runbook/summary.txt</code> from <code>just runbook</code>.</li>
+<li>Archive CLI telemetry emitted to <code>REVAER_TELEMETRY_ENDPOINT</code> when the manual scenario enables it.</li>
+<li>Capture Prometheus scrapings (<code>/metrics</code>) before and after the manual drills.</li>
 <li>Record <code>/health/full</code> JSON snapshots for each phase.</li>
 </ul>
 <p>Successful completion of this runbook satisfies the operational validation gate defined in <code>AGENT.md</code>.</p>

@@ -2596,6 +2596,60 @@
     "href": "/adr/277-pr-review-handler-normalization-followup/"
   },
   {
+    "id": "adr/278-remediation-plan-implementation-closeout",
+    "title": "Remediation plan implementation closeout",
+    "summary": "Status: Accepted Date: 2026-04-04 Context: REMEDIATION_PLAN.md identified verified gaps in dashboard metrics, qBittorrent compatibility, OTEL export wiring, operational automation, container hardening, and stale status docs. The repo rules require task records to capture motivation, design notes, test coverage, observability impact, rollback posture, and dependency rationale for any new crates. The implementation needed to prefer repo truth over stale roadmap claims and avoid leaving the remediation checklist itself outdated. Decision: Replace the stubbed dashboard handler with a runtime-backed snapshot sourced from injected torrent state plus filesystem inspection, including explicit degraded fallbacks. Extend the qB compatibility façade to the bounded Phase One",
+    "tags": [
+      "task-record"
+    ],
+    "href": "/adr/278-remediation-plan-implementation-closeout/"
+  },
+  {
+    "id": "adr/279-remediation-plan-gap-closure",
+    "title": "Remediation plan gap closure",
+    "summary": "Status: Accepted Date: 2026-04-04 Context: REMEDIATION_PLAN.md still had material open items after ADR 278: the FsOps archive/PAR2/checksum tranche, image-signing follow-through, and verification friction in the UI E2E harness. The repo requires dependency rationale, observability notes, rollback posture, and verification status to live with the code changes rather than only in chat transcripts. The remaining FsOps gap had to stay compatible with the repo’s safety and minimal-dependency rules while handling formats that are not realistically supported in std alone. Decision: Extend revaer-fsops so Phase One archive handling now covers zip, tar, tar.gz, and tgz in-process, while 7z and rar use guarded",
+    "tags": [
+      "task-record"
+    ],
+    "href": "/adr/279-remediation-plan-gap-closure/"
+  },
+  {
+    "id": "adr/280-pr-21-feedback-closeout",
+    "title": "PR 21 feedback closeout",
+    "summary": "Status: Accepted Date: 2026-04-04 Context: PR 21 still had unresolved review threads covering qB metadata sync behavior, fsops checksum manifest accounting, runbook artifact retention, and UI auth/E2E stability. The follow-up needed to address the reviewer asks directly, keep the remediation branch shippable, and restore the required just ui-e2e and just ci gates before the PR could move forward. Decision: Close the review threads with targeted fixes that map one-to-one to the remaining comments. Treat the unstable UI suite as part of the review scope because the updated auth storage behavior and shared E2E backend needed deterministic coverage before the PR",
+    "tags": [
+      "task-record"
+    ],
+    "href": "/adr/280-pr-21-feedback-closeout/"
+  },
+  {
+    "id": "adr/281-pr-21-sonar-and-review-closeout",
+    "title": "PR 21 Sonar and Review Closeout",
+    "summary": "Status: Accepted Date: 2026-04-04 Context: PR 21 still had open SonarCloud feedback on the leak period after the earlier remediation follow-up landed. The remaining Sonar issues were limited to GitHub Actions security hotspots in the image build workflow and new-code duplication in the filesystem post-processing service. Decision: Pin the flagged GitHub Actions steps in build-images.yml to immutable full commit SHAs. Refactor the duplicated archive-extraction and tree-transfer logic in revaer-fsops into shared helpers without changing runtime behavior. Consequences: The workflow now follows the immutable action-pin guidance Sonar was flagging on the PR delta. The fsops module has less repeated code, which",
+    "tags": [
+      "task-record"
+    ],
+    "href": "/adr/281-pr-21-sonar-and-review-closeout/"
+  },
+  {
+    "id": "adr/282-pr-21-final-feedback-closeout",
+    "title": "PR 21 final feedback closeout",
+    "summary": "Status: Accepted Date: 2026-04-05 Context: PR 21 still had open review threads after the earlier remediation follow-up. SonarCloud still reported new-code issues in the Playwright UI fixture, and the review feedback identified one remaining ambiguous qBittorrent mutation plus two E2E secret-handling leaks. Decision: Move the E2E runtime state file out of tests/test-results, keep its process metadata readable only by the local user, and encrypt the shared UI/API session payload at rest with a per-run Playwright secret so no API credential is persisted in plaintext. Tighten the qB rename handler so it rejects any request that resolves to anything other than",
+    "tags": [
+      "task-record"
+    ],
+    "href": "/adr/282-pr-21-final-feedback-closeout/"
+  },
+  {
+    "id": "adr/283-pr-21-trivy-action-pin-refresh",
+    "title": "PR 21 Trivy action pin refresh",
+    "summary": "Status: Accepted Date: 2026-04-05 Context: PR 21 image-build jobs started failing during Set up job before any Docker or Trivy work executed. The reusable image workflow pins aquasecurity/trivy-action and must stay stable for both PR image previews and release image builds. Decision: Refresh the pinned aquasecurity/trivy-action revision in the reusable image workflow to the current v0.35.0 commit. Avoid adding a bespoke Trivy bootstrap workaround because the failure came from a broken upstream dependency reference in the older pinned action revision. Consequences: PR and release image scans use a current upstream action revision that resolves its internal setup-trivy dependency correctly. Future",
+    "tags": [
+      "task-record"
+    ],
+    "href": "/adr/283-pr-21-trivy-action-pin-refresh/"
+  },
+  {
     "id": "adr/index",
     "title": "ADRs",
     "summary": "Create a new ADR using the template in docs/adr/template.md. Give it a sequential identifier (e.g., 001, 002) and a concise title. Capture context, decision, consequences, and follow-up actions. Append the new ADR entry to the end of the Catalogue list above. Append the same entry under ADRs in docs/SUMMARY.md, keeping it nested so the sidebar stays collapsed. Reference ADRs from code comments or docs where the decision applies.",
@@ -2609,7 +2663,9 @@
     "id": "adr/template",
     "title": "{ADR Title}",
     "summary": "Status: {Proposed|Accepted|Superseded} Date: {YYYY-MM-DD} Context: What problem are we solving? What constraints or forces shape the decision? Decision: Summary of the choice made. Alternatives considered. Consequences: Positive outcomes. Risks or trade-offs. Follow-up: Implementation tasks. Review checkpoints.",
-    "tags": [],
+    "tags": [
+      "task-record"
+    ],
     "href": "/adr/template/"
   },
   {
@@ -2732,7 +2788,7 @@
   {
     "id": "phase-one-roadmap",
     "title": "Phase One Roadmap",
-    "summary": "_Last updated: 2025-11-27_ This document captures the current delta between the Phase One objective and the existing codebase. It should be kept in sync as work progresses across the eight workstreams.",
+    "summary": "_Last updated: 2026-04-04_ This document captures the current delta between the Phase One objective and the existing codebase. It should be kept in sync as work progresses across the eight workstreams.",
     "tags": [
       "next-steps-tracking",
       "remaining-scope-specification",
@@ -2803,15 +2859,16 @@
   {
     "id": "release-checklist",
     "title": "Phase One Release Checklist",
-    "summary": "**Branch Hygiene** Ensure main is green (CI pipeline complete). Review outstanding ADRs and docs for freshness. **Build & Test** just ci just build-release just api-export **Artefact Verification** Binary: target/release/revaer-app Checksum: sha256sum target/release/revaer-app OpenAPI: docs/api/openapi.json Docker image: just docker-build && just docker-scan **Runbook Execution** Follow docs/runbook.md Archive CLI telemetry, /metrics, /health/full snapshots. **Documentation Refresh** Verify ADRs 005–007 reflect current design. Update user guides (docs/api/guides/*.md) with any behavioural changes. **Tag & Publish** Create annotated tag: git tag -a vX.Y.Z -m \"Phase One release\" Push tag: git push origin vX.Y.Z Attach artefacts generated by the build-release workflow. **Post-Release Monitoring** Watch rate-limit and guard-rail",
+    "summary": "**Branch Hygiene** Ensure main is green (CI pipeline complete). Review outstanding ADRs and docs for freshness. **Build & Test** just ci just build-release just api-export **Artefact Verification** Binary: target/release/revaer-app Checksum: sha256sum target/release/revaer-app OpenAPI: docs/api/openapi.json Docker image: just docker-build && just docker-scan Published GHCR image: verify Trivy scan, SBOM/provenance attestations, and Cosign signatures from the image workflow **Runbook Execution** Run just runbook Follow the remaining manual-only drills in docs/runbook.md Archive CLI telemetry, /metrics, /health/full snapshots. **Documentation Refresh** Verify ADRs 005–007 reflect current design. Update user guides (docs/api/guides/*.md) with any behavioural changes. **Tag & Publish** Create annotated tag: git tag -a vX.Y.Z",
     "tags": [],
     "href": "/release-checklist/"
   },
   {
     "id": "runbook",
     "title": "Phase One Runbook",
-    "summary": "This runbook exercises the end-to-end control plane, validating FsOps, telemetry, and guard rails.",
+    "summary": "This runbook exercises the end-to-end control plane, validating FsOps, telemetry, and guard rails. The primary automated entrypoint is just runbook, which wraps the Playwright-backed API/UI validation flow, collects artifacts, and provides a repeatable baseline before any manual drills.",
     "tags": [
+      "automated-validation",
       "prerequisites",
       "scenario",
       "verification-artifacts"

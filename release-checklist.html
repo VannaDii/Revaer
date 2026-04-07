@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "searchindex-02379307.js";
+            window.path_to_searchindex_js = "searchindex-1492387e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-5cc33c76.js"></script>
+        <script src="toc-db012d23.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -201,12 +201,14 @@
 <li>Checksum: <code>sha256sum target/release/revaer-app</code></li>
 <li>OpenAPI: <code>docs/api/openapi.json</code></li>
 <li>Docker image: <code>just docker-build &amp;&amp; just docker-scan</code></li>
+<li>Published GHCR image: verify Trivy scan, SBOM/provenance attestations, and Cosign signatures from the image workflow</li>
 </ul>
 </li>
 <li>
 <p><strong>Runbook Execution</strong></p>
 <ul>
-<li>Follow <code>docs/runbook.md</code></li>
+<li>Run <code>just runbook</code></li>
+<li>Follow the remaining manual-only drills in <code>docs/runbook.md</code></li>
 <li>Archive CLI telemetry, <code>/metrics</code>, <code>/health/full</code> snapshots.</li>
 </ul>
 </li>

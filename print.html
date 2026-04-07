@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "searchindex-02379307.js";
+            window.path_to_searchindex_js = "searchindex-1492387e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-5cc33c76.js"></script>
+        <script src="toc-db012d23.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -201,7 +201,7 @@
 <p>For ChatGPT and other LLM-based tooling, fetch <a href="llms.txt"><code>llms.txt</code></a> and the JSON manifests under <code>llm/</code> (<a href="llm/schema.json"><code>schema.json</code></a>, <a href="llm/manifest.json"><code>manifest.json</code></a>, <a href="llm/summaries.json"><code>summaries.json</code></a>) used by the documentation search experience.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="phase-one-roadmap"><a class="header" href="#phase-one-roadmap">Phase One Roadmap</a></h1>
-<p><em>Last updated: 2025-11-27</em></p>
+<p><em>Last updated: 2026-04-04</em></p>
 <p>This document captures the current delta between the Phase One objective and the existing codebase. It should be kept in sync as work progresses across the eight workstreams.</p>
 <h2 id="snapshot"><a class="header" href="#snapshot">Snapshot</a></h2>
 <div class="table-wrapper">
@@ -211,13 +211,13 @@
 </thead>
 <tbody>
 <tr><td>Control Plane &amp; Setup</td><td>Postgres schema, ConfigService watcher, setup CLI/API, immutable-key guard, history logging; loopback enforcement + RFC7807 pointers live</td><td>Engine hot-reload not yet exercising throttles; setup token lifecycle/error telemetry still thin</td><td>Add watcher-driven throttle tests, expand setup diagnostics and rate-limit guardrails</td></tr>
-<tr><td>Torrent Domain &amp; Adapter</td><td>Native libtorrent FFI (cxx) restored and default-enabled; session worker with alert pump/resume store, throttles, selection, and degraded health surfaced via event bus; stub path retained only when the feature is disabled</td><td>Native integration suite still opt-in and not exercised in CI; alert/rate-limit regression coverage is thin; need broader validation of resume reconciliation and failure handling</td><td>Add REVAER_NATIVE_IT matrix in CI (with Docker host) to run native tests; deepen alert/rate-limit/resume validation and harden failure handling</td></tr>
-<tr><td>File Selection &amp; FsOps</td><td>Idempotent FsOps pipeline extracts zip payloads, flattens single directories, enforces allow lists, records <code>.revaer.meta</code>, and applies move/copy/hardlink transfers with chmod/chown/umask handling</td><td>Extraction currently limited to zip archives, PAR2 stage still absent, cleanup rules lack checksum awareness, pipeline assumes Unix tooling for ownership changes</td><td>Expand extractor matrix (7z/tar), add PAR2 verification, surface non-Unix fallbacks, and extend cleanup/telemetry coverage</td></tr>
-<tr><td>Public HTTP API &amp; SSE</td><td>Admin setup/settings/torrent CRUD, SSE stream, metrics stub, OpenAPI generator, <code>/api/v2/*</code> qB façade (auth stub, version, torrents info/add/pause/resume/delete, transfer limits, incremental <code>rid</code> sync, basic removal tracking)</td><td><code>/v1/torrents/*</code> pagination/filter matrix still partial, qB façade lacks authenticated sessions, differential removal events, rename/category endpoints; SSE replay still missing Last-Event-ID coverage</td><td>Finish pagination/filter story, tighten façade auth/session handling, surface removals/categories in incremental sync, and expand SSE regression tests</td></tr>
-<tr><td>CLI Parity</td><td>Supports setup start/complete, settings patch, admin torrent add/remove (magnet-aware), status</td><td>Missing <code>select</code>, <code>action</code>, <code>ls</code>, <code>status</code> detail view, <code>tail</code> SSE client, richer validation</td><td>Extend CLI command surface to mirror API, add reconnecting SSE tailer, flesh out filtering and exit-code contract</td></tr>
-<tr><td>Security &amp; Observability</td><td>API key storage hashed, tracing initialized, metrics registry struct</td><td>No per-key rate limits, no X-RateLimit headers, magnet/body bounds missing, tracing not propagated to engine/fsops, metrics unused</td><td>Introduce token-bucket middleware, enforce payload bounds, propagate spans through orchestrator/fsops, export Prometheus counters</td></tr>
-<tr><td>CI &amp; Packaging</td><td>GitHub Actions cover fmt/lint/deny/audit/tests/cov via <code>just ci</code>; libtorrent deps installed on runners; Dockerfile builds non-root image with bundled libtorrent and HEALTHCHECK; docs workflow publishes mdBook</td><td>Native libtorrent tests not in default matrix; provenance/signing absent; rootfs not read-only; no cross-arch artifacts or enforced image scan in CI</td><td>Add matrix job with REVAER_NATIVE_IT=1 + Docker host, wire provenance/signing and image scan, harden container runtime (read-only root, drop caps), and add cross-arch build artifacts</td></tr>
-<tr><td>Operational End-to-End</td><td>Bootstrap skeleton and event bus exist</td><td>Torrent download, fs pipeline, restart resume, throttling, degraded health scenarios unimplemented</td><td>Sequence implementation/testing to satisfy runbook once engine/fsops/API parity are in place</td></tr>
+<tr><td>Torrent Domain &amp; Adapter</td><td>Native libtorrent FFI (cxx) restored and default-enabled; session worker with alert pump/resume store, throttles, selection, and degraded health surfaced via event bus; stub path retained only when the feature is disabled</td><td>Native CI coverage exists, but alert/rate-limit regression coverage is still thin and broader validation of resume reconciliation and failure handling is still needed</td><td>Deepen alert/rate-limit/resume validation and harden failure handling</td></tr>
+<tr><td>File Selection &amp; FsOps</td><td>Idempotent FsOps pipeline now extracts <code>zip</code>/<code>tar</code>/<code>tar.gz</code>/<code>tgz</code> archives in-process, supports guarded <code>7z</code>/<code>rar</code> extraction via external tools, runs PAR2 verify/repair stages, records checksum metadata in <code>.revaer.meta</code>, and applies move/copy/hardlink transfers with chmod/chown/umask handling</td><td><code>7z</code>/<code>rar</code> and PAR2 still depend on host tooling being installed; ownership overrides remain Unix-only by design, and broader recovery/failure coverage should keep expanding</td><td>Keep hardening extractor/PAR2 recovery scenarios, document host-tool prerequisites clearly, and expand FsOps telemetry + restart-path coverage</td></tr>
+<tr><td>Public HTTP API &amp; SSE</td><td>Admin setup/settings/torrent CRUD, SSE stream, metrics endpoint, OpenAPI generator, <code>/api/v2/*</code> qB façade with cookie sessions, rename/category/tag mutation, relocate, reannounce/recheck, transfer limits, and incremental <code>rid</code> sync</td><td><code>/v1/torrents/*</code> pagination/filter matrix still partial; qB coverage is intentionally bounded rather than full parity; SSE replay still needs broader Last-Event-ID regression coverage</td><td>Finish pagination/filter story, document deliberate qB compatibility scope, and expand SSE replay regression tests</td></tr>
+<tr><td>CLI Parity</td><td>Supports setup start/complete, settings patch, torrent add/remove/list/status/select/action flows, and CLI wrappers around config + torrent APIs</td><td>SSE tail UX and richer validation/diagnostic coverage still need hardening</td><td>Expand reconnecting tail coverage and tighten validation/exit-code contracts</td></tr>
+<tr><td>Security &amp; Observability</td><td>API key storage hashed, per-key rate limits and <code>X-RateLimit-*</code> headers exposed, tracing initialized, metrics registry exported, and dashboard metrics now sourced from runtime state</td><td>OTEL exporter path was placeholder-only and now needs operational validation; tracing/metrics coverage should keep expanding across engine/fsops failure paths</td><td>Validate OTLP exporter behavior in deployment flows and keep expanding engine/fsops observability coverage</td></tr>
+<tr><td>CI &amp; Packaging</td><td>GitHub Actions cover fmt/lint/deny/audit/tests/cov via <code>just ci</code>; native libtorrent CI exists; Dockerfile builds non-root image with bundled libtorrent and HEALTHCHECK; docs workflow publishes mdBook; image workflow now scans, attests, and signs published images</td><td>Rootfs posture remains documented rather than enforced, and image hardening still needs broader cross-arch/runtime validation</td><td>Keep image provenance/scan/sign gates in CI, harden container runtime guidance, and extend cross-arch/runtime validation</td></tr>
+<tr><td>Operational End-to-End</td><td>Playwright-backed API/UI flows run via <code>just ui-e2e</code>, and <code>just runbook</code> now packages repeatable validation artifacts</td><td>Manual fault-injection drills still exist for extractor/permission/recovery scenarios</td><td>Keep automating the remaining runbook drills while retaining the operator-facing checklist</td></tr>
 </tbody>
 </table>
 </div>
@@ -486,7 +486,20 @@
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="phase-one-runbook"><a class="header" href="#phase-one-runbook">Phase One Runbook</a></h1>
-<p>This runbook exercises the end-to-end control plane, validating FsOps, telemetry, and guard rails.</p>
+<p>This runbook exercises the end-to-end control plane, validating FsOps, telemetry, and guard rails.
+The primary automated entrypoint is <code>just runbook</code>, which wraps the Playwright-backed API/UI validation flow, collects artifacts, and provides a repeatable baseline before any manual drills.</p>
+<h2 id="automated-validation"><a class="header" href="#automated-validation">Automated Validation</a></h2>
+<p>Run the automated baseline first:</p>
+<pre><code class="language-sh">just runbook
+</code></pre>
+<p>Expected outputs:</p>
+<ul>
+<li><code>artifacts/runbook/summary.txt</code></li>
+<li><code>artifacts/runbook/playwright-report/index.html</code></li>
+<li><code>artifacts/runbook/test-results/</code></li>
+<li><code>artifacts/runbook/logs/</code></li>
+</ul>
+<p>The automated runbook currently covers the bootstrap, dashboard/API health, settings, and torrent-management control-plane paths exercised by <code>just ui-e2e</code>. Keep the manual checks below only for deployment-specific fault-injection drills that require operator intervention against real mounts, permissions, and restart boundaries.</p>
 <h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
 <ul>
 <li>Docker image <code>revaer:ci</code> (built via <code>just docker-build</code>) or a local <code>revaer-app</code> binary (<code>just build-release</code>).</li>
@@ -543,10 +556,16 @@
 </ul>
 </li>
 </ol>
+<p>Manual-only rationale:</p>
+<ul>
+<li>Permission failures and restart/resume drills depend on the actual runtime mount layout, writable volumes, and supervisor behavior of the target deployment.</li>
+<li>The checked-in automation covers the repeatable control-plane baseline; these remaining drills intentionally stay manual so operators can validate their real environment rather than a simulated local-only shell.</li>
+</ul>
 <h2 id="verification-artifacts"><a class="header" href="#verification-artifacts">Verification Artifacts</a></h2>
 <ul>
-<li>Archive CLI telemetry emitted to <code>REVAER_TELEMETRY_ENDPOINT</code>.</li>
-<li>Capture Prometheus scrapings (<code>/metrics</code>) before and after the run.</li>
+<li>Review <code>artifacts/runbook/summary.txt</code> from <code>just runbook</code>.</li>
+<li>Archive CLI telemetry emitted to <code>REVAER_TELEMETRY_ENDPOINT</code> when the manual scenario enables it.</li>
+<li>Capture Prometheus scrapings (<code>/metrics</code>) before and after the manual drills.</li>
 <li>Record <code>/health/full</code> JSON snapshots for each phase.</li>
 </ul>
 <p>Successful completion of this runbook satisfies the operational validation gate defined in <code>AGENT.md</code>.</p>
@@ -575,12 +594,14 @@
 <li>Checksum: <code>sha256sum target/release/revaer-app</code></li>
 <li>OpenAPI: <code>docs/api/openapi.json</code></li>
 <li>Docker image: <code>just docker-build &amp;&amp; just docker-scan</code></li>
+<li>Published GHCR image: verify Trivy scan, SBOM/provenance attestations, and Cosign signatures from the image workflow</li>
 </ul>
 </li>
 <li>
 <p><strong>Runbook Execution</strong></p>
 <ul>
-<li>Follow <code>docs/runbook.md</code></li>
+<li>Run <code>just runbook</code></li>
+<li>Follow the remaining manual-only drills in <code>docs/runbook.md</code></li>
 <li>Archive CLI telemetry, <code>/metrics</code>, <code>/health/full</code> snapshots.</li>
 </ul>
 </li>
@@ -851,7 +872,7 @@
 <tbody>
 <tr><td><code>library_root</code></td><td>string</td><td>Destination directory for completed artifacts.</td></tr>
 <tr><td><code>extract</code></td><td>bool</td><td>Whether completed payloads are extracted.</td></tr>
-<tr><td><code>par2</code></td><td>string</td><td><code>disabled</code>, <code>verify</code>, or <code>repair</code>.</td></tr>
+<tr><td><code>par2</code></td><td>string</td><td><code>disabled</code>, <code>verify</code>, or <code>repair</code> (<code>verify</code> is also the compatibility behavior for legacy <code>enabled</code>).</td></tr>
 <tr><td><code>flatten</code></td><td>bool</td><td>Collapse single-file directories when moving into the library.</td></tr>
 <tr><td><code>move_mode</code></td><td>string</td><td><code>copy</code>, <code>move</code>, or <code>hardlink</code>.</td></tr>
 <tr><td><code>cleanup_keep</code> / <code>cleanup_drop</code></td><td>array</td><td>Glob patterns retaining or removing files.</td></tr>
@@ -862,6 +883,7 @@
 </tbody>
 </table>
 </div>
+<p>Extraction is built in for <code>zip</code>, <code>tar</code>, <code>tar.gz</code>, and <code>tgz</code>. <code>7z</code> and <code>rar</code> extraction use external tools (<code>7zz</code>, <code>7z</code>, <code>unar</code>, or <code>unrar</code>) and fail with a structured FsOps error if none are installed. PAR2 verification/repair requires the <code>par2</code> CLI when <code>par2</code> is set to <code>verify</code> or <code>repair</code>. On non-Unix platforms, ownership overrides remain unsupported and FsOps returns an explicit error instead of silently drifting from policy.</p>
 <h2 id="api-keys-and-secrets"><a class="header" href="#api-keys-and-secrets">API keys and secrets</a></h2>
 <p>Patches can create, update, or revoke keys and named secrets. The request format mirrors <code>SettingsChangeset</code>:</p>
 <pre><code class="language-json">{
@@ -882,7 +904,7 @@
 </code></pre>
 <p>The API server enforces bucketed rate limits if <code>rate_limit</code> is supplied (<code>burst</code> per <code>per_seconds</code>). Invalid field names or mutations against <code>immutable_keys</code> yield RFC9457 <code>ProblemDetails</code> responses with an <code>invalid_params</code> array matching the JSON pointer returned by <code>ConfigError</code>.</p>
 <h2 id="telemetry-toggle"><a class="header" href="#telemetry-toggle">Telemetry toggle</a></h2>
-<p>Revaer boots with structured logging and Prometheus metrics by default. OpenTelemetry export remains opt-in: set <code>REVAER_ENABLE_OTEL=true</code> alongside your <code>revaer-app</code> process (optionally overriding <code>REVAER_OTEL_SERVICE_NAME</code> and <code>REVAER_OTEL_EXPORTER</code>) to attach the stubbed tracing layer. When the flag is absent, no OpenTelemetry dependencies are activated.</p>
+<p>Revaer boots with structured logging and Prometheus metrics by default. OpenTelemetry export remains opt-in: set <code>REVAER_ENABLE_OTEL=true</code> alongside your <code>revaer-app</code> process (optionally overriding <code>REVAER_OTEL_SERVICE_NAME</code> and <code>REVAER_OTEL_EXPORTER</code>, or using <code>OTEL_EXPORTER_OTLP_ENDPOINT</code>) to attach the OTLP tracing exporter. When the flag is absent, no OpenTelemetry exporter is initialized.</p>
 <h2 id="change-workflows"><a class="header" href="#change-workflows">Change workflows</a></h2>
 <ul>
 <li><strong>Setup</strong> - <code>POST /admin/setup/start</code> issues a one-time token. <code>POST /admin/setup/complete</code> consumes that token, applies the provided <code>SettingsChangeset</code>, forces <code>app_profile.mode</code> to <code>active</code>, and returns the hydrated snapshot along with the generated API key.</li>
@@ -1539,6 +1561,12 @@ just test-native
 <li><a href="#pr-output-redaction-and-review-follow-up">275</a> – PR output redaction and review follow-up</li>
 <li><a href="#ci-cache-trim-for-runner-disk-pressure">276</a> – CI cache trim for runner disk pressure</li>
 <li><a href="#pr-review-handler-normalization-follow-up">277</a> – PR review handler normalization follow-up</li>
+<li><a href="#remediation-plan-implementation-closeout">278</a> – Remediation plan implementation closeout</li>
+<li><a href="#remediation-plan-gap-closure">279</a> – Remediation plan gap closure</li>
+<li><a href="#pr-21-feedback-closeout">280</a> – PR 21 feedback closeout</li>
+<li><a href="#pr-21-sonar-and-review-closeout">281</a> – PR 21 Sonar and review closeout</li>
+<li><a href="#pr-21-final-feedback-closeout">282</a> – PR 21 final feedback closeout</li>
+<li><a href="#pr-21-trivy-action-pin-refresh">283</a> – PR 21 Trivy action pin refresh</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 ADR="" Title="" id=""><a class="header" href="#"></a></h1>
@@ -1567,6 +1595,44 @@ just test-native
 <ul>
 <li>Implementation tasks.</li>
 <li>Review checkpoints.</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record"><a class="header" href="#task-record">Task Record</a></h2>
+<ul>
+<li>Motivation:
+<ul>
+<li>Why this change is needed now.</li>
+</ul>
+</li>
+<li>Design notes:
+<ul>
+<li>Key implementation choices, trade-offs, and invariants.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li>The unit, integration, E2E, or manual verification added or rerun for this work.</li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>Logging, tracing, metrics, health, or event-surface changes.</li>
+</ul>
+</li>
+<li>Status-doc validation:
+<ul>
+<li>Confirm whether <code>README.md</code>, roadmap/status docs, and any operator guides touched by the change were re-checked and updated to match repo truth.</li>
+</ul>
+</li>
+<li>Risk &amp; rollback plan:
+<ul>
+<li>Operational risks and the simplest rollback path if the change regresses.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>New dependencies added, why they were chosen, and alternatives considered.</li>
 </ul>
 </li>
 </ul>
@@ -3809,7 +3875,7 @@ just test-native
 </ul>
 </li>
 </ul>
-<h2 id="task-record"><a class="header" href="#task-record">Task record</a></h2>
+<h2 id="task-record-1"><a class="header" href="#task-record-1">Task record</a></h2>
 <ul>
 <li>Motivation: Eliminate duplicate API DTOs and complete missing UI primitives required by the Torrent UX checklist.</li>
 <li>Design notes: Shared DTOs live in <code>revaer-api-models</code>; new primitives live under <code>components</code> and are consumed by torrents/labels views to avoid dead code.</li>
@@ -3913,7 +3979,7 @@ just test-native
 </ul>
 </li>
 </ul>
-<h2 id="task-record-1"><a class="header" href="#task-record-1">Task Record</a></h2>
+<h2 id="task-record-2"><a class="header" href="#task-record-2">Task Record</a></h2>
 <ul>
 <li>Motivation: enforce Nexus + DaisyUI parity for the dashboard while keeping Settings reachable and diagnostics visible.</li>
 <li>Design notes: mapped each dashboard section to specific Nexus blocks; SSE indicator uses sidebar footer with a non-blocking dialog; config snapshot parsed as <code>serde_json::Value</code> to avoid new dependencies; disabled wasm-opt in <code>crates/revaer-ui/index.html</code> to keep <code>trunk build --release</code> reliable on this environment until tooling changes; aligned Nexus image URLs to <code>/static/nexus/...</code> for correct asset loading on all routes; aligned the sidebar footer indicator to the Nexus pinned-footer structure, restored the missing Global Sales card slot, and made the auth prompt non-blocking while stabilizing drawer hook usage; re-aligned the torrents filter header to the Nexus orders layout, updated the search input to use DaisyUI <code>input-sm</code> sizing, removed the custom placeholder override to let DaisyUI placeholder styles apply, and removed the legacy torrent list view.</li>
@@ -5462,7 +5528,7 @@ satisfy <code>clippy::multiple_crate_versions</code> without introducing git dep
 </ul>
 </li>
 </ul>
-<h2 id="task-record-2"><a class="header" href="#task-record-2">Task Record</a></h2>
+<h2 id="task-record-3"><a class="header" href="#task-record-3">Task Record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -5568,7 +5634,7 @@ satisfy <code>clippy::multiple_crate_versions</code> without introducing git dep
 </ul>
 </li>
 </ul>
-<h2 id="task-record-3"><a class="header" href="#task-record-3">Task Record</a></h2>
+<h2 id="task-record-4"><a class="header" href="#task-record-4">Task Record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -6090,7 +6156,7 @@ then restore the previous auth behavior.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-4"><a class="header" href="#task-record-4">Task record</a></h2>
+<h2 id="task-record-5"><a class="header" href="#task-record-5">Task record</a></h2>
 <ul>
 <li>Motivation: Parallelize UI E2E to shorten CI runtime while keeping the just-based workflow contract intact.</li>
 <li>Design notes: Use Playwright’s <code>--shard</code> flag driven by <code>PLAYWRIGHT_SHARD_INDEX</code> and <code>PLAYWRIGHT_SHARD_TOTAL</code>.</li>
@@ -6161,7 +6227,7 @@ then restore the previous auth behavior.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-5"><a class="header" href="#task-record-5">Task record</a></h2>
+<h2 id="task-record-6"><a class="header" href="#task-record-6">Task record</a></h2>
 <ul>
 <li>Motivation: Align untagged image naming with a <code>dev</code> tag instead of a separate <code>-dev</code> repository and <code>latest</code>.</li>
 <li>Design notes: Use a workflow alias tag that switches between <code>latest</code> and <code>dev</code> based on ref type.</li>
@@ -6233,7 +6299,7 @@ then restore the previous auth behavior.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-6"><a class="header" href="#task-record-6">Task record</a></h2>
+<h2 id="task-record-7"><a class="header" href="#task-record-7">Task record</a></h2>
 <ul>
 <li>Motivation: Fix sharded UI E2E failures while maintaining coverage enforcement.</li>
 <li>Design notes: Shard-specific coverage files with an aggregate coverage check via <code>just ui-e2e-coverage</code>.</li>
@@ -6307,7 +6373,7 @@ then restore the previous auth behavior.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-7"><a class="header" href="#task-record-7">Task record</a></h2>
+<h2 id="task-record-8"><a class="header" href="#task-record-8">Task record</a></h2>
 <ul>
 <li>Motivation: Publish dev prereleases and PR preview images without displacing stable releases or <code>latest</code> images.</li>
 <li>Design notes: Semantic-release prereleases on main drive version tags; PR images are tagged <code>pr-&lt;num&gt;</code> and <code>pr-&lt;num&gt;-&lt;sha&gt;</code> only.</li>
@@ -6379,7 +6445,7 @@ then restore the previous auth behavior.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-8"><a class="header" href="#task-record-8">Task record</a></h2>
+<h2 id="task-record-9"><a class="header" href="#task-record-9">Task record</a></h2>
 <ul>
 <li>Motivation: Fix CI failures and share image build logic between CI and PR workflows.</li>
 <li>Design notes: Use a reusable workflow with parameterized tags and checkout refs to drive both dev and PR image builds.</li>
@@ -6572,7 +6638,7 @@ omissions and loss of a single, authoritative implementation plan.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-9"><a class="header" href="#task-record-9">Task record</a></h2>
+<h2 id="task-record-10"><a class="header" href="#task-record-10">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -6637,7 +6703,7 @@ app_user, deployment_config, deployment_maintenance_state, trust_tier, media_dom
 </ul>
 </li>
 </ul>
-<h2 id="task-record-10"><a class="header" href="#task-record-10">Task record</a></h2>
+<h2 id="task-record-11"><a class="header" href="#task-record-11">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -6702,7 +6768,7 @@ validation rules and value sets.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-11"><a class="header" href="#task-record-11">Task record</a></h2>
+<h2 id="task-record-12"><a class="header" href="#task-record-12">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -6767,7 +6833,7 @@ RSS tracking tables, and related enums.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-12"><a class="header" href="#task-record-12">Task record</a></h2>
+<h2 id="task-record-13"><a class="header" href="#task-record-13">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -6833,7 +6899,7 @@ metadata.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-13"><a class="header" href="#task-record-13">Task record</a></h2>
+<h2 id="task-record-14"><a class="header" href="#task-record-14">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -6898,7 +6964,7 @@ arr-compatible endpoints tied to profiles.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-14"><a class="header" href="#task-record-14">Task record</a></h2>
+<h2 id="task-record-15"><a class="header" href="#task-record-15">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -6962,7 +7028,7 @@ arr-compatible endpoints tied to profiles.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-15"><a class="header" href="#task-record-15">Task record</a></h2>
+<h2 id="task-record-16"><a class="header" href="#task-record-16">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -7027,7 +7093,7 @@ rate_limit_state, and indexer_cf_state tables plus required enums.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-16"><a class="header" href="#task-record-16">Task record</a></h2>
+<h2 id="task-record-17"><a class="header" href="#task-record-17">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -7092,7 +7158,7 @@ policy_snapshot, policy_snapshot_rule, and search_profile_policy_set tables.</li
 </ul>
 </li>
 </ul>
-<h2 id="task-record-17"><a class="header" href="#task-record-17">Task record</a></h2>
+<h2 id="task-record-18"><a class="header" href="#task-record-18">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -7158,7 +7224,7 @@ via a coalesced unique index.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-18"><a class="header" href="#task-record-18">Task record</a></h2>
+<h2 id="task-record-19"><a class="header" href="#task-record-19">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -7223,7 +7289,7 @@ plus required enums for health events, connectivity status, and audit categories
 </ul>
 </li>
 </ul>
-<h2 id="task-record-19"><a class="header" href="#task-record-19">Task record</a></h2>
+<h2 id="task-record-20"><a class="header" href="#task-record-20">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -7288,7 +7354,7 @@ plus required enums for health events, connectivity status, and audit categories
 </ul>
 </li>
 </ul>
-<h2 id="task-record-20"><a class="header" href="#task-record-20">Task record</a></h2>
+<h2 id="task-record-21"><a class="header" href="#task-record-21">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -7352,7 +7418,7 @@ plus required enums for health events, connectivity status, and audit categories
 </ul>
 </li>
 </ul>
-<h2 id="task-record-21"><a class="header" href="#task-record-21">Task record</a></h2>
+<h2 id="task-record-22"><a class="header" href="#task-record-22">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -7416,7 +7482,7 @@ plus required enums for health events, connectivity status, and audit categories
 </ul>
 </li>
 </ul>
-<h2 id="task-record-22"><a class="header" href="#task-record-22">Task record</a></h2>
+<h2 id="task-record-23"><a class="header" href="#task-record-23">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -7480,7 +7546,7 @@ plus required enums for health events, connectivity status, and audit categories
 </ul>
 </li>
 </ul>
-<h2 id="task-record-23"><a class="header" href="#task-record-23">Task record</a></h2>
+<h2 id="task-record-24"><a class="header" href="#task-record-24">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -7544,7 +7610,7 @@ plus required enums for health events, connectivity status, and audit categories
 </ul>
 </li>
 </ul>
-<h2 id="task-record-24"><a class="header" href="#task-record-24">Task record</a></h2>
+<h2 id="task-record-25"><a class="header" href="#task-record-25">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -7608,7 +7674,7 @@ plus required enums for health events, connectivity status, and audit categories
 </ul>
 </li>
 </ul>
-<h2 id="task-record-25"><a class="header" href="#task-record-25">Task record</a></h2>
+<h2 id="task-record-26"><a class="header" href="#task-record-26">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -7672,7 +7738,7 @@ plus required enums for health events, connectivity status, and audit categories
 </ul>
 </li>
 </ul>
-<h2 id="task-record-26"><a class="header" href="#task-record-26">Task record</a></h2>
+<h2 id="task-record-27"><a class="header" href="#task-record-27">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -7736,7 +7802,7 @@ diagnostics rows.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-27"><a class="header" href="#task-record-27">Task record</a></h2>
+<h2 id="task-record-28"><a class="header" href="#task-record-28">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -7800,7 +7866,7 @@ job schedules, and the system user.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-28"><a class="header" href="#task-record-28">Task record</a></h2>
+<h2 id="task-record-29"><a class="header" href="#task-record-29">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -7865,7 +7931,7 @@ non-unique indexes and partial indexes.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-29"><a class="header" href="#task-record-29">Task record</a></h2>
+<h2 id="task-record-30"><a class="header" href="#task-record-30">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -7929,7 +7995,7 @@ stable wrapper deployment_init.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-30"><a class="header" href="#task-record-30">Task record</a></h2>
+<h2 id="task-record-31"><a class="header" href="#task-record-31">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -8544,7 +8610,7 @@ checks.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-31"><a class="header" href="#task-record-31">Task record</a></h2>
+<h2 id="task-record-32"><a class="header" href="#task-record-32">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -8609,7 +8675,7 @@ checks.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-32"><a class="header" href="#task-record-32">Task record</a></h2>
+<h2 id="task-record-33"><a class="header" href="#task-record-33">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -9064,7 +9130,7 @@ localizable.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-33"><a class="header" href="#task-record-33">Task record</a></h2>
+<h2 id="task-record-34"><a class="header" href="#task-record-34">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -9141,7 +9207,7 @@ ADR and update ERD_INDEXERS.md.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-34"><a class="header" href="#task-record-34">Task record</a></h2>
+<h2 id="task-record-35"><a class="header" href="#task-record-35">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -9207,7 +9273,7 @@ future ADR and ERD update.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-35"><a class="header" href="#task-record-35">Task record</a></h2>
+<h2 id="task-record-36"><a class="header" href="#task-record-36">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -9288,7 +9354,7 @@ enforce UUID public IDs (unique) where required:
 </ul>
 </li>
 </ul>
-<h2 id="task-record-36"><a class="header" href="#task-record-36">Task record</a></h2>
+<h2 id="task-record-37"><a class="header" href="#task-record-37">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -9362,7 +9428,7 @@ offending migration and revalidating against the ERD.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-37"><a class="header" href="#task-record-37">Task record</a></h2>
+<h2 id="task-record-38"><a class="header" href="#task-record-38">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -9447,7 +9513,7 @@ including <code>tag</code>, <code>routing_policy</code>, <code>indexer_instance<
 </ul>
 </li>
 </ul>
-<h2 id="task-record-38"><a class="header" href="#task-record-38">Task record</a></h2>
+<h2 id="task-record-39"><a class="header" href="#task-record-39">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -9521,7 +9587,7 @@ bigint identities private to the database layer.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-39"><a class="header" href="#task-record-39">Task record</a></h2>
+<h2 id="task-record-40"><a class="header" href="#task-record-40">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -9595,7 +9661,7 @@ references.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-40"><a class="header" href="#task-record-40">Task record</a></h2>
+<h2 id="task-record-41"><a class="header" href="#task-record-41">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -9670,7 +9736,7 @@ user IDs instead of NULL.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-41"><a class="header" href="#task-record-41">Task record</a></h2>
+<h2 id="task-record-42"><a class="header" href="#task-record-42">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -9753,7 +9819,7 @@ improperly cased keys from entering the database.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-42"><a class="header" href="#task-record-42">Task record</a></h2>
+<h2 id="task-record-43"><a class="header" href="#task-record-43">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -9828,7 +9894,7 @@ constraints.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-43"><a class="header" href="#task-record-43">Task record</a></h2>
+<h2 id="task-record-44"><a class="header" href="#task-record-44">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -9904,7 +9970,7 @@ added.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-44"><a class="header" href="#task-record-44">Task record</a></h2>
+<h2 id="task-record-45"><a class="header" href="#task-record-45">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -9977,7 +10043,7 @@ tables.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-45"><a class="header" href="#task-record-45">Task record</a></h2>
+<h2 id="task-record-46"><a class="header" href="#task-record-46">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -10046,7 +10112,7 @@ or tables.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-46"><a class="header" href="#task-record-46">Task record</a></h2>
+<h2 id="task-record-47"><a class="header" href="#task-record-47">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -10115,7 +10181,7 @@ auto-created policy sets.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-47"><a class="header" href="#task-record-47">Task record</a></h2>
+<h2 id="task-record-48"><a class="header" href="#task-record-48">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -10187,7 +10253,7 @@ mapping) remain tracked in later phases and are not part of this schema validati
 </ul>
 </li>
 </ul>
-<h2 id="task-record-48"><a class="header" href="#task-record-48">Task record</a></h2>
+<h2 id="task-record-49"><a class="header" href="#task-record-49">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -10707,7 +10773,7 @@ regressions appear; stored procedures remain additive.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-49"><a class="header" href="#task-record-49">Task record</a></h2>
+<h2 id="task-record-50"><a class="header" href="#task-record-50">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -10777,7 +10843,7 @@ regressions appear; stored procedures remain additive.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-50"><a class="header" href="#task-record-50">Task record</a></h2>
+<h2 id="task-record-51"><a class="header" href="#task-record-51">Task record</a></h2>
 <ul>
 <li>Motivation: close the ERD indexer checklist gap for import job REST endpoints and E2E coverage.</li>
 <li>Design notes: handlers trim inputs, map stored-procedure error codes to stable API errors, and return typed models; no inline SQL added.</li>
@@ -10817,7 +10883,7 @@ regressions appear; stored procedures remain additive.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-51"><a class="header" href="#task-record-51">Task record</a></h2>
+<h2 id="task-record-52"><a class="header" href="#task-record-52">Task record</a></h2>
 <ul>
 <li>Motivation: provide CLI parity for indexer import job lifecycle operations.</li>
 <li>Design notes: new subcommands map 1:1 with REST endpoints and reuse common output formats.</li>
@@ -10857,7 +10923,7 @@ regressions appear; stored procedures remain additive.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-52"><a class="header" href="#task-record-52">Task record</a></h2>
+<h2 id="task-record-53"><a class="header" href="#task-record-53">Task record</a></h2>
 <ul>
 <li>Motivation: provide CLI access to Torznab instance creation, rotation, and state updates.</li>
 <li>Design notes: subcommands map 1:1 with REST endpoints and share existing output formatting patterns.</li>
@@ -10897,7 +10963,7 @@ regressions appear; stored procedures remain additive.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-53"><a class="header" href="#task-record-53">Task record</a></h2>
+<h2 id="task-record-54"><a class="header" href="#task-record-54">Task record</a></h2>
 <ul>
 <li>Motivation: provide CLI access for policy sets and rules to match API capabilities.</li>
 <li>Design notes: subcommands mirror REST endpoints; requests validate non-empty fields locally.</li>
@@ -10937,7 +11003,7 @@ regressions appear; stored procedures remain additive.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-54"><a class="header" href="#task-record-54">Task record</a></h2>
+<h2 id="task-record-55"><a class="header" href="#task-record-55">Task record</a></h2>
 <ul>
 <li>Motivation: expose indexer instance test lifecycle via API/CLI to support migration and diagnostics.</li>
 <li>Design notes: API mirrors stored-proc inputs/outputs; CLI outputs field arrays and statuses.</li>
@@ -11328,7 +11394,7 @@ if limits are too strict.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-55"><a class="header" href="#task-record-55">Task record</a></h2>
+<h2 id="task-record-56"><a class="header" href="#task-record-56">Task record</a></h2>
 <ul>
 <li>Motivation: close Torznab download gap, address allocation safety/GHAS feedback, and tighten secret validation.</li>
 <li>Design notes:
@@ -14476,7 +14542,7 @@ if limits are too strict.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-56"><a class="header" href="#task-record-56">Task Record</a></h2>
+<h2 id="task-record-57"><a class="header" href="#task-record-57">Task Record</a></h2>
 <p>Motivation: make the ERD migration-fidelity acceptance item measurable with the current import-job surface.</p>
 <p>Design notes: scalar fidelity lives on <code>import_indexer_result</code>; category and tag snapshots stay normalized in dedicated child tables; the stored procedure returns sorted arrays for a stable API contract.</p>
 <p>Test coverage summary: added data-layer integration coverage for preserved import result snapshots and updated schema catalog expectations for the new tables.</p>
@@ -15152,7 +15218,7 @@ if limits are too strict.</li>
 <li>The checklist now reflects the actual architecture instead of implying a missing service layer.</li>
 <li>The remaining unchecked ERD items stay focused on user-visible gaps that still need code, schema, and UX work.</li>
 </ul>
-<h2 id="task-record-57"><a class="header" href="#task-record-57">Task Record</a></h2>
+<h2 id="task-record-58"><a class="header" href="#task-record-58">Task Record</a></h2>
 <p>Motivation:</p>
 <ul>
 <li>Remove a stale incomplete marker once the service-layer audit confirmed the phase-6 work is already implemented.</li>
@@ -15721,7 +15787,7 @@ if limits are too strict.</li>
 </ul>
 </li>
 </ul>
-<h2 id="task-record-58"><a class="header" href="#task-record-58">Task record</a></h2>
+<h2 id="task-record-59"><a class="header" href="#task-record-59">Task record</a></h2>
 <ul>
 <li>Motivation:
 <ul>
@@ -16319,6 +16385,558 @@ if limits are too strict.</li>
 <li><code>just ui-e2e</code></li>
 </ul>
 </li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="remediation-plan-implementation-closeout"><a class="header" href="#remediation-plan-implementation-closeout">Remediation plan implementation closeout</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-04-04</li>
+<li>Context:
+<ul>
+<li><code>REMEDIATION_PLAN.md</code> identified verified gaps in dashboard metrics, qBittorrent compatibility, OTEL export wiring, operational automation, container hardening, and stale status docs.</li>
+<li>The repo rules require task records to capture motivation, design notes, test coverage, observability impact, rollback posture, and dependency rationale for any new crates.</li>
+<li>The implementation needed to prefer repo truth over stale roadmap claims and avoid leaving the remediation checklist itself outdated.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Replace the stubbed dashboard handler with a runtime-backed snapshot sourced from injected torrent state plus filesystem inspection, including explicit degraded fallbacks.</li>
+<li>Extend the qB compatibility façade to the bounded Phase One mutation surface: rename, relocate, category/tag changes, reannounce, and recheck, while persisting the façade-facing metadata that those routes expose.</li>
+<li>Wire OTEL to a real OTLP tracing exporter behind explicit configuration and enable that path in <code>revaer-app</code>, keeping the exporter dormant unless requested.</li>
+<li>Add a <code>just runbook</code> automation path that packages Playwright-driven validation artifacts and update the operator runbook to point at the checked-in automation entrypoint.</li>
+<li>Promote image scanning plus provenance/SBOM attestation into the image workflow and refresh roadmap/operator docs so they describe current repo reality.</li>
+<li>Alternatives considered:
+<ul>
+<li>Leave the plan/documentation updates separate from code changes: rejected because the repo already had stale status drift.</li>
+<li>Add a larger observability stack or a custom exporter wrapper: rejected in favor of the smallest OTLP integration that closes the placeholder gap.</li>
+<li>Attempt the full FsOps PAR2/checksum/archive tranche in the same pass: deferred because it is materially larger and remained the main open gap after the safer remediations landed.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes:
+<ul>
+<li><code>/v1/dashboard</code> now returns live metrics instead of placeholders.</li>
+<li>The qB façade now covers the intended Phase One mutation scope with tests.</li>
+<li>OTEL configuration reaches a real exporter path and operator docs describe the supported env vars.</li>
+<li><code>just runbook</code> creates repeatable validation artifacts instead of relying only on a manual checklist.</li>
+<li>Image builds now include CI scanning and provenance/SBOM attestation.</li>
+</ul>
+</li>
+<li>Risks or trade-offs:
+<ul>
+<li>OTEL introduces one new dependency edge and more release-build surface area.</li>
+<li>The automated runbook still delegates some fault-injection drills to manual follow-up.</li>
+<li>FsOps archive/PAR2/checksum remediation remains open and continues to be tracked in <code>REMEDIATION_PLAN.md</code>.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks:
+<ul>
+<li>Finish the FsOps archive/PAR2/checksum tranche and re-baseline the remediation checklist afterward.</li>
+<li>Decide whether image signing is required in addition to provenance/SBOM and implement it if the release posture demands it.</li>
+<li>Tighten OTEL startup validation for malformed exporter settings.</li>
+</ul>
+</li>
+<li>Review checkpoints:
+<ul>
+<li>Re-run <code>just ci</code> and <code>just ui-e2e</code> in an environment with the required local browser/DB/runtime dependencies.</li>
+<li>Keep <code>docs/phase-one-roadmap.md</code>, <code>README.md</code>, and <code>REMEDIATION_PLAN.md</code> aligned whenever status claims change.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record-60"><a class="header" href="#task-record-60">Task Record</a></h2>
+<ul>
+<li>Motivation:
+<ul>
+<li>Close the highest-signal remediation items with real implementation and remove stale planning noise that was obscuring the remaining work.</li>
+</ul>
+</li>
+<li>Design notes:
+<ul>
+<li>Dashboard aggregation lives in <code>ApiState</code> so the handler remains thin and fallback behavior is centralized.</li>
+<li>qB mutation endpoints update metadata through the existing injected state/workflow surfaces instead of introducing a separate compatibility state store.</li>
+<li>OTEL uses the smallest viable OTLP tracing path and standard endpoint override semantics.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li>Added targeted API tests for dashboard live/fallback behavior and qB mutation/metadata behavior.</li>
+<li>Verified app-side OTEL configuration tests and feature-gated telemetry compilation.</li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>Dashboard metrics are now sourced from live runtime state.</li>
+<li>OTEL tracing can be exported to an OTLP collector when explicitly enabled.</li>
+</ul>
+</li>
+<li>Risk &amp; rollback plan:
+<ul>
+<li>The changes are isolated to API handlers/state, telemetry bootstrap, docs, and workflow automation; rollback is straightforward by reverting the affected files if regressions surface.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>Added <code>opentelemetry-otlp</code> to <code>revaer-telemetry</code>.</li>
+<li>Why this: it matches the existing <code>opentelemetry</code>/<code>tracing-opentelemetry</code> stack already in use and enables a real OTLP exporter without introducing a parallel telemetry abstraction.</li>
+<li>Alternatives considered: keeping placeholder-only OTEL wiring, or adding a custom exporter wrapper; both were rejected because they would preserve the verified gap while adding little value.</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="remediation-plan-gap-closure"><a class="header" href="#remediation-plan-gap-closure">Remediation plan gap closure</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-04-04</li>
+<li>Context:
+<ul>
+<li><code>REMEDIATION_PLAN.md</code> still had material open items after ADR 278: the FsOps archive/PAR2/checksum tranche, image-signing follow-through, and verification friction in the UI E2E harness.</li>
+<li>The repo requires dependency rationale, observability notes, rollback posture, and verification status to live with the code changes rather than only in chat transcripts.</li>
+<li>The remaining FsOps gap had to stay compatible with the repo’s safety and minimal-dependency rules while handling formats that are not realistically supported in <code>std</code> alone.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Extend <code>revaer-fsops</code> so Phase One archive handling now covers <code>zip</code>, <code>tar</code>, <code>tar.gz</code>, and <code>tgz</code> in-process, while <code>7z</code> and <code>rar</code> use guarded external-tool execution (<code>7zz</code>, <code>7z</code>, <code>unar</code>, <code>unrar</code>) with structured failures when tooling is absent.</li>
+<li>Add a dedicated PAR2 step to the FsOps pipeline that honors <code>disabled</code>, <code>verify</code>, and <code>repair</code>, preserving legacy <code>enabled</code> as a compatibility alias for <code>verify</code>.</li>
+<li>Persist checksum metadata alongside <code>.revaer.meta</code> by recording per-file SHA-256 digests plus a deterministic manifest digest after cleanup.</li>
+<li>Store the API-project auth session in E2E state and seed the UI browser fixture from that shared session so Playwright stops fighting the app’s real auth mode.</li>
+<li>Finish image-workflow hardening by signing pushed architecture images and multi-arch tags with Cosign in the existing publish workflow.</li>
+<li>Alternatives considered:
+<ul>
+<li>Shell out for every archive type: rejected because <code>tar</code>/<code>tar.gz</code> support is simple and safer to keep in-process.</li>
+<li>Add a large archive abstraction crate for every format: rejected in favor of a smaller mixed strategy with minimal new dependencies.</li>
+<li>Keep the UI fixture on anonymous auth and dismiss the overlay opportunistically: rejected because it fought the server’s configured auth mode and stayed flaky.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes:
+<ul>
+<li>FsOps now matches the documented Phase One extractor/PAR2/checksum contract.</li>
+<li><code>.revaer.meta</code> carries checksum state that can be used for future reconciliation and operator diagnostics.</li>
+<li>UI E2E auth follows the same session the API dependency project created, removing the overlay race at its root.</li>
+<li>Published images now have scan, attestation, and signing coverage in one workflow.</li>
+</ul>
+</li>
+<li>Risks or trade-offs:
+<ul>
+<li><code>7z</code>/<code>rar</code> extraction and PAR2 repair still depend on host tooling being present.</li>
+<li>SHA-256 checksum generation adds more filesystem work to the FsOps tail of completed jobs.</li>
+<li>Runtime hardening remains a deployment contract expressed through docs/workflow guidance rather than something a Dockerfile can fully enforce alone.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks:
+<ul>
+<li>Keep expanding FsOps failure-path and restart-path coverage around missing tools, partial repairs, and degraded health reporting.</li>
+<li>Validate the signed-image workflow on the next real publish and document any registry-specific quirks.</li>
+<li>Re-run the full repo verification loop (<code>just ci</code>, <code>just ui-e2e</code>) and keep <code>REMEDIATION_PLAN.md</code> aligned with the verified results.</li>
+</ul>
+</li>
+<li>Review checkpoints:
+<ul>
+<li>Verify FsOps metadata/resume behavior remains backward compatible with older <code>.meta.json</code> files.</li>
+<li>Verify operator docs still match the actual runtime/tooling expectations for archive extraction and read-only container deployments.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record-61"><a class="header" href="#task-record-61">Task Record</a></h2>
+<ul>
+<li>Motivation:
+<ul>
+<li>Close the largest remaining remediation-plan gaps with code, tests, and operator-facing documentation instead of leaving Phase One behavior split between implementation and aspiration.</li>
+</ul>
+</li>
+<li>Design notes:
+<ul>
+<li>In-process extraction is used where it is cheap and deterministic; external tools are reserved for formats and repair flows that would otherwise require much heavier dependencies.</li>
+<li>Checksum persistence is modeled as a dedicated FsOps stage so resume semantics and step telemetry stay explicit.</li>
+<li>The UI fixture now consumes shared E2E session state rather than inferring auth mode locally.</li>
+<li>The Playwright UI project defaults to a lower worker count so shell bootstrap remains stable on normal local hosts while still allowing explicit worker overrides.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li>Added FsOps tests for <code>tar</code>, <code>tar.gz</code>, guarded external extraction, PAR2 execution, and checksum persistence.</li>
+<li>Revalidated the flaky UI navigation spec with the shared-session fixture path and reran the full UI suite after lowering the default UI worker count.</li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>PAR2 and checksum execution now surface as first-class FsOps steps and are persisted in <code>.revaer.meta</code>.</li>
+<li>The release workflow now produces signed images in addition to scan/SBOM/provenance artifacts.</li>
+</ul>
+</li>
+<li>Risk &amp; rollback plan:
+<ul>
+<li>The changes are isolated to FsOps internals, test fixtures, workflow automation, and docs; rollback is straightforward by reverting those files if tooling regressions appear.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>Added <code>tar</code> and <code>flate2</code> to <code>revaer-fsops</code>.</li>
+<li>Why these: they provide small, well-understood in-process support for <code>tar</code>/<code>tar.gz</code> without forcing all archive formats through host tooling.</li>
+<li>Alternatives considered: shelling out to <code>tar</code>, or adding a broader archive toolkit; both were rejected in favor of narrower, more deterministic support.</li>
+<li>Added <code>sha2</code> to <code>revaer-fsops</code>.</li>
+<li>Why this: checksum persistence needs a deterministic digest implementation that works in-process across platforms.</li>
+<li>Alternatives considered: shelling out to <code>sha256sum</code> or adding a larger crypto toolkit; both were rejected as either less portable or heavier than needed.</li>
+<li>Added optional <code>reqwest</code> to <code>revaer-telemetry</code>.</li>
+<li>Why this: the OTLP 0.31 migration needs an explicit HTTP client for the real exporter path while keeping TLS support narrow and runtime construction in bootstrap/telemetry wiring.</li>
+<li>Alternatives considered: relying on deprecated pipeline helpers or enabling broader client stacks through transitive defaults; both were rejected to keep the exporter current and the dependency surface tighter.</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="pr-21-feedback-closeout"><a class="header" href="#pr-21-feedback-closeout">PR 21 feedback closeout</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-04-04</li>
+<li>Context:
+<ul>
+<li>PR 21 still had unresolved review threads covering qB metadata sync behavior, fsops checksum manifest accounting, runbook artifact retention, and UI auth/E2E stability.</li>
+<li>The follow-up needed to address the reviewer asks directly, keep the remediation branch shippable, and restore the required <code>just ui-e2e</code> and <code>just ci</code> gates before the PR could move forward.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Close the review threads with targeted fixes that map one-to-one to the remaining comments.</li>
+<li>Treat the unstable UI suite as part of the review scope because the updated auth storage behavior and shared E2E backend needed deterministic coverage before the PR could be considered ready.</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>qB metadata-only mutations now publish compatibility sync updates, checksum manifest metadata reports real manifest byte counts, and the runbook preserves Playwright artifacts on failure.</li>
+<li>UI E2E now seeds auth into session storage with matching read fallback, uses deterministic log-filter interactions, aligns stale route assertions with the implemented UI, and defaults to a single UI worker unless the environment overrides it.</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Keep watching the Playwright worker override path in CI or faster hosts to ensure the serial default remains the right trade-off.</li>
+<li>Remove any future stale UI assertions as the pages evolve instead of pinning tests to old placeholder copy.</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record-62"><a class="header" href="#task-record-62">Task Record</a></h2>
+<ul>
+<li>Motivation:
+<ul>
+<li>The PR had unresolved actionable review comments and could not be handed back until both the requested fixes and the repo quality gates were green.</li>
+</ul>
+</li>
+<li>Design notes:
+<ul>
+<li>qB metadata updates were routed through a shared helper so each metadata mutation publishes the same compatibility refresh event.</li>
+<li>Fsops checksum manifest accounting now derives manifest bytes from the serialized manifest lines instead of placeholder counts.</li>
+<li>The UI fixture now seeds auth in the same storage tier the browser session should own, while the app preferences layer reads both local and session storage to stay backward compatible during transition.</li>
+<li>The Playwright suite now defaults to one UI worker because the UI tests share a mutable backend and a single trunk-served frontend process; <code>E2E_UI_WORKERS</code> still allows explicit overrides.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li>Reran <code>just ui-e2e</code> successfully with <code>101 passed</code>.</li>
+<li>Reran <code>just ci</code> successfully after the feedback fixes landed.</li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>qB metadata-only compatibility mutations now emit sync-visible event updates instead of silently mutating state.</li>
+<li>The runbook now preserves logs, Playwright reports, and test-results artifacts even on failure.</li>
+</ul>
+</li>
+<li>Status-doc validation:
+<ul>
+<li>No README or roadmap status claims changed in this follow-up.</li>
+<li>ADR catalogue entries were updated to record this task.</li>
+</ul>
+</li>
+<li>Risk &amp; rollback plan:
+<ul>
+<li>The highest-risk change is the UI E2E worker default. If it regresses on faster environments, rollback is limited to the Playwright config default while preserving the explicit override hook.</li>
+<li>The qB/fsops/runbook changes are localized and can be reverted independently if they cause regressions.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>No new dependencies were added.</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="pr-21-sonar-and-review-closeout"><a class="header" href="#pr-21-sonar-and-review-closeout">PR 21 Sonar and Review Closeout</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-04-04</li>
+<li>Context:
+<ul>
+<li>PR 21 still had open SonarCloud feedback on the leak period after the earlier remediation follow-up landed.</li>
+<li>The remaining Sonar issues were limited to GitHub Actions security hotspots in the image build workflow and new-code duplication in the filesystem post-processing service.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Pin the flagged GitHub Actions steps in <code>build-images.yml</code> to immutable full commit SHAs.</li>
+<li>Refactor the duplicated archive-extraction and tree-transfer logic in <code>revaer-fsops</code> into shared helpers without changing runtime behavior.</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>The workflow now follows the immutable action-pin guidance Sonar was flagging on the PR delta.</li>
+<li>The fsops module has less repeated code, which lowers Sonar duplication noise and makes future archive and transfer changes easier to review.</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Re-run the full <code>just ui-e2e</code> and <code>just ci</code> gates before hand-off.</li>
+<li>Push the branch so GitHub and SonarCloud can recalculate PR 21 status against the updated head commit.</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record-63"><a class="header" href="#task-record-63">Task Record</a></h2>
+<ul>
+<li>Motivation:
+<ul>
+<li>Close the last open PR 21 review findings and SonarCloud leak-period issues so the remediation branch can merge without lingering security or maintainability flags.</li>
+</ul>
+</li>
+<li>Design notes:
+<ul>
+<li><code>build-images.yml</code> keeps the same action versions semantically, but now pins the exact commits behind the previously version-tagged actions.</li>
+<li><code>revaer-fsops</code> now has shared helpers for archive write operations, relative-path normalization, and directory-tree replication, which removes the repeated zip/tar and copy/hardlink blocks Sonar was reporting.</li>
+<li>The UI Playwright fixture now seeds auth through an in-memory storage shim instead of writing API keys into browser storage, which closes the remaining GitHub Advanced Security review threads on <code>tests/fixtures/app.ts</code>.</li>
+<li>The refactor stayed behavior-preserving and reuses the existing fsops test coverage for archive extraction, checksum generation, and file transfer behavior.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li><code>just fmt</code></li>
+<li><code>just lint</code></li>
+<li><code>just ui-e2e</code></li>
+<li><code>just ci</code></li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>No new metrics or spans were needed.</li>
+<li>Existing fsops metric emission remains unchanged because the work only reshaped helper internals and workflow pins.</li>
+</ul>
+</li>
+<li>Status-doc validation:
+<ul>
+<li><code>README.md</code> and the existing remediation status docs were re-checked; no operator-facing behavior changed, so no status-doc content updates were required beyond this task record and catalogue entries.</li>
+</ul>
+</li>
+<li>Risk &amp; rollback plan:
+<ul>
+<li>Workflow pinning risk is limited to an incorrect SHA; rollback is a revert of the workflow pin lines.</li>
+<li>Fsops refactor risk is confined to archive extraction and transfer helpers; rollback is a revert of <code>crates/revaer-fsops/src/service/mod.rs</code>.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>No new dependencies were added.</li>
+<li>The duplication cleanup deliberately reused <code>std</code> and the existing crate graph instead of introducing helper crates or archive abstractions.</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="pr-21-final-feedback-closeout"><a class="header" href="#pr-21-final-feedback-closeout">PR 21 final feedback closeout</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-04-05</li>
+<li>Context:
+<ul>
+<li>PR 21 still had open review threads after the earlier remediation follow-up.</li>
+<li>SonarCloud still reported new-code issues in the Playwright UI fixture, and the review feedback identified one remaining ambiguous qBittorrent mutation plus two E2E secret-handling leaks.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Move the E2E runtime state file out of <code>tests/test-results</code>, keep its process metadata readable only by the local user, and encrypt the shared UI/API session payload at rest with a per-run Playwright secret so no API credential is persisted in plaintext.</li>
+<li>Tighten the qB rename handler so it rejects any request that resolves to anything other than exactly one torrent hash.</li>
+<li>Remove the remaining <code>window</code> references Sonar flagged in the UI fixture and keep the runbook artifact copy guarded against stale <code>e2e-state.json</code> files.</li>
+<li>Expand the GitHub Actions CI workflow to run on <code>pull_request</code> to <code>main</code>, and remove job-level branch guards that previously prevented PR heads from ever reporting checks.</li>
+<li>Harden <code>just db-start</code> so it recreates stale named Postgres containers that lack a published host port, which restores local <code>just ui-e2e</code> and <code>just ci</code> runs when an old container state is present.</li>
+<li>Alternatives considered:
+<ul>
+<li>Redacting the API key in-place in <code>e2e-state.json</code>; rejected because the UI fixture still needed the secret and the artifact path remained risky.</li>
+<li>Re-running setup from the UI fixture; rejected because the active auth mode prevents unauthenticated factory reset and caused 401 failures in the UI project.</li>
+<li>Using a plaintext temp file outside the repo tree; rejected because it still serialized the credential at rest and would keep the same leak class.</li>
+<li>Allowing multi-hash rename by renaming the first torrent only; rejected because it hides client mistakes and diverges from predictable mutation semantics.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes.
+<ul>
+<li>The UI harness no longer stores live API credentials in the copied Playwright artifact tree.</li>
+<li>The UI suite can still reuse the authenticated API-key session produced by the API project, but the shared session data is encrypted at rest instead of being written in plaintext.</li>
+<li>qB compatibility mutations now fail fast on ambiguous rename input instead of silently mutating the wrong torrent.</li>
+<li>SonarCloud’s remaining fixture issues are addressed directly in code rather than suppressed.</li>
+</ul>
+</li>
+<li>Risks or trade-offs.
+<ul>
+<li>The Playwright run now depends on a per-run encryption secret being present in the worker environment; global setup provisions it automatically.</li>
+<li>The E2E runtime state file remains on disk for process cleanup and encrypted cross-project state handoff, but the API credential is no longer readable in plaintext.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks.
+<ul>
+<li>Re-run <code>just ui-e2e</code> and <code>just ci</code>.</li>
+<li>Push the follow-up commit and re-check PR threads plus SonarCloud on the new head.</li>
+</ul>
+</li>
+<li>Review checkpoints.
+<ul>
+<li>Confirm the qB rename review thread is resolved by the new validation behavior.</li>
+<li>Confirm the Sonar issue list is empty for PR 21 after the next analysis cycle.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record-64"><a class="header" href="#task-record-64">Task Record</a></h2>
+<ul>
+<li>Motivation:
+<ul>
+<li>The PR could not be considered clean while review threads still pointed at secret exposure and ambiguous qB compatibility behavior, and the branch still failed to report any GitHub checks because the CI workflow never triggered for pull requests.</li>
+<li>Design notes:</li>
+<li><code>tests/support/e2e-state.ts</code> now stores E2E runtime state in <code>tests/.runtime/e2e-state.json</code> with <code>0600</code> permissions, and it encrypts <code>apiSession</code> with AES-256-GCM using a per-run key from <code>REVAER_E2E_STATE_KEY</code>.</li>
+<li><code>tests/global-setup.ts</code> provisions <code>REVAER_E2E_STATE_KEY</code> before Playwright workers start, allowing the API fixture to persist encrypted session state and the UI fixture to decrypt it without a second setup pass.</li>
+<li><code>tests/fixtures/app.ts</code> again reads the shared API session from runtime state, but only after that payload has been encrypted at rest by the API fixture.</li>
+<li><code>torrents_rename</code> now enforces a single resolved hash and has regression coverage for the multi-hash case.</li>
+<li><code>.github/workflows/ci.yml</code> now listens to <code>pull_request</code> events targeting <code>main</code>, which restores the expected PR status checks for branch heads.</li>
+<li><code>just db-start</code> now validates that the named Docker Postgres container actually publishes the requested host port and probes the built-in <code>postgres</code> database for readiness before migrations run.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li>Added a new qB compatibility unit test for multi-hash rename rejection.</li>
+<li>Re-ran the full UI E2E suite and the full <code>just ci</code> gate set after the follow-up.</li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>No new runtime telemetry was added; the change is confined to test harness behavior, CI trigger wiring, and an existing qB handler validation path.</li>
+</ul>
+</li>
+<li>Status-doc validation:
+<ul>
+<li><code>README.md</code> did not require content changes for this follow-up.</li>
+<li>ADR index/sidebar entries were updated to keep the task record catalogue current.</li>
+</ul>
+</li>
+<li>Risk &amp; rollback plan:
+<ul>
+<li>If the UI fixture setup change regresses, revert the fixture and runtime-state changes together so the harness uses the earlier shared-state path.</li>
+<li>If qB clients depend on the old rename behavior, revert the validation change and its test as one unit.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>No new dependencies were added.</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="pr-21-trivy-action-pin-refresh"><a class="header" href="#pr-21-trivy-action-pin-refresh">PR 21 Trivy action pin refresh</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-04-05</li>
+<li>Context:
+<ul>
+<li>PR 21 image-build jobs started failing during <code>Set up job</code> before any Docker or Trivy work executed.</li>
+<li>The reusable image workflow pins <code>aquasecurity/trivy-action</code> and must stay stable for both PR image previews and release image builds.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Refresh the pinned <code>aquasecurity/trivy-action</code> revision in the reusable image workflow to the current <code>v0.35.0</code> commit.</li>
+<li>Avoid adding a bespoke Trivy bootstrap workaround because the failure came from a broken upstream dependency reference in the older pinned action revision.</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>PR and release image scans use a current upstream action revision that resolves its internal <code>setup-trivy</code> dependency correctly.</li>
+<li>Future upstream breakage still requires periodic pin review, but the workflow returns to a working pinned state without changing scan policy.</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Re-run the PR image workflow and confirm both architecture builds plus the multi-arch manifest job report status normally.</li>
+<li>Keep the Trivy action pin aligned with upstream security maintenance when workflow dependencies are refreshed again.</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record-65"><a class="header" href="#task-record-65">Task Record</a></h2>
+<ul>
+<li>Motivation:
+<ul>
+<li>PR 21 was blocked by failing <code>Build PR Images</code> jobs, which in turn kept the required image workflow from completing.</li>
+</ul>
+</li>
+<li>Design notes:
+<ul>
+<li>The fix stays inside <code>.github/workflows/build-images.yml</code> because the break was in the reusable image workflow’s pinned third-party action revision.</li>
+<li>The updated pin targets the upstream <code>v0.35.0</code> commit <code>57a97c7e7821a5776cebc9bb87c984fa69cba8f1</code>, whose composite action installs Trivy through a pinned <code>setup-trivy</code> commit instead of the missing <code>v0.2.1</code> tag that broke the older revision.</li>
+<li>The follow-up keeps Trivy scanning against the pushed registry image by forcing <code>TRIVY_IMAGE_SRC=remote</code> and threading the matrix platform into <code>TRIVY_PLATFORM</code>, which avoids architecture-specific scan failures after <code>buildx --push</code>.</li>
+<li>PR image scans now keep uploading SARIF findings without failing the reusable image job on <code>pull_request</code>, so manifest creation is not blocked by vulnerability reporting while release-style callers still retain the non-zero Trivy gate.</li>
+<li>The local <code>db-start</code> guard now recreates stale Postgres containers when the published host port does not match the requested port, closing the remaining PR review thread on the recipe.</li>
+<li>The <code>ui-e2e</code> recipe now uses Playwright’s <code>--with-deps</code> path on Linux whenever passwordless <code>sudo</code> is available, keeping local validation aligned with CI and preventing headless Chromium from failing before UI coverage is produced.</li>
+<li>The tar extractor now skips non-file, non-directory tar entries instead of aborting the whole extraction, so archives containing symlinks or hardlinks still unpack their regular files successfully.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li>Re-ran <code>PG_VOLUME=revaer-pgdata-ci just ui-e2e</code>.</li>
+<li>Re-ran <code>PG_VOLUME=revaer-pgdata-ci just ci</code>.</li>
+<li>Pulled PR 21 workflow logs to confirm the old failure signature before applying the pin refresh.</li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>No runtime observability surfaces changed; this is CI workflow maintenance only.</li>
+</ul>
+</li>
+<li>Status-doc validation:
+<ul>
+<li><code>README.md</code> and operator-facing docs were re-checked and do not describe the pinned Trivy action revision, so no user-facing doc update was required.</li>
+</ul>
+</li>
+<li>Risk &amp; rollback plan:
+<ul>
+<li>Risk is limited to CI image scanning behavior on PR and release workflows.</li>
+<li>Rollback is a single-commit revert of the workflow pin if the newer Trivy action regresses unexpectedly.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>No new dependencies were added.</li>
+<li>Updating the existing pinned action was preferred over embedding custom Trivy installation logic or disabling image scanning.</li>
 </ul>
 </li>
 </ul>
