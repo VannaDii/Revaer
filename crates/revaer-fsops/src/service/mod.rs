@@ -3338,6 +3338,7 @@ mod tests {
         Ok(())
     }
 
+    #[test]
     fn run_extract_disabled_preserves_source_as_staging() -> TestResult<()> {
         let temp = temp_dir()?;
         let bus = EventBus::with_capacity(4);
@@ -3419,6 +3420,10 @@ mod tests {
     #[test]
     fn run_extract_requires_source_path_when_no_staging_exists() -> TestResult<()> {
         let temp = temp_dir()?;
+        let bus = EventBus::with_capacity(4);
+        let metrics = Metrics::new()?;
+        let service = FsOpsService::new(bus, metrics);
+        let torrent_id = Uuid::new_v4();
         let mut meta = FsOpsMeta::new(torrent_id, Uuid::new_v4());
         let meta_path = temp.path().join("meta.json");
         let work_dir = temp.path().join("work");

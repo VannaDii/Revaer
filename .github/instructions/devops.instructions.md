@@ -12,11 +12,11 @@ applyTo:
 # Workflow And Release Rules
 
 - Use minimal GitHub token permissions at the workflow or job level. Only grant elevated scopes to the job that needs them.
-- External GitHub actions in modified files must be pinned by full commit SHA. Keep a version comment alongside the SHA for readability.
-- When updating an external action pin, move it to the latest stable release commit SHA at the time of the change unless Revaer has a documented reason to stay behind.
+- External GitHub actions in modified files must use explicit stable release tags. Do not use floating branch refs such as `main`, `master`, or `trunk`.
+- When updating an external action reference, move it to the latest stable release tag at the time of the change unless Revaer has a documented reason to stay behind.
 - Verify action usage against the action's current official documentation when changing its major or minor release line. Preserve documented step ordering and supported inputs.
 - Workflow build, lint, test, coverage, and release gates must call `just` recipes. Do not reintroduce raw `cargo` pipelines into CI jobs.
-- `just lint` runs `scripts/workflow-guardrails.sh`, which rejects unpinned external actions and direct `${{ inputs.* }}` interpolation inside `run:` blocks.
+- `just lint` runs `scripts/workflow-guardrails.sh`, which rejects floating external action refs and direct `${{ inputs.* }}` interpolation inside `run:` blocks.
 - Treat `sonar-project.properties` as the versioned source of truth for Sonar analysis scope and exclusions.
 
 # Shell Safety
@@ -35,8 +35,7 @@ applyTo:
 
 - Any change to a workflow, release script, setup action, `justfile`, or `sonar-project.properties` must review the matching instruction file in the same change.
 - Revaer enforces that rule mechanically with `just instruction-drift`, backed by `scripts/instruction-drift-check.sh`. Keep the mapping in that script aligned with this file and `AGENTS.md`.
-- Keep `scripts/workflow-guardrails.sh` aligned with the live workflow policy when GitHub Actions pinning or shell-safety rules change.
-- Keep version comments synchronized with the pinned release tag so reviewers can compare the local workflow state against the upstream action release quickly.
+- Keep `scripts/workflow-guardrails.sh` aligned with the live workflow policy when GitHub Actions versioning or shell-safety rules change.
 - `pr.yml` and `ci.yml` must pass explicit base/head SHAs into `just instruction-drift` so pull requests and `main` pushes are checked against the real reviewed diff, not an incidental worktree state.
 - Drift coverage for actions and release assets is recursive. Changes under `.github/actions/**`, `.github/workflows/**`, and `release/**` must keep matching the devops instruction update rule.
 - Reusable workflows that publish images must preserve `packages: write` on the caller job because the callee cannot elevate a more restrictive token.

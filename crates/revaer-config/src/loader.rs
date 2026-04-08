@@ -2604,6 +2604,5 @@ fn map_sqlx_err(operation: &'static str) -> impl FnOnce(sqlx::Error) -> ConfigEr
 }
 
 #[cfg(test)]
-#[cfg(test)]
 #[path = "loader/tests.rs"]
 mod tests;

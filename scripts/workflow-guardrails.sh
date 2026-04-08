@@ -47,21 +47,22 @@ uses_matches="$(
         next;
       }
 
-      sha = ref;
-      sub(/^.*@/, "", sha);
-
-      if (ref !~ /@/ || length(sha) != 40 || sha !~ /^[0-9a-f]+$/) {
+      if (ref !~ /@/) {
         printf "%s:%d:%s\n", FILENAME, FNR, $0;
         next;
       }
 
-      if (comment !~ /#[[:space:]]*v/) {
+      version = ref;
+      sub(/^.*@/, "", version);
+
+      if (version !~ /^v[0-9]+([.][0-9]+)*([.-][A-Za-z0-9]+)*$/ &&
+          version !~ /^codeql-bundle-v[0-9]+([.][0-9]+)*$/) {
         printf "%s:%d:%s\n", FILENAME, FNR, $0;
       }
     }
   ' "${files[@]}"
 )"
-report_matches "external GitHub actions must be pinned by full SHA and carry a version comment" "${uses_matches}"
+report_matches "external GitHub actions must use explicit stable release tags instead of floating refs" "${uses_matches}"
 
 run_matches="$(
   awk '

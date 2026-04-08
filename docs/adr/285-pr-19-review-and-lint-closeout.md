@@ -11,14 +11,16 @@
     - `AGENTS.md` remains the root contract and `just ci` plus `just ui-e2e` remain the completion gates.
     - Authored code cannot add lint suppressions, dead code, or panic-based production behavior.
     - Workflow permissions must stay minimal except where reusable publishing jobs need explicit elevation.
-- Decision:
-  - Address the open PR review feedback by:
-    - switching `AGENTS.md` links from machine-local absolute paths to repo-relative links
-    - extending instruction-drift matching to recurse through `.github/actions/**`, `.github/workflows/**`, and `release/**`
-    - hardening the setup composite action package validation to reject leading-dash tokens and pass `--` to `apt-get install`
-    - restoring `packages: write` on the `build-images` caller job in `ci.yml`
-    - deleting the large commented-out dead block from `crates/revaer-api/src/http/handlers/indexers/policies.rs`
-    - gating the bootstrap non-Unicode env test through cross-platform helper functions instead of Unix-only imports
+  - Decision:
+    - Address the open PR review feedback by:
+      - moving external GitHub action references back to explicit latest stable release tags instead of commit SHAs
+      - switching `AGENTS.md` links from machine-local absolute paths to repo-relative links
+      - extending instruction-drift matching to recurse through `.github/actions/**`, `.github/workflows/**`, and `release/**`
+      - hardening the setup composite action package validation to reject leading-dash tokens, permit deterministic `apt` version pins, and pass `--` to `apt-get install`
+      - restoring `packages: write` on the `build-images` caller job in `ci.yml`
+      - deleting the large commented-out dead block from `crates/revaer-api/src/http/handlers/indexers/policies.rs`
+      - deleting the large commented-out legacy scaffolding block from `crates/revaer-api/src/http/handlers/indexers/search_profiles.rs`
+      - gating the bootstrap non-Unicode env test through cross-platform helper functions instead of Unix-only imports
   - Fix the current lint failures by:
     - boxing `run_bootstrap_services(...)` futures at the call sites that tripped `clippy::large_futures`
     - replacing pass-by-value backup-error wrappers with direct closure-based mappings
@@ -35,6 +37,7 @@
     - The coverage gate now measures each crate against the same workspace execution graph that actually exercises the libraries in CI.
     - Bootstrap tests compile on non-Unix targets without weakening the env-validation behavior under test.
     - The image publishing path keeps the minimal permission model while preserving the one scope GHCR pushes require.
+    - Workflow references stay readable and track the latest stable upstream tags, matching the current repository policy.
   - Risks and trade-offs:
     - The policy guardrail still relies on pattern matching, so future language-surface changes may require another regex update.
     - Boxing the bootstrap future trades a small heap allocation for a deterministic lint-clean boundary.
@@ -57,6 +60,7 @@
   - Dependency rationale:
     - No Rust dependencies were added.
     - No new third-party GitHub actions were introduced.
+    - Existing third-party GitHub action references moved from SHAs back to explicit stable release tags by repo policy.
   - Stale-policy check:
     - Reviewed files:
       - `AGENTS.md`
@@ -64,14 +68,18 @@
       - `.github/instructions/devops.instructions.md`
       - `.github/workflows/ci.yml`
       - `.github/actions/setup-revaer/action.yml`
+      - `.github/workflows/sonar.yml`
       - `scripts/instruction-drift-check.sh`
       - `scripts/policy-guardrails.sh`
+      - `scripts/workflow-guardrails.sh`
       - `justfile`
     - Drift found:
       - machine-local absolute links in `AGENTS.md`
       - non-recursive drift coverage wording for action and release paths
       - missing caller-side workflow permission guidance for image publishing
       - lint guardrails that assumed `rg` was always installed
+      - workflow instructions that still required SHA-pinned action refs after the repository moved back to stable version tags
     - Contradictions removed:
       - a documented hard guardrail that silently no-op'd when `rg` was missing
       - workflow permission minimization that accidentally removed the one publishing scope the reusable workflow still required
+      - a workflow pinning rule that no longer matched the repository's current action-version policy
