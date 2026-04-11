@@ -1,0 +1,55 @@
+# Advisory RUSTSEC-2026-0097 Temporary Ignore
+
+- Status: Accepted
+- Date: 2026-04-11
+- Context:
+  - `cargo audit` now fails on `RUSTSEC-2026-0097`, which flags `rand` 0.8.5 and 0.9.2 as unsound when paired with a custom logger using `rand::rng()`.
+  - Revaer does not pull the affected `rand` releases as first-party choices in this task. They currently arrive transitively via `sqlx` 0.9.0-alpha.1, `opentelemetry`/`reqwest`, and `postgres`-backed test support.
+  - The present dependency graph does not offer a clean, scoped in-repo upgrade path that removes the advisory without forcing a broader upstream dependency refresh into an unrelated PR.
+- Decision:
+  - Add `RUSTSEC-2026-0097` to `.secignore` as a temporary, explicitly documented exception so `just ci` can continue enforcing the rest of the repository gates.
+  - Remove the ignore once upstream crates publish and adopt non-affected `rand` releases.
+- Consequences:
+  - Positive outcomes:
+    - `cargo audit` and therefore `just ci` can pass again without weakening source-level lint, test, or runtime guardrails.
+    - The exception remains visible in versioned policy artifacts instead of becoming an implicit local workaround.
+  - Risks and trade-offs:
+    - The affected transitive `rand` versions remain in the graph temporarily.
+    - Clearing the ignore later will require a coordinated dependency refresh across the `sqlx`, telemetry, and test-support edges.
+- Follow-up:
+  - Track `sqlx`, `opentelemetry`, `reqwest`, and `postgres` release notes for dependency graph updates that remove `rand` 0.8.5 and 0.9.2.
+  - Delete the `.secignore` entry and this ADR exception rationale once the workspace can adopt fixed upstream versions cleanly.
+
+## Task Record
+
+- Motivation:
+  - PR 19 is blocked by the `cargo audit` step inside `just ci`, and the newly published advisory is unrelated to the instruction-refresh code under review.
+- Design notes:
+  - The fix stays limited to the repository’s existing advisory-exception mechanism instead of forcing risky dependency churn into an unrelated CI recovery task.
+  - No runtime behavior, stored procedures, or source-level lint posture changed.
+- Test coverage summary:
+  - `just audit`
+  - `just ui-e2e`
+  - `just ci` rerun after the advisory exception update
+- Observability updates:
+  - None. This change only affects dependency-audit policy.
+- Status-doc validation:
+  - `docs/adr/index.md` and `docs/SUMMARY.md` were updated to include this ADR.
+  - No README, roadmap, or operator guide changes were required because runtime behavior is unchanged.
+- Risk & rollback plan:
+  - Risk: the workspace temporarily keeps vulnerable transitive `rand` versions until upstream crates publish compatible fixes.
+  - Rollback: delete the `.secignore` entry and revert this ADR once the dependency graph no longer resolves to the affected versions.
+- Dependency rationale:
+  - No new dependencies were added.
+  - Avoided forcing opportunistic upgrades of `sqlx`, `opentelemetry`, `reqwest`, or `postgres` in a PR whose scope is CI recovery.
+- Stale-policy check:
+  - Reviewed files:
+    - `AGENTS.md`
+    - `.github/instructions/rust.instructions.md`
+    - `.secignore`
+    - `justfile`
+    - `docs/adr/template.md`
+  - Drift found:
+    - The advisory-exception ledger was missing the newly published `RUSTSEC-2026-0097` entry even though `cargo audit` had started enforcing it.
+  - Contradictions removed:
+    - None. This change extends the existing ADR-backed advisory-ignore pattern already used by the repository.

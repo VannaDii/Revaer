@@ -297,3 +297,4 @@
 -   [283](283-pr-21-trivy-action-pin-refresh.md) – PR 21 Trivy action pin refresh
 -   [284](284-instruction-refresh-and-sonar-scope.md) – Instruction refresh and Sonar scope hardening
 -   [285](285-pr-19-review-and-lint-closeout.md) – PR 19 review and lint closeout
+-   [286](286-advisory-rustsec-2026-0097.md) – Advisory RUSTSEC-2026-0097 temporary ignore
