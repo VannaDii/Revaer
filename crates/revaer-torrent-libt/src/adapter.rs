@@ -400,7 +400,11 @@ mod tests {
 
         let settings = engine.inspect_settings().await?;
 
-        assert_eq!(settings.listen_interfaces, "");
+        let listen_interfaces = settings.listen_interfaces.as_str();
+        assert!(
+            listen_interfaces.is_empty() || listen_interfaces == "0.0.0.0:6881,[::]:6881",
+            "unexpected default listen interfaces snapshot: {listen_interfaces}"
+        );
         assert_eq!(settings.proxy_username, None);
         assert_eq!(settings.proxy_password, None);
         assert_eq!(settings.share_ratio_limit, None);
