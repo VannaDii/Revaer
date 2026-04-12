@@ -1,0 +1,13 @@
+Revaer {{ .Chart.Version }} has been installed.
+
+Image:
+  {{ .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}
+
+Initial setup:
+  Revaer starts in setup mode and keeps the API listener loopback-only until the
+  instance is activated. Complete first-run setup with a port-forward:
+
+  kubectl port-forward deployment/{{ include "revaer.fullname" . }} 7070:7070 8080:8080
+
+  After setup, update the Revaer bind address so the Service can receive
+  external traffic through {{ include "revaer.fullname" . }}.

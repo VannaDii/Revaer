@@ -307,3 +307,4 @@
 -   [293](293-pr-19-github-action-sha-pinning.md) – PR 19 GitHub Action SHA pinning
 -   [294](294-pr-19-review-feedback-closeout.md) – PR 19 review feedback closeout
 -   [295](295-dependency-bump-rollup.md) – Dependency bump rollup
+-   [296](296-helm-chart-release-publishing.md) – Helm chart release publishing

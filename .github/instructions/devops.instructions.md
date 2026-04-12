@@ -17,9 +17,12 @@ applyTo:
 - Verify action usage against the action's current official documentation when changing its major or minor release line. Preserve documented step ordering and supported inputs.
 - Workflows that install Rust toolchains must use the repository's configured toolchain source of truth rather than hard-coded ad hoc channels unless a documented exception is required.
 - Workflow build, lint, test, coverage, and release gates must call `just` recipes. Do not reintroduce raw `cargo` pipelines into CI jobs.
+- Helm chart validation and publication must flow through `just helm-lint`, `just helm-package`, and `just helm-publish`. Do not add ad hoc packaging or registry-push shell blocks to workflows.
 - `just lint` runs `scripts/workflow-guardrails.sh`, which rejects unpinned external action refs and direct `${{ inputs.* }}` interpolation inside `run:` blocks.
 - Treat `sonar-project.properties` as the versioned source of truth for Sonar analysis scope and exclusions.
 - Release-tooling dependency changes under `release/**`, including JavaScript lockfiles such as `release/package-lock.json`, must stay manifest-scoped, avoid unrelated workflow churn, and update this instruction file in the same change so instruction-drift remains explicit.
+- Prerelease Helm assets must be produced during the semantic-release prepare phase so the packaged chart version matches the dev release version exactly. OCI publication must consume those already-packaged assets after the GitHub release assets exist.
+- Stable tag releases must package the Helm chart once, attach the `.tgz`, `.prov`, and public key to the GitHub release, and publish that exact packaged chart to the OCI registry. Avoid repackaging between release-asset upload and OCI publication.
 
 # Shell Safety
 
@@ -33,6 +36,7 @@ applyTo:
 - CI-only credentials may be ephemeral only when they are clearly scoped to isolated test infrastructure, such as throwaway Postgres service containers.
 - Ephemeral test credentials must never be reused as application secrets, committed runtime credentials, or user-facing examples.
 - Do not log secrets or secret-like values. Mask or omit them.
+- Keep Helm registry credentials (`HELM_API_KEY_ID`, `HELM_API_KEY_SECRET`) separate from chart-signing material (`HELM_GPG_PRIVATE`, `HELM_GPG_PUBLIC`). Publishing jobs may use registry credentials only when consuming an already-packaged chart artifact.
 
 # Drift Control
 

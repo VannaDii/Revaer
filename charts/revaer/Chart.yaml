@@ -1,0 +1,28 @@
+apiVersion: v2
+name: revaer
+description: Helm chart for deploying the Revaer control plane.
+type: application
+version: 0.0.0
+appVersion: v0.0.0
+kubeVersion: ">=1.27.0-0"
+home: https://revaer.com
+icon: https://raw.githubusercontent.com/VannaDii/Revaer/main/revaer-logo.png
+sources:
+  - https://github.com/VannaDii/Revaer
+keywords:
+  - revaer
+  - torrent
+  - media
+  - automation
+  - control-plane
+maintainers:
+  - name: Revaer Contributors
+annotations:
+  artifacthub.io/category: skip-prediction
+  artifacthub.io/license: MIT
+  # __RELEASE_HELM_ANNOTATIONS__
+  artifacthub.io/links: |
+    - name: Documentation
+      url: https://github.com/VannaDii/Revaer/tree/main/docs
+    - name: Support
+      url: https://github.com/VannaDii/Revaer/issues

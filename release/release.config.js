@@ -16,6 +16,11 @@ const assets = [
     path: path.join(root, 'dist', 'openapi.json'),
     label: 'openapi.json',
   },
+  path.join(root, 'dist', 'helm', '*.tgz'),
+  path.join(root, 'dist', 'helm', '*.tgz.prov'),
+  path.join(root, 'dist', 'helm', 'revaer-helm-public.asc'),
+  path.join(root, 'dist', 'helm', 'revaer-helm-public.gpg'),
+  path.join(root, 'dist', 'helm', 'artifacthub-repo.yml'),
 ];
 
 module.exports = {

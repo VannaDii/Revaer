@@ -1,0 +1,21 @@
+{{- if and .Values.dataPersistence.enabled (not .Values.dataPersistence.existingClaim) -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ printf "%s-data" (include "revaer.fullname" .) }}
+  labels:
+    {{- include "revaer.labels" . | nindent 4 }}
+  {{- with .Values.dataPersistence.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  accessModes:
+    {{- toYaml .Values.dataPersistence.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.dataPersistence.size }}
+  {{- if .Values.dataPersistence.storageClassName }}
+  storageClassName: {{ .Values.dataPersistence.storageClassName | quote }}
+  {{- end }}
+{{- end }}

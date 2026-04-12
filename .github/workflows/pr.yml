@@ -76,6 +76,20 @@ jobs:
       - name: Check
         run: just check
 
+  helm-lint:
+    name: Helm Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Helm
+        uses: Azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          version: v3.19.0
+
+      - name: Helm lint
+        run: just helm-lint
+
   coverage:
     name: Check Coverage
     runs-on: ubuntu-latest
@@ -115,7 +129,7 @@ jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
-    needs: [fmt, lint, check]
+    needs: [fmt, lint, check, helm-lint]
     env:
       REVAER_TEST_DATABASE_URL: ${{ vars.REVAER_DATABASE_URL}}
       DATABASE_URL: ${{ vars.REVAER_DATABASE_URL}}
