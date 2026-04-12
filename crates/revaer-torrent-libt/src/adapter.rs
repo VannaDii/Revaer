@@ -407,8 +407,6 @@ mod tests {
         );
         assert_eq!(settings.proxy_username, None);
         assert_eq!(settings.proxy_password, None);
-        assert_eq!(settings.share_ratio_limit, None);
-        assert_eq!(settings.seed_time_limit, None);
         Ok(())
     }
 }

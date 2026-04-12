@@ -318,3 +318,4 @@
     -   [286: Advisory RUSTSEC-2026-0097 temporary ignore](adr/286-advisory-rustsec-2026-0097.md)
     -   [287: PR 19 policy reconciliation](adr/287-pr-19-policy-reconciliation.md)
     -   [288: PR 19 OpenAPI test portability](adr/288-pr-19-openapi-test-portability.md)
+    -   [289: PR 19 native settings snapshot test stability](adr/289-pr-19-native-settings-snapshot-test-stability.md)
