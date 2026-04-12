@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "generated": "2026-04-07T00:07:26.021906555+00:00",
+  "generated": "2026-04-12T21:16:04.984273135+00:00",
   "entries": [
     {
       "id": "adr/001-configuration-revisioning",
@@ -2653,6 +2653,101 @@
       "href": "/adr/283-pr-21-trivy-action-pin-refresh/"
     },
     {
+      "id": "adr/284-instruction-refresh-and-sonar-scope",
+      "title": "Instruction Refresh And Sonar Scope Hardening",
+      "summary": "Status: Accepted Date: 2026-04-03 Context: Motivation: The repository root instructions had drifted from the live justfile, CI workflows, and Sonar workflow. The previous instruction set mixed global invariants, stale repository snapshots, copied command bodies, UI layout details, and contradictory Rust guidance in one file. Sonar guidance in .github/instructions/sonarqube_mcp.instructions.md referenced MCP tools that are not available in this environment. The repository wants the strictest possible authored-code posture without source-level lint suppressions, while still allowing idiomatic Option semantics and a narrow FFI-only unwind boundary. Constraints: AGENTS.md remains the non-negotiable root contract. Scoped instruction files may only tighten or specialize the root policy.",
+      "tags": [],
+      "href": "/adr/284-instruction-refresh-and-sonar-scope/"
+    },
+    {
+      "id": "adr/285-pr-19-review-and-lint-closeout",
+      "title": "PR 19 Review And Lint Closeout",
+      "summary": "Status: Accepted Date: 2026-04-06 Context: Motivation: PR 19 still had unresolved review feedback across workflow guardrails, shell hardening, repo documentation portability, and Rust test hygiene. The Check Lint workflow was failing in GitHub Actions, which blocked the rest of the CI fan-out and left SonarQube pending. The repository requires instruction, workflow, and ADR updates to land together whenever operational guardrails change. Constraints: AGENTS.md remains the root contract and just ci plus just ui-e2e remain the completion gates. Authored code cannot add lint suppressions, dead code, or panic-based production behavior. Workflow permissions must stay minimal except where reusable publishing jobs need",
+      "tags": [],
+      "href": "/adr/285-pr-19-review-and-lint-closeout/"
+    },
+    {
+      "id": "adr/286-advisory-rustsec-2026-0097",
+      "title": "Advisory RUSTSEC-2026-0097 Temporary Ignore",
+      "summary": "Status: Accepted Date: 2026-04-11 Context: cargo audit now fails on RUSTSEC-2026-0097, which flags rand 0.8.5 and 0.9.2 as unsound when paired with a custom logger using rand::rng(). Revaer does not pull the affected rand releases as first-party choices in this task. They currently arrive transitively via sqlx 0.9.0-alpha.1, opentelemetry/reqwest, and postgres-backed test support. The present dependency graph does not offer a clean, scoped in-repo upgrade path that removes the advisory without forcing a broader upstream dependency refresh into an unrelated PR. Decision: Add RUSTSEC-2026-0097 to .secignore and deny.toml as temporary, explicitly documented exceptions so both cargo audit and cargo deny",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/286-advisory-rustsec-2026-0097/"
+    },
+    {
+      "id": "adr/287-pr-19-policy-reconciliation",
+      "title": "PR 19 Policy Reconciliation",
+      "summary": "Status: Accepted Date: 2026-04-11 Context: PR 19 accumulated new review feedback because the Sonar-specific instruction file required full SHA action pins while the shared devops instruction required stable release tags. The conflicting rules created enforcement ambiguity for .github/workflows/sonar.yml and for scripts/workflow-guardrails.sh, which already validates the stable-tag policy. Decision: Keep one repo-wide workflow action versioning rule in .github/instructions/devops.instructions.md and make .github/instructions/sonarqube_mcp.instructions.md reference that shared rule instead of restating a different one. Update the PR description to match the actual stable-tag policy and current validation status instead of claiming SHA pinning or a still-blocked just ci. Consequences: Positive outcomes: Reviewers, workflow guardrails,",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/287-pr-19-policy-reconciliation/"
+    },
+    {
+      "id": "adr/288-pr-19-openapi-test-portability",
+      "title": "PR 19 OpenAPI test portability",
+      "summary": "Status: Accepted Date: 2026-04-11 Context: PR 19 still had one unresolved review thread on crates/revaer-api/src/openapi.rs. The affected test hard-coded a POSIX /tmp/openapi.json path, which is not portable across non-Unix targets and weakens the repo's cross-platform test posture. Decision: Replace the hard-coded POSIX path with std::env::temp_dir().join(OPENAPI_FILENAME) in the test that verifies OpenApiDependencies::embedded_at. Record the portability fix in an ADR and update the ADR indexes in the same change. Consequences: Positive outcomes: The test no longer assumes a Unix filesystem layout. The remaining actionable PR review thread is addressed with a minimal code change and no new dependencies. Risks or trade-offs: temp_dir()",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/288-pr-19-openapi-test-portability/"
+    },
+    {
+      "id": "adr/289-pr-19-native-settings-snapshot-test-stability",
+      "title": "PR 19 native settings snapshot test stability",
+      "summary": "Status: Accepted Date: 2026-04-12 Context: PR 19 CI failed in revaer-torrent-libt on adapter::tests::inspect_settings_returns_snapshot_from_worker. The failing assertions expected share_ratio_limit and seed_time_limit to be None, but the native GitHub Actions environment returned a ratio limit of Some(200). Those values come from libtorrent-native defaults rather than a Revaer-owned configuration invariant. Decision: Keep the test focused on stable wrapper behavior: retrieving a settings snapshot and preserving the listener/proxy fields that Revaer meaningfully constrains in this setup. Remove assertions on native default ratio/time limits because they are backend/environment dependent and not part of the contract this test needs to enforce. Consequences: Positive outcomes: The test",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/289-pr-19-native-settings-snapshot-test-stability/"
+    },
+    {
+      "id": "adr/290-pr-19-final-feedback-closeout",
+      "title": "PR 19 final feedback closeout",
+      "summary": "Status: Accepted Date: 2026-04-12 Context: PR 19 still had three unresolved review threads after the earlier policy and test updates landed. The remaining feedback covered composite-action input parsing, Sonar instruction scoping, and discoverability of the ADR-backed RustSec ignore. Decision: Tokenize apt-packages on general whitespace so YAML multiline input works the same as single-line input. Narrow the Sonar MCP instruction applyTo scope to Sonar-related files instead of the whole repository. Add an inline .secignore comment that points readers to ADR 286 and states the removal trigger for RUSTSEC-2026-0097. Consequences: Positive outcomes: Composite-action package input is more robust and matches common workflow",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/290-pr-19-final-feedback-closeout/"
+    },
+    {
+      "id": "adr/291-pr-19-sonar-quality-gate-restoration",
+      "title": "PR 19 Sonar quality gate restoration",
+      "summary": "Status: Accepted Date: 2026-04-12 Context: PR 19's SonarCloud quality gate failed on new-code security and duplication metrics even though the remaining non-Sonar CI checks were green. The security failure came from unit tests in crates/revaer-test-support/src/postgres.rs that embedded Postgres credentials in parsed fixture URLs. The duplication spike came from Rust test modules added in this branch, including crate-level tests/ trees and in-source tests.rs modules that Sonar was still treating as duplication-sensitive source files. Decision: Remove credentials from the postgres.rs fixture URLs because those tests only exercise database-path rewriting and do not need authentication fields. Exclude Rust test modules from Sonar copy-paste",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/291-pr-19-sonar-quality-gate-restoration/"
+    },
+    {
+      "id": "adr/292-pr-19-review-timeout-stability",
+      "title": "PR 19 review timeout stability",
+      "summary": "Status: Accepted Date: 2026-04-12 Context: PR 19 still had unresolved review feedback on a torrent-label test that waited only one second for an emitted settings event. That timeout is short enough to become flaky on contended CI runners even when the event bus behavior is correct. Decision: Increase the async event wait in crates/revaer-api/src/http/handlers/torrents/labels.rs from one second to five seconds. Keep the test structure otherwise unchanged because the event subscription contract is still the behavior under test. Consequences: Positive outcomes: The test is less sensitive to scheduler jitter and runner contention. The fix is narrowly scoped to the flaky wait",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/292-pr-19-review-timeout-stability/"
+    },
+    {
+      "id": "adr/293-pr-19-github-action-sha-pinning",
+      "title": "PR 19 GitHub Action SHA pinning",
+      "summary": "Status: Accepted Date: 2026-04-12 Context: PR 19's SonarCloud new-code gate still reported seven open security hotspots after the earlier test-fixture and duplication fixes landed. The remaining hotspots all came from external GitHub Action references in workflow files that were pinned only to release tags instead of immutable commit SHAs. Revaer's existing devops instruction and workflow guardrail still described stable release tags as the required policy, so Sonar and local repo policy had drifted apart. Decision: Pin the external GitHub Actions used in .github/workflows/build-images.yml, .github/workflows/ci.yml, .github/workflows/docs.yml, and .github/workflows/sonar.yml to the full upstream commit SHAs that correspond to the currently selected release",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/293-pr-19-github-action-sha-pinning/"
+    },
+    {
+      "id": "adr/294-pr-19-review-feedback-closeout",
+      "title": "PR 19 review feedback closeout",
+      "summary": "Status: Accepted Date: 2026-04-12 Context: PR 19 still had open review feedback after the workflow SHA pinning fix landed. The remaining comments asked for one structural cleanup in crates/revaer-api/src/app/indexers.rs, one docs-workflow toolchain alignment fix, one setup-action CRLF hardening fix, and an updated PR description that better reflects the current branch scope. Decision: Move the large #[cfg(test)] block out of crates/revaer-api/src/app/indexers.rs into crates/revaer-api/src/app/indexers/tests.rs and keep the production module to a small #[cfg(test)] mod tests; declaration. Align .github/workflows/docs.yml with the repository toolchain source of truth by using ${{ vars.RUST_TOOLCHAIN_VERSION }} instead of a hard-coded stable. Strip carriage returns during apt-packages normalization in",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/294-pr-19-review-feedback-closeout/"
+    },
+    {
       "id": "adr/index",
       "title": "ADRs",
       "summary": "Create a new ADR using the template in docs/adr/template.md. Give it a sequential identifier (e.g., 001, 002) and a concise title. Capture context, decision, consequences, and follow-up actions. Append the new ADR entry to the end of the Catalogue list above. Append the same entry under ADRs in docs/SUMMARY.md, keeping it nested so the sidebar stays collapsed. Reference ADRs from code comments or docs where the decision applies.",
@@ -2709,7 +2804,7 @@
     {
       "id": "api/guides/operations",
       "title": "Operational Setup & Security",
-      "summary": "Issue keys via settings changesets (SettingsChangeset::api_keys). { \"api_keys\": [ { \"op\": \"upsert\", \"key_id\": \"automation\", \"label\": \"ci\", \"secret\": \"<generated>\", \"rate_limit\": { \"burst\": 60, \"per_seconds\": 60 }, \"enabled\": true } ] } Secrets are hashed at rest. Rotate keys by supplying a new secret value. Disable keys with { \"op\": \"upsert\", \"key_id\": \"automation\", \"enabled\": false }. Remove keys with { \"op\": \"delete\", \"key_id\": \"automation\" }. All authenticated requests must include x-revaer-api-key: key_id:secret.",
+      "summary": "Issue keys via settings changesets (SettingsChangeset::api_keys). Secrets are hashed at rest. Rotate keys by supplying a new secret value. Disable keys with { \"op\": \"upsert\", \"key_id\": \"automation\", \"enabled\": false }. Remove keys with { \"op\": \"delete\", \"key_id\": \"automation\" }. All authenticated requests must include x-revaer-api-key: key_id:secret.",
       "tags": [
         "api-key-lifecycle",
         "docker-runtime",
@@ -2845,7 +2940,7 @@
     {
       "id": "platform/native-tests",
       "title": "Native Libtorrent Integration Tests",
-      "summary": "These tests are opt-in (gated by REVAER_NATIVE_IT) to keep the default matrix deterministic; include them explicitly in feature-matrix runs. To run the feature-gated native libtorrent integration suite locally: export DOCKER_HOST=${DOCKER_HOST:-unix:///Users/vanna/.colima/default/docker.sock} export REVAER_NATIVE_IT=1 just ci just test-native CI note: add a matrix job that sets REVAER_NATIVE_IT=1 and points DOCKER_HOST at the runner’s daemon to ensure the native path stays covered.",
+      "summary": "These tests are opt-in (gated by REVAER_NATIVE_IT) to keep the default matrix deterministic; include them explicitly in feature-matrix runs. To run the feature-gated native libtorrent integration suite locally: CI note: add a matrix job that sets REVAER_NATIVE_IT=1 and points DOCKER_HOST at the runner’s daemon to ensure the native path stays covered.",
       "tags": [],
       "href": "/platform/native-tests/"
     },

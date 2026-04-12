@@ -1,0 +1,460 @@
+<!DOCTYPE HTML>
+<html lang="en" class="rust sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>284: Instruction refresh and Sonar scope hardening - Revaer Documentation</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
+        <link rel="stylesheet" href="../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../css/general-2459343d.css">
+        <link rel="stylesheet" href="../css/chrome-ae938929.css">
+        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "rust";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "../searchindex-ee8e9e3b.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc-d1806bad.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('rust')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Revaer Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/VannaDii/revaer" title="Git repository" aria-label="Git repository">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="instruction-refresh-and-sonar-scope-hardening"><a class="header" href="#instruction-refresh-and-sonar-scope-hardening">Instruction Refresh And Sonar Scope Hardening</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-04-03</li>
+<li>Context:
+<ul>
+<li>Motivation:
+<ul>
+<li>The repository root instructions had drifted from the live <code>justfile</code>, CI workflows, and Sonar workflow.</li>
+<li>The previous instruction set mixed global invariants, stale repository snapshots, copied command bodies, UI layout details, and contradictory Rust guidance in one file.</li>
+<li>Sonar guidance in <code>.github/instructions/sonarqube_mcp.instructions.md</code> referenced MCP tools that are not available in this environment.</li>
+<li>The repository wants the strictest possible authored-code posture without source-level lint suppressions, while still allowing idiomatic <code>Option</code> semantics and a narrow FFI-only unwind boundary.</li>
+</ul>
+</li>
+<li>Constraints:
+<ul>
+<li><code>AGENTS.md</code> remains the non-negotiable root contract.</li>
+<li>Scoped instruction files may only tighten or specialize the root policy.</li>
+<li>Production and bootstrap code must remain deterministic and panic-free.</li>
+<li>CI and local quality gates must continue to run through <code>just</code>.</li>
+<li>Sonar must remain a blocking pull-request signal while reducing noise from generated and vendored assets.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Replace the stale monolithic <code>AGENTS.md</code> with a shorter root contract that defines:
+<ul>
+<li>prime directives</li>
+<li>policy precedence</li>
+<li>repository invariants</li>
+<li>authored-code quality posture</li>
+<li>quality-gate expectations</li>
+<li>task-record and drift-control rules</li>
+</ul>
+</li>
+<li>Add scoped instruction files under <code>.github/instructions/</code>:
+<ul>
+<li><code>rust.instructions.md</code></li>
+<li><code>revaer-data.instructions.md</code></li>
+<li><code>revaer-ui.instructions.md</code></li>
+<li><code>ffi.instructions.md</code></li>
+<li><code>devops.instructions.md</code></li>
+<li>refreshed <code>sonarqube_mcp.instructions.md</code></li>
+</ul>
+</li>
+<li>Keep maximum-strictness source posture:
+<ul>
+<li>no <code>#[allow(...)]</code> or <code>#[expect(...)]</code> in authored code</li>
+<li>no production or bootstrap panics</li>
+<li>no silent error suppression</li>
+<li>no relaxation of root policy from scoped files</li>
+</ul>
+</li>
+<li>Correct two contradictory rules only:
+<ul>
+<li>allow <code>Option&lt;T&gt;</code> for expected absence or partial-function semantics</li>
+<li>allow <code>catch_unwind</code> only at explicit FFI boundaries that prevent unwinds from crossing foreign ABIs</li>
+</ul>
+</li>
+<li>Version Sonar scope in <code>sonar-project.properties</code> and make it the source of truth for:
+<ul>
+<li>project identity</li>
+<li>first-party analysis scope</li>
+<li>coverage exclusions</li>
+<li>duplication exclusions</li>
+<li>new-code reference branch</li>
+</ul>
+</li>
+<li>Tighten workflow hygiene in live GitHub Actions files by:
+<ul>
+<li>pinning third-party actions to full SHAs with version comments</li>
+<li>removing direct interpolation of <code>${{ inputs.* }}</code> into the setup action shell script</li>
+<li>keeping Sonar scanner properties in <code>sonar-project.properties</code> instead of repeating them in workflow arguments</li>
+<li>reducing top-level CI permissions to the minimum shared baseline</li>
+</ul>
+</li>
+<li>Repair <code>just cov</code> validation logic so the per-crate coverage loop:
+<ul>
+<li>parses workspace members correctly</li>
+<li>extracts actual package names instead of the literal <code>\1</code></li>
+<li>reports the real coverage baseline instead of silently skipping per-crate enforcement</li>
+</ul>
+</li>
+<li>Increase <code>tests/.env</code> <code>E2E_HTTP_WAIT_SECONDS</code> from <code>180</code> to <code>600</code> so the required <code>just ui-e2e</code> gate can tolerate cold local <code>trunk serve</code> compile time instead of timing out before the UI is reachable</li>
+<li>Remove redundant crate-level <code>#![allow(clippy::multiple_crate_versions)]</code> attributes now that the temporary duplicate-crate exception already lives in <code>just lint</code> and ADR-backed repo policy instead of authored source.</li>
+<li>Remove the remaining FFI <code>#[allow(unsafe_code)]</code> attributes and replace them with a repo-level policy guardrail in <code>scripts/policy-guardrails.sh</code> that runs as part of <code>just lint</code>.</li>
+<li>Remove the CLI crate’s <code>#![allow(clippy::redundant_pub_crate)]</code> by making the internal module declarations private.</li>
+<li>Move <code>clippy::cargo</code> and <code>clippy::nursery</code> enforcement out of crate attributes and into <code>just lint</code> so the <code>multiple_crate_versions</code> and <code>redundant_pub_crate</code> exceptions remain centralized in the Justfile instead of source code.</li>
+<li>Add <code>scripts/instruction-drift-check.sh</code>, <code>just instruction-drift</code>, and dedicated <code>pr.yml</code> / <code>ci.yml</code> jobs that compare against the real base revision so workflow, Justfile, and Sonar configuration changes cannot land without touching the corresponding instruction files.</li>
+<li>Extend <code>scripts/policy-guardrails.sh</code> to reject authored <code>todo!()</code> and <code>unimplemented!()</code> stubs, and add a second production-target <code>cargo clippy</code> pass in <code>just lint</code> that forbids <code>panic!</code>, <code>unwrap()</code>, <code>expect()</code>, <code>unreachable!()</code>, <code>todo!()</code>, and <code>unimplemented!()</code> in workspace libs, bins, and examples without applying those restrictions to test targets.</li>
+<li>Extend <code>scripts/policy-guardrails.sh</code> to enforce the stored-procedure-only runtime DB rule by confining <code>sqlx::query*</code> usage to <code>crates/revaer-data/src</code> and rejecting inline DDL/DML text in authored Rust.</li>
+<li>Add <code>scripts/workflow-guardrails.sh</code> to <code>just lint</code> so workflow policy is checked mechanically: external GitHub actions must use full-SHA pins with version comments, and <code>${{ inputs.* }}</code> values may not be interpolated directly into <code>run:</code> blocks.</li>
+<li>Alternatives considered:
+<ul>
+<li>Keep the existing monolithic <code>AGENTS.md</code>: rejected because stale copied facts and contradictions were already undermining maintainability.</li>
+<li>Move all rules into scoped files: rejected because root invariants need a single canonical contract.</li>
+<li>Relax lint posture with <code>#[expect(...)]</code>: rejected because the repository explicitly requires zero source-level suppressions.</li>
+<li>Keep Sonar scanner arguments inline in the workflow: rejected because it would duplicate and eventually drift from the intended versioned scope file.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes:
+<ul>
+<li>Global policy now lives in one canonical place and domain-specific details are scoped by path.</li>
+<li>Contradictory Rust guidance is removed without weakening the repository’s strictness posture.</li>
+<li>Sonar scope and MCP guidance now match the actual project key, tooling, and desired first-party signal.</li>
+<li>Workflow security posture improves through full-SHA pinning and safer shell handling in the composite action.</li>
+<li>Coverage enforcement now reflects the true repository baseline instead of passing through broken shell parsing.</li>
+</ul>
+</li>
+<li>Risks and trade-offs:
+<ul>
+<li>More instruction files means future changes must update the correct scoped document or drift can return.</li>
+<li>Full-SHA action pinning requires periodic maintenance when upstream action versions are refreshed.</li>
+<li>Sonar exclusions require deliberate review if new generated or vendored paths are introduced.</li>
+<li>The repaired coverage gate currently blocks <code>just ci</code> because multiple existing crates remain below the documented 90% line-coverage threshold.</li>
+<li>The longer local HTTP wait budget makes <code>just ui-e2e</code> less eager to fail, but increases the time to surface genuine startup failures during a cold build.</li>
+<li>The new policy guardrail adds another early failure mode to <code>just lint</code>, but that is deliberate because it prevents source-level suppressions and out-of-scope unsafe code from quietly returning.</li>
+<li>The instruction-drift guard is only as good as its path-to-instruction mapping, so the script must evolve when new operational source-of-truth files are introduced.</li>
+<li>The production-only Clippy pass makes <code>just lint</code> slower, but it turns a previously documentary panic-free rule into a mechanical gate without forcing panic-free test code.</li>
+<li>The SQL guardrail is pattern-based, so any future operational exception must be explicit and the regexes must evolve with the real query surface.</li>
+<li>The workflow guardrail is YAML-pattern-based rather than schema-aware, so unusual workflow syntax may require future parser refinement.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Design notes:
+<ul>
+<li>Root policy stays intentionally short so it can remain accurate.</li>
+<li>Scoped files add path-specific constraints rather than restating global rules.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li>Validate formatting and YAML integrity with <code>just fmt</code> and <code>just lint</code>.</li>
+<li>Validate repository gates with <code>just ci</code>.</li>
+<li>Validate the required UI regression gate with <code>just ui-e2e</code>.</li>
+<li><code>just ui-e2e</code> now passes locally after increasing <code>E2E_HTTP_WAIT_SECONDS</code> to cover the initial <code>trunk serve</code> compile on a cold workspace.</li>
+<li><code>just lint</code> now validates both Clippy and the repo-specific policy guardrail script.</li>
+<li><code>just instruction-drift</code> now validates that Justfile/workflow/Sonar changes are paired with matching instruction-file updates.</li>
+<li><code>pr.yml</code> passes <code>github.event.pull_request.base.sha</code> and <code>github.event.pull_request.head.sha</code> into the drift check, while <code>ci.yml</code> passes <code>github.event.before</code> and <code>github.sha</code> for <code>main</code> pushes.</li>
+<li><code>just lint</code> now includes a production-only Clippy pass that rejects panic/stub patterns in libs, bins, and examples while leaving test targets out of scope.</li>
+<li><code>just lint</code> now also rejects <code>sqlx::query*</code> usage outside <code>crates/revaer-data/src</code> and catches inline DDL/DML text in authored Rust.</li>
+<li><code>just lint</code> now rejects unpinned external GitHub actions and direct <code>${{ inputs.* }}</code> interpolation inside workflow <code>run:</code> blocks.</li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>No runtime telemetry changed.</li>
+<li>Workflow visibility improves by centralizing Sonar scope and keeping scanner configuration versioned.</li>
+</ul>
+</li>
+<li>Risk and rollback plan:
+<ul>
+<li>Roll back by restoring the previous root instructions and removing the new scoped files if the instruction split proves unworkable.</li>
+<li>Workflow pinning and setup-action hardening can be reverted independently if an upstream action regression is discovered.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>No Rust dependencies were added.</li>
+<li>Third-party GitHub actions remain in use, but are now pinned to exact upstream commits to reduce supply-chain drift.</li>
+</ul>
+</li>
+<li>Stale-policy check:
+<ul>
+<li>Reviewed files:
+<ul>
+<li><code>AGENTS.md</code></li>
+<li><code>.github/instructions/*.instructions.md</code></li>
+<li><code>.github/actions/setup-revaer/action.yml</code></li>
+<li><code>.github/workflows/ci.yml</code></li>
+<li><code>.github/workflows/pr.yml</code></li>
+<li><code>.github/workflows/sonar.yml</code></li>
+<li><code>.github/workflows/docs.yml</code></li>
+<li><code>.github/workflows/build-images.yml</code></li>
+<li><code>justfile</code></li>
+<li><code>scripts/policy-guardrails.sh</code></li>
+<li><code>scripts/instruction-drift-check.sh</code></li>
+<li><code>tests/.env</code></li>
+<li><code>sonar-project.properties</code></li>
+</ul>
+</li>
+<li>Drift found:
+<ul>
+<li>stale copied command inventories and repository-shape snapshots in <code>AGENTS.md</code></li>
+<li>Sonar MCP instructions referencing unavailable tools</li>
+<li>Sonar workflow arguments duplicating scanner properties</li>
+<li>unpinned third-party GitHub actions</li>
+<li>direct <code>${{ inputs.* }}</code> shell interpolation in the setup composite action</li>
+<li>broken <code>just cov</code> workspace-member parsing and package-name extraction</li>
+<li>local UI E2E startup timeout budget that was shorter than a cold <code>trunk serve</code> compile</li>
+<li>redundant source-level <code>clippy::multiple_crate_versions</code> suppressions that duplicated the existing Justfile exception</li>
+<li>FFI <code>#[allow(unsafe_code)]</code> attributes that contradicted the new root policy</li>
+<li>CLI <code>redundant_pub_crate</code> suppression that was covering a simple module-visibility cleanup</li>
+<li><code>pub(crate)</code>-by-default style colliding with Clippy’s <code>redundant_pub_crate</code> heuristic, which is now handled centrally in <code>just lint</code> instead of per-crate source attributes</li>
+<li>a purely documentary instruction-drift rule with no mechanical enforcement</li>
+<li>a purely documentary panic-free/stub-free production policy with no dedicated lint enforcement</li>
+<li>a purely documentary stored-procedure-only runtime SQL rule with no dedicated lint enforcement</li>
+<li>documentary-only workflow pinning and shell-safety rules that depended on reviewers noticing YAML mistakes</li>
+</ul>
+</li>
+<li>Contradictions removed:
+<ul>
+<li>blanket <code>Option</code> ban versus legitimate absence semantics</li>
+<li>blanket <code>catch_unwind</code> ban versus FFI boundary containment requirements</li>
+<li>stale root references that no longer matched the active <code>justfile</code> and workflow files</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../adr/283-pr-21-trivy-action-pin-refresh.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+                            <a rel="next prefetch" href="../adr/285-pr-19-review-and-lint-closeout.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../adr/283-pr-21-trivy-action-pin-refresh.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+                    <a rel="next prefetch" href="../adr/285-pr-19-review-and-lint-closeout.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../mark-09e88c2c.min.js"></script>
+        <script src="../searcher-c2a407aa.js"></script>
+
+        <script src="../clipboard-1626706a.min.js"></script>
+        <script src="../highlight-abc7f01d.js"></script>
+        <script src="../book-a0b12cfe.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../mermaid-eefea253.min.js"></script>
+        <script src="../mermaid-init-ccf746f1.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

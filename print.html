@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "searchindex-1492387e.js";
+            window.path_to_searchindex_js = "searchindex-ee8e9e3b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-db012d23.js"></script>
+        <script src="toc-d1806bad.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1567,6 +1567,17 @@ just test-native
 <li><a href="#pr-21-sonar-and-review-closeout">281</a> – PR 21 Sonar and review closeout</li>
 <li><a href="#pr-21-final-feedback-closeout">282</a> – PR 21 final feedback closeout</li>
 <li><a href="#pr-21-trivy-action-pin-refresh">283</a> – PR 21 Trivy action pin refresh</li>
+<li><a href="#instruction-refresh-and-sonar-scope-hardening">284</a> – Instruction refresh and Sonar scope hardening</li>
+<li><a href="#pr-19-review-and-lint-closeout">285</a> – PR 19 review and lint closeout</li>
+<li><a href="#advisory-rustsec-2026-0097-temporary-ignore">286</a> – Advisory RUSTSEC-2026-0097 temporary ignore</li>
+<li><a href="#pr-19-policy-reconciliation">287</a> – PR 19 policy reconciliation</li>
+<li><a href="#pr-19-openapi-test-portability">288</a> – PR 19 OpenAPI test portability</li>
+<li><a href="#pr-19-native-settings-snapshot-test-stability">289</a> – PR 19 native settings snapshot test stability</li>
+<li><a href="#pr-19-final-feedback-closeout">290</a> – PR 19 final feedback closeout</li>
+<li><a href="#pr-19-sonar-quality-gate-restoration">291</a> – PR 19 Sonar quality gate restoration</li>
+<li><a href="#pr-19-review-timeout-stability">292</a> – PR 19 review timeout stability</li>
+<li><a href="#pr-19-github-action-sha-pinning">293</a> – PR 19 GitHub Action SHA pinning</li>
+<li><a href="#pr-19-review-feedback-closeout">294</a> – PR 19 review feedback closeout</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 ADR="" Title="" id=""><a class="header" href="#"></a></h1>
@@ -16937,6 +16948,1401 @@ if limits are too strict.</li>
 <ul>
 <li>No new dependencies were added.</li>
 <li>Updating the existing pinned action was preferred over embedding custom Trivy installation logic or disabling image scanning.</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="instruction-refresh-and-sonar-scope-hardening"><a class="header" href="#instruction-refresh-and-sonar-scope-hardening">Instruction Refresh And Sonar Scope Hardening</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-04-03</li>
+<li>Context:
+<ul>
+<li>Motivation:
+<ul>
+<li>The repository root instructions had drifted from the live <code>justfile</code>, CI workflows, and Sonar workflow.</li>
+<li>The previous instruction set mixed global invariants, stale repository snapshots, copied command bodies, UI layout details, and contradictory Rust guidance in one file.</li>
+<li>Sonar guidance in <code>.github/instructions/sonarqube_mcp.instructions.md</code> referenced MCP tools that are not available in this environment.</li>
+<li>The repository wants the strictest possible authored-code posture without source-level lint suppressions, while still allowing idiomatic <code>Option</code> semantics and a narrow FFI-only unwind boundary.</li>
+</ul>
+</li>
+<li>Constraints:
+<ul>
+<li><code>AGENTS.md</code> remains the non-negotiable root contract.</li>
+<li>Scoped instruction files may only tighten or specialize the root policy.</li>
+<li>Production and bootstrap code must remain deterministic and panic-free.</li>
+<li>CI and local quality gates must continue to run through <code>just</code>.</li>
+<li>Sonar must remain a blocking pull-request signal while reducing noise from generated and vendored assets.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Replace the stale monolithic <code>AGENTS.md</code> with a shorter root contract that defines:
+<ul>
+<li>prime directives</li>
+<li>policy precedence</li>
+<li>repository invariants</li>
+<li>authored-code quality posture</li>
+<li>quality-gate expectations</li>
+<li>task-record and drift-control rules</li>
+</ul>
+</li>
+<li>Add scoped instruction files under <code>.github/instructions/</code>:
+<ul>
+<li><code>rust.instructions.md</code></li>
+<li><code>revaer-data.instructions.md</code></li>
+<li><code>revaer-ui.instructions.md</code></li>
+<li><code>ffi.instructions.md</code></li>
+<li><code>devops.instructions.md</code></li>
+<li>refreshed <code>sonarqube_mcp.instructions.md</code></li>
+</ul>
+</li>
+<li>Keep maximum-strictness source posture:
+<ul>
+<li>no <code>#[allow(...)]</code> or <code>#[expect(...)]</code> in authored code</li>
+<li>no production or bootstrap panics</li>
+<li>no silent error suppression</li>
+<li>no relaxation of root policy from scoped files</li>
+</ul>
+</li>
+<li>Correct two contradictory rules only:
+<ul>
+<li>allow <code>Option&lt;T&gt;</code> for expected absence or partial-function semantics</li>
+<li>allow <code>catch_unwind</code> only at explicit FFI boundaries that prevent unwinds from crossing foreign ABIs</li>
+</ul>
+</li>
+<li>Version Sonar scope in <code>sonar-project.properties</code> and make it the source of truth for:
+<ul>
+<li>project identity</li>
+<li>first-party analysis scope</li>
+<li>coverage exclusions</li>
+<li>duplication exclusions</li>
+<li>new-code reference branch</li>
+</ul>
+</li>
+<li>Tighten workflow hygiene in live GitHub Actions files by:
+<ul>
+<li>pinning third-party actions to full SHAs with version comments</li>
+<li>removing direct interpolation of <code>${{ inputs.* }}</code> into the setup action shell script</li>
+<li>keeping Sonar scanner properties in <code>sonar-project.properties</code> instead of repeating them in workflow arguments</li>
+<li>reducing top-level CI permissions to the minimum shared baseline</li>
+</ul>
+</li>
+<li>Repair <code>just cov</code> validation logic so the per-crate coverage loop:
+<ul>
+<li>parses workspace members correctly</li>
+<li>extracts actual package names instead of the literal <code>\1</code></li>
+<li>reports the real coverage baseline instead of silently skipping per-crate enforcement</li>
+</ul>
+</li>
+<li>Increase <code>tests/.env</code> <code>E2E_HTTP_WAIT_SECONDS</code> from <code>180</code> to <code>600</code> so the required <code>just ui-e2e</code> gate can tolerate cold local <code>trunk serve</code> compile time instead of timing out before the UI is reachable</li>
+<li>Remove redundant crate-level <code>#![allow(clippy::multiple_crate_versions)]</code> attributes now that the temporary duplicate-crate exception already lives in <code>just lint</code> and ADR-backed repo policy instead of authored source.</li>
+<li>Remove the remaining FFI <code>#[allow(unsafe_code)]</code> attributes and replace them with a repo-level policy guardrail in <code>scripts/policy-guardrails.sh</code> that runs as part of <code>just lint</code>.</li>
+<li>Remove the CLI crate’s <code>#![allow(clippy::redundant_pub_crate)]</code> by making the internal module declarations private.</li>
+<li>Move <code>clippy::cargo</code> and <code>clippy::nursery</code> enforcement out of crate attributes and into <code>just lint</code> so the <code>multiple_crate_versions</code> and <code>redundant_pub_crate</code> exceptions remain centralized in the Justfile instead of source code.</li>
+<li>Add <code>scripts/instruction-drift-check.sh</code>, <code>just instruction-drift</code>, and dedicated <code>pr.yml</code> / <code>ci.yml</code> jobs that compare against the real base revision so workflow, Justfile, and Sonar configuration changes cannot land without touching the corresponding instruction files.</li>
+<li>Extend <code>scripts/policy-guardrails.sh</code> to reject authored <code>todo!()</code> and <code>unimplemented!()</code> stubs, and add a second production-target <code>cargo clippy</code> pass in <code>just lint</code> that forbids <code>panic!</code>, <code>unwrap()</code>, <code>expect()</code>, <code>unreachable!()</code>, <code>todo!()</code>, and <code>unimplemented!()</code> in workspace libs, bins, and examples without applying those restrictions to test targets.</li>
+<li>Extend <code>scripts/policy-guardrails.sh</code> to enforce the stored-procedure-only runtime DB rule by confining <code>sqlx::query*</code> usage to <code>crates/revaer-data/src</code> and rejecting inline DDL/DML text in authored Rust.</li>
+<li>Add <code>scripts/workflow-guardrails.sh</code> to <code>just lint</code> so workflow policy is checked mechanically: external GitHub actions must use full-SHA pins with version comments, and <code>${{ inputs.* }}</code> values may not be interpolated directly into <code>run:</code> blocks.</li>
+<li>Alternatives considered:
+<ul>
+<li>Keep the existing monolithic <code>AGENTS.md</code>: rejected because stale copied facts and contradictions were already undermining maintainability.</li>
+<li>Move all rules into scoped files: rejected because root invariants need a single canonical contract.</li>
+<li>Relax lint posture with <code>#[expect(...)]</code>: rejected because the repository explicitly requires zero source-level suppressions.</li>
+<li>Keep Sonar scanner arguments inline in the workflow: rejected because it would duplicate and eventually drift from the intended versioned scope file.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes:
+<ul>
+<li>Global policy now lives in one canonical place and domain-specific details are scoped by path.</li>
+<li>Contradictory Rust guidance is removed without weakening the repository’s strictness posture.</li>
+<li>Sonar scope and MCP guidance now match the actual project key, tooling, and desired first-party signal.</li>
+<li>Workflow security posture improves through full-SHA pinning and safer shell handling in the composite action.</li>
+<li>Coverage enforcement now reflects the true repository baseline instead of passing through broken shell parsing.</li>
+</ul>
+</li>
+<li>Risks and trade-offs:
+<ul>
+<li>More instruction files means future changes must update the correct scoped document or drift can return.</li>
+<li>Full-SHA action pinning requires periodic maintenance when upstream action versions are refreshed.</li>
+<li>Sonar exclusions require deliberate review if new generated or vendored paths are introduced.</li>
+<li>The repaired coverage gate currently blocks <code>just ci</code> because multiple existing crates remain below the documented 90% line-coverage threshold.</li>
+<li>The longer local HTTP wait budget makes <code>just ui-e2e</code> less eager to fail, but increases the time to surface genuine startup failures during a cold build.</li>
+<li>The new policy guardrail adds another early failure mode to <code>just lint</code>, but that is deliberate because it prevents source-level suppressions and out-of-scope unsafe code from quietly returning.</li>
+<li>The instruction-drift guard is only as good as its path-to-instruction mapping, so the script must evolve when new operational source-of-truth files are introduced.</li>
+<li>The production-only Clippy pass makes <code>just lint</code> slower, but it turns a previously documentary panic-free rule into a mechanical gate without forcing panic-free test code.</li>
+<li>The SQL guardrail is pattern-based, so any future operational exception must be explicit and the regexes must evolve with the real query surface.</li>
+<li>The workflow guardrail is YAML-pattern-based rather than schema-aware, so unusual workflow syntax may require future parser refinement.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Design notes:
+<ul>
+<li>Root policy stays intentionally short so it can remain accurate.</li>
+<li>Scoped files add path-specific constraints rather than restating global rules.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li>Validate formatting and YAML integrity with <code>just fmt</code> and <code>just lint</code>.</li>
+<li>Validate repository gates with <code>just ci</code>.</li>
+<li>Validate the required UI regression gate with <code>just ui-e2e</code>.</li>
+<li><code>just ui-e2e</code> now passes locally after increasing <code>E2E_HTTP_WAIT_SECONDS</code> to cover the initial <code>trunk serve</code> compile on a cold workspace.</li>
+<li><code>just lint</code> now validates both Clippy and the repo-specific policy guardrail script.</li>
+<li><code>just instruction-drift</code> now validates that Justfile/workflow/Sonar changes are paired with matching instruction-file updates.</li>
+<li><code>pr.yml</code> passes <code>github.event.pull_request.base.sha</code> and <code>github.event.pull_request.head.sha</code> into the drift check, while <code>ci.yml</code> passes <code>github.event.before</code> and <code>github.sha</code> for <code>main</code> pushes.</li>
+<li><code>just lint</code> now includes a production-only Clippy pass that rejects panic/stub patterns in libs, bins, and examples while leaving test targets out of scope.</li>
+<li><code>just lint</code> now also rejects <code>sqlx::query*</code> usage outside <code>crates/revaer-data/src</code> and catches inline DDL/DML text in authored Rust.</li>
+<li><code>just lint</code> now rejects unpinned external GitHub actions and direct <code>${{ inputs.* }}</code> interpolation inside workflow <code>run:</code> blocks.</li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>No runtime telemetry changed.</li>
+<li>Workflow visibility improves by centralizing Sonar scope and keeping scanner configuration versioned.</li>
+</ul>
+</li>
+<li>Risk and rollback plan:
+<ul>
+<li>Roll back by restoring the previous root instructions and removing the new scoped files if the instruction split proves unworkable.</li>
+<li>Workflow pinning and setup-action hardening can be reverted independently if an upstream action regression is discovered.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>No Rust dependencies were added.</li>
+<li>Third-party GitHub actions remain in use, but are now pinned to exact upstream commits to reduce supply-chain drift.</li>
+</ul>
+</li>
+<li>Stale-policy check:
+<ul>
+<li>Reviewed files:
+<ul>
+<li><code>AGENTS.md</code></li>
+<li><code>.github/instructions/*.instructions.md</code></li>
+<li><code>.github/actions/setup-revaer/action.yml</code></li>
+<li><code>.github/workflows/ci.yml</code></li>
+<li><code>.github/workflows/pr.yml</code></li>
+<li><code>.github/workflows/sonar.yml</code></li>
+<li><code>.github/workflows/docs.yml</code></li>
+<li><code>.github/workflows/build-images.yml</code></li>
+<li><code>justfile</code></li>
+<li><code>scripts/policy-guardrails.sh</code></li>
+<li><code>scripts/instruction-drift-check.sh</code></li>
+<li><code>tests/.env</code></li>
+<li><code>sonar-project.properties</code></li>
+</ul>
+</li>
+<li>Drift found:
+<ul>
+<li>stale copied command inventories and repository-shape snapshots in <code>AGENTS.md</code></li>
+<li>Sonar MCP instructions referencing unavailable tools</li>
+<li>Sonar workflow arguments duplicating scanner properties</li>
+<li>unpinned third-party GitHub actions</li>
+<li>direct <code>${{ inputs.* }}</code> shell interpolation in the setup composite action</li>
+<li>broken <code>just cov</code> workspace-member parsing and package-name extraction</li>
+<li>local UI E2E startup timeout budget that was shorter than a cold <code>trunk serve</code> compile</li>
+<li>redundant source-level <code>clippy::multiple_crate_versions</code> suppressions that duplicated the existing Justfile exception</li>
+<li>FFI <code>#[allow(unsafe_code)]</code> attributes that contradicted the new root policy</li>
+<li>CLI <code>redundant_pub_crate</code> suppression that was covering a simple module-visibility cleanup</li>
+<li><code>pub(crate)</code>-by-default style colliding with Clippy’s <code>redundant_pub_crate</code> heuristic, which is now handled centrally in <code>just lint</code> instead of per-crate source attributes</li>
+<li>a purely documentary instruction-drift rule with no mechanical enforcement</li>
+<li>a purely documentary panic-free/stub-free production policy with no dedicated lint enforcement</li>
+<li>a purely documentary stored-procedure-only runtime SQL rule with no dedicated lint enforcement</li>
+<li>documentary-only workflow pinning and shell-safety rules that depended on reviewers noticing YAML mistakes</li>
+</ul>
+</li>
+<li>Contradictions removed:
+<ul>
+<li>blanket <code>Option</code> ban versus legitimate absence semantics</li>
+<li>blanket <code>catch_unwind</code> ban versus FFI boundary containment requirements</li>
+<li>stale root references that no longer matched the active <code>justfile</code> and workflow files</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="pr-19-review-and-lint-closeout"><a class="header" href="#pr-19-review-and-lint-closeout">PR 19 Review And Lint Closeout</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-04-06</li>
+<li>Context:
+<ul>
+<li>Motivation:
+<ul>
+<li>PR 19 still had unresolved review feedback across workflow guardrails, shell hardening, repo documentation portability, and Rust test hygiene.</li>
+<li>The <code>Check Lint</code> workflow was failing in GitHub Actions, which blocked the rest of the CI fan-out and left <code>SonarQube</code> pending.</li>
+<li>The repository requires instruction, workflow, and ADR updates to land together whenever operational guardrails change.</li>
+</ul>
+</li>
+<li>Constraints:
+<ul>
+<li><code>AGENTS.md</code> remains the root contract and <code>just ci</code> plus <code>just ui-e2e</code> remain the completion gates.</li>
+<li>Authored code cannot add lint suppressions, dead code, or panic-based production behavior.</li>
+<li>Workflow permissions must stay minimal except where reusable publishing jobs need explicit elevation.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Address the open PR review feedback by:
+<ul>
+<li>moving external GitHub action references back to explicit latest stable release tags instead of commit SHAs</li>
+<li>switching <code>AGENTS.md</code> links from machine-local absolute paths to repo-relative links</li>
+<li>extending instruction-drift matching to recurse through <code>.github/actions/**</code>, <code>.github/workflows/**</code>, and <code>release/**</code></li>
+<li>hardening the setup composite action package validation to reject leading-dash tokens, permit deterministic <code>apt</code> version pins, and pass <code>--</code> to <code>apt-get install</code></li>
+<li>restoring <code>packages: write</code> on the <code>build-images</code> caller job in <code>ci.yml</code></li>
+<li>deleting the large commented-out dead block from <code>crates/revaer-api/src/http/handlers/indexers/policies.rs</code></li>
+<li>deleting the large commented-out legacy scaffolding block from <code>crates/revaer-api/src/http/handlers/indexers/search_profiles.rs</code></li>
+<li>gating the bootstrap non-Unicode env test through cross-platform helper functions instead of Unix-only imports</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Fix the current lint failures by:
+<ul>
+<li>boxing <code>run_bootstrap_services(...)</code> futures at the call sites that tripped <code>clippy::large_futures</code></li>
+<li>replacing pass-by-value backup-error wrappers with direct closure-based mappings</li>
+<li>splitting the backup helper assertion test so it stays under the file’s <code>too_many_lines</code> limit</li>
+<li>making <code>scripts/policy-guardrails.sh</code> robust when <code>rg</code> is unavailable, while also handling whitespace in <code>allow/expect</code> attributes and case-insensitive inline SQL scanning</li>
+</ul>
+</li>
+<li>Fix the <code>just ci</code> coverage failure by:
+<ul>
+<li>switching <code>just cov</code> to collect one workspace-wide <code>cargo llvm-cov</code> dataset and then enforce the per-package 90% line gate from <code>cargo llvm-cov report --package ...</code></li>
+<li>adding targeted <code>revaer-test-support</code> URL-shaping tests so the helper crate keeps meaningful direct coverage of its pure utility paths</li>
+</ul>
+</li>
+<li>Update the matching instruction files to reflect the recursive drift coverage, reusable workflow permission requirement, and portable guardrail behavior.</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes:
+<ul>
+<li>PR review feedback is reflected in live code and documentation instead of being left as open drift.</li>
+<li>The lint gate no longer depends on <code>rg</code> being present in the runner image.</li>
+<li>The coverage gate now measures each crate against the same workspace execution graph that actually exercises the libraries in CI.</li>
+<li>Bootstrap tests compile on non-Unix targets without weakening the env-validation behavior under test.</li>
+<li>The image publishing path keeps the minimal permission model while preserving the one scope GHCR pushes require.</li>
+<li>Workflow references stay readable and track the latest stable upstream tags, matching the current repository policy.</li>
+</ul>
+</li>
+<li>Risks and trade-offs:
+<ul>
+<li>The policy guardrail still relies on pattern matching, so future language-surface changes may require another regex update.</li>
+<li>Boxing the bootstrap future trades a small heap allocation for a deterministic lint-clean boundary.</li>
+<li>Review-thread replies document what changed, but GitHub may still show threads as unresolved until a maintainer marks them resolved in the UI.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Design notes:
+<ul>
+<li>The shell guardrail fallback uses tracked Rust files from <code>git ls-files</code> so the same exclusion rules apply whether <code>rg</code> is installed or not.</li>
+<li>The backup error call sites now map borrowed errors inline, which keeps the behavior unchanged while satisfying Clippy’s pass-by-value rule.</li>
+<li><code>just cov</code> still reports per-package thresholds, but it now does so from one shared workspace profile run so downstream integration coverage is preserved for library crates.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li><code>just ci</code></li>
+<li><code>just ui-e2e</code></li>
+<li><code>gh pr checks 19</code></li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>No runtime telemetry changed.</li>
+<li>CI observability improves because the blocked lint stage now reports actual policy failures instead of missing-tool noise.</li>
+</ul>
+</li>
+<li>Risk and rollback plan:
+<ul>
+<li>Roll back by reverting the shell/workflow guardrail changes and the related lint fixes if they produce unexpected CI regressions.</li>
+<li>The workflow permission change can be reverted independently if image publishing responsibilities move out of the reusable workflow.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>No Rust dependencies were added.</li>
+<li>No new third-party GitHub actions were introduced.</li>
+<li>Existing third-party GitHub action references moved from SHAs back to explicit stable release tags by repo policy.</li>
+</ul>
+</li>
+<li>Stale-policy check:
+<ul>
+<li>Reviewed files:
+<ul>
+<li><code>AGENTS.md</code></li>
+<li><code>.github/instructions/rust.instructions.md</code></li>
+<li><code>.github/instructions/devops.instructions.md</code></li>
+<li><code>.github/workflows/ci.yml</code></li>
+<li><code>.github/actions/setup-revaer/action.yml</code></li>
+<li><code>.github/workflows/sonar.yml</code></li>
+<li><code>scripts/instruction-drift-check.sh</code></li>
+<li><code>scripts/policy-guardrails.sh</code></li>
+<li><code>scripts/workflow-guardrails.sh</code></li>
+<li><code>justfile</code></li>
+</ul>
+</li>
+<li>Drift found:
+<ul>
+<li>machine-local absolute links in <code>AGENTS.md</code></li>
+<li>non-recursive drift coverage wording for action and release paths</li>
+<li>missing caller-side workflow permission guidance for image publishing</li>
+<li>lint guardrails that assumed <code>rg</code> was always installed</li>
+<li>workflow instructions that still required SHA-pinned action refs after the repository moved back to stable version tags</li>
+</ul>
+</li>
+<li>Contradictions removed:
+<ul>
+<li>a documented hard guardrail that silently no-op’d when <code>rg</code> was missing</li>
+<li>workflow permission minimization that accidentally removed the one publishing scope the reusable workflow still required</li>
+<li>a workflow pinning rule that no longer matched the repository’s current action-version policy</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="advisory-rustsec-2026-0097-temporary-ignore"><a class="header" href="#advisory-rustsec-2026-0097-temporary-ignore">Advisory RUSTSEC-2026-0097 Temporary Ignore</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-04-11</li>
+<li>Context:
+<ul>
+<li><code>cargo audit</code> now fails on <code>RUSTSEC-2026-0097</code>, which flags <code>rand</code> 0.8.5 and 0.9.2 as unsound when paired with a custom logger using <code>rand::rng()</code>.</li>
+<li>Revaer does not pull the affected <code>rand</code> releases as first-party choices in this task. They currently arrive transitively via <code>sqlx</code> 0.9.0-alpha.1, <code>opentelemetry</code>/<code>reqwest</code>, and <code>postgres</code>-backed test support.</li>
+<li>The present dependency graph does not offer a clean, scoped in-repo upgrade path that removes the advisory without forcing a broader upstream dependency refresh into an unrelated PR.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Add <code>RUSTSEC-2026-0097</code> to <code>.secignore</code> and <code>deny.toml</code> as temporary, explicitly documented exceptions so both <code>cargo audit</code> and <code>cargo deny</code> can continue enforcing the rest of the repository gates.</li>
+<li>Remove the ignore once upstream crates publish and adopt non-affected <code>rand</code> releases.</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes:
+<ul>
+<li><code>cargo audit</code>, <code>cargo deny</code>, and therefore <code>just ci</code> can pass again without weakening source-level lint, test, or runtime guardrails.</li>
+<li>The exception remains visible in versioned policy artifacts instead of becoming an implicit local workaround.</li>
+</ul>
+</li>
+<li>Risks and trade-offs:
+<ul>
+<li>The affected transitive <code>rand</code> versions remain in the graph temporarily.</li>
+<li>Clearing the ignore later will require a coordinated dependency refresh across the <code>sqlx</code>, telemetry, and test-support edges.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Track <code>sqlx</code>, <code>opentelemetry</code>, <code>reqwest</code>, and <code>postgres</code> release notes for dependency graph updates that remove <code>rand</code> 0.8.5 and 0.9.2.</li>
+<li>Delete the <code>.secignore</code> entry and this ADR exception rationale once the workspace can adopt fixed upstream versions cleanly.</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record-66"><a class="header" href="#task-record-66">Task Record</a></h2>
+<ul>
+<li>Motivation:
+<ul>
+<li>PR 19 is blocked by the <code>cargo audit</code> step inside <code>just ci</code>, and the newly published advisory is unrelated to the instruction-refresh code under review.</li>
+</ul>
+</li>
+<li>Design notes:
+<ul>
+<li>The fix stays limited to the repository’s existing advisory-exception mechanisms in <code>.secignore</code> and <code>deny.toml</code> instead of forcing risky dependency churn into an unrelated CI recovery task.</li>
+<li>No runtime behavior, stored procedures, or source-level lint posture changed.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li><code>just audit</code></li>
+<li><code>just deny</code></li>
+<li><code>just ui-e2e</code></li>
+<li><code>just ci</code> rerun after the advisory exception update</li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>None. This change only affects dependency-audit policy.</li>
+</ul>
+</li>
+<li>Status-doc validation:
+<ul>
+<li><code>docs/adr/index.md</code> and <code>docs/SUMMARY.md</code> were updated to include this ADR.</li>
+<li>No README, roadmap, or operator guide changes were required because runtime behavior is unchanged.</li>
+</ul>
+</li>
+<li>Risk &amp; rollback plan:
+<ul>
+<li>Risk: the workspace temporarily keeps vulnerable transitive <code>rand</code> versions until upstream crates publish compatible fixes.</li>
+<li>Rollback: delete the <code>.secignore</code> and <code>deny.toml</code> entries and revert this ADR once the dependency graph no longer resolves to the affected versions.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>No new dependencies were added.</li>
+<li>Avoided forcing opportunistic upgrades of <code>sqlx</code>, <code>opentelemetry</code>, <code>reqwest</code>, or <code>postgres</code> in a PR whose scope is CI recovery.</li>
+</ul>
+</li>
+<li>Stale-policy check:
+<ul>
+<li>Reviewed files:
+<ul>
+<li><code>AGENTS.md</code></li>
+<li><code>.github/instructions/rust.instructions.md</code></li>
+<li><code>.secignore</code></li>
+<li><code>justfile</code></li>
+<li><code>docs/adr/template.md</code></li>
+</ul>
+</li>
+<li>Drift found:
+<ul>
+<li>The advisory-exception ledger was missing the newly published <code>RUSTSEC-2026-0097</code> entry even though <code>cargo audit</code> and <code>cargo deny</code> had started enforcing it.</li>
+</ul>
+</li>
+<li>Contradictions removed:
+<ul>
+<li>None. This change extends the existing ADR-backed advisory-ignore pattern already used by the repository.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="pr-19-policy-reconciliation"><a class="header" href="#pr-19-policy-reconciliation">PR 19 Policy Reconciliation</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-04-11</li>
+<li>Context:
+<ul>
+<li>PR 19 accumulated new review feedback because the Sonar-specific instruction file required full SHA action pins while the shared devops instruction required stable release tags.</li>
+<li>The conflicting rules created enforcement ambiguity for <code>.github/workflows/sonar.yml</code> and for <code>scripts/workflow-guardrails.sh</code>, which already validates the stable-tag policy.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Keep one repo-wide workflow action versioning rule in <code>.github/instructions/devops.instructions.md</code> and make <code>.github/instructions/sonarqube_mcp.instructions.md</code> reference that shared rule instead of restating a different one.</li>
+<li>Update the PR description to match the actual stable-tag policy and current validation status instead of claiming SHA pinning or a still-blocked <code>just ci</code>.</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes:
+<ul>
+<li>Reviewers, workflow guardrails, and Sonar guidance now point at the same action-versioning policy.</li>
+<li>PR 19 no longer describes stale validation status or a policy the branch does not implement.</li>
+</ul>
+</li>
+<li>Risks or trade-offs:
+<ul>
+<li>The repository continues to prefer stable release tags over full SHAs for external action references.</li>
+<li>If Revaer later adopts SHA pinning, the devops rule, guardrail script, and workflow refs will need one coordinated update.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Keep Sonar-specific guidance focused on Sonar behavior and scope rather than duplicating global workflow policy.</li>
+<li>Revisit the action versioning policy only as a single repo-wide change spanning instructions, guardrails, and workflow refs.</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record-67"><a class="header" href="#task-record-67">Task Record</a></h2>
+<ul>
+<li>Motivation:
+<ul>
+<li>Three unresolved PR review threads were blocked on contradictory instruction text and a stale PR description.</li>
+</ul>
+</li>
+<li>Design notes:
+<ul>
+<li>The fix preserves the existing stable-tag enforcement implemented by <code>scripts/workflow-guardrails.sh</code> instead of switching one workflow to a different policy.</li>
+<li>The Sonar-specific instruction now references the devops rule so there is one canonical statement for external action versioning.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li><code>just lint</code></li>
+<li><code>just instruction-drift</code></li>
+<li>Existing green validation on this branch remained:
+<ul>
+<li><code>just ci</code></li>
+<li><code>just ui-e2e</code></li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>None. This change only affects repository policy documentation and PR metadata.</li>
+</ul>
+</li>
+<li>Status-doc validation:
+<ul>
+<li><code>docs/adr/index.md</code> and <code>docs/SUMMARY.md</code> were updated for this ADR.</li>
+<li>The PR description was updated to match repository truth for action versioning and validation status.</li>
+</ul>
+</li>
+<li>Risk &amp; rollback plan:
+<ul>
+<li>Risk: reviewers who prefer SHA pinning may still disagree with the stable-tag policy, but the repo rules are now internally consistent.</li>
+<li>Rollback: revert this ADR and the Sonar instruction update, then perform one coordinated repo-wide action-versioning migration if policy changes.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>No new dependencies were added.</li>
+</ul>
+</li>
+<li>Stale-policy check:
+<ul>
+<li>Reviewed files:
+<ul>
+<li><code>AGENTS.md</code></li>
+<li><code>.github/instructions/devops.instructions.md</code></li>
+<li><code>.github/instructions/sonarqube_mcp.instructions.md</code></li>
+<li><code>scripts/workflow-guardrails.sh</code></li>
+<li><code>.github/workflows/sonar.yml</code></li>
+</ul>
+</li>
+<li>Drift found:
+<ul>
+<li>The Sonar-specific instruction contradicted the shared devops action-versioning rule.</li>
+<li>The PR description still claimed SHA pinning and a blocked <code>just ci</code> state after the branch had moved to stable tags and green CI.</li>
+</ul>
+</li>
+<li>Contradictions removed:
+<ul>
+<li>Removed the Sonar-only full-SHA instruction in favor of the shared devops rule.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="pr-19-openapi-test-portability"><a class="header" href="#pr-19-openapi-test-portability">PR 19 OpenAPI test portability</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-04-11</li>
+<li>Context:
+<ul>
+<li>PR 19 still had one unresolved review thread on <code>crates/revaer-api/src/openapi.rs</code>.</li>
+<li>The affected test hard-coded a POSIX <code>/tmp/openapi.json</code> path, which is not portable across non-Unix targets and weakens the repo’s cross-platform test posture.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Replace the hard-coded POSIX path with <code>std::env::temp_dir().join(OPENAPI_FILENAME)</code> in the test that verifies <code>OpenApiDependencies::embedded_at</code>.</li>
+<li>Record the portability fix in an ADR and update the ADR indexes in the same change.</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes:
+<ul>
+<li>The test no longer assumes a Unix filesystem layout.</li>
+<li>The remaining actionable PR review thread is addressed with a minimal code change and no new dependencies.</li>
+</ul>
+</li>
+<li>Risks or trade-offs:
+<ul>
+<li><code>temp_dir()</code> is environment-dependent, but this test only verifies the selected path is preserved and does not write to disk, so there is no shared-temp collision risk.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks:
+<ul>
+<li>Keep future path-shape tests platform-neutral unless a test is explicitly OS-specific.</li>
+</ul>
+</li>
+<li>Review checkpoints:
+<ul>
+<li>Re-run the affected crate tests plus the repo handoff gates.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record-68"><a class="header" href="#task-record-68">Task Record</a></h2>
+<ul>
+<li>Motivation:
+<ul>
+<li>The open PR feedback requested a platform-neutral path in the <code>embedded_at_uses_requested_path</code> test, and the task scope includes addressing PR feedback and updating the branch.</li>
+</ul>
+</li>
+<li>Design notes:
+<ul>
+<li>The test now uses the existing <code>OPENAPI_FILENAME</code> constant together with <code>std::env::temp_dir()</code> so the assertion remains coupled to the real embedded filename instead of a duplicated string literal.</li>
+<li>No runtime behavior changed; this is test-only portability cleanup.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li><code>cargo --config 'build.rustflags=["-Dwarnings"]' test -p revaer-api embedded_at_uses_requested_path</code></li>
+<li><code>just ci</code></li>
+<li><code>just ui-e2e</code></li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>None. No logging, tracing, metrics, or health surfaces changed.</li>
+</ul>
+</li>
+<li>Status-doc validation:
+<ul>
+<li>No README or operator-facing status docs required updates because behavior and workflow policy are unchanged.</li>
+</ul>
+</li>
+<li>Risk &amp; rollback plan:
+<ul>
+<li>Risk is limited to the targeted test behavior.</li>
+<li>Rollback is a single-commit revert of the test-path change and ADR entry if it causes unexpected test issues.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>No new dependencies were added.</li>
+<li>Using <code>std::env::temp_dir()</code> avoided adding <code>tempfile</code> for a test that does not need filesystem lifecycle management.</li>
+</ul>
+</li>
+<li>Stale-policy check:
+<ul>
+<li>Reviewed:
+<ul>
+<li><code>AGENTS.md</code></li>
+<li><code>.github/instructions/rust.instructions.md</code></li>
+<li><code>.github/instructions/devops.instructions.md</code></li>
+<li><code>docs/adr/template.md</code></li>
+</ul>
+</li>
+<li>Drift found:
+<ul>
+<li>None. The task was a test portability fix and did not require policy changes.</li>
+</ul>
+</li>
+<li>Contradictions removed:
+<ul>
+<li>None.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="pr-19-native-settings-snapshot-test-stability"><a class="header" href="#pr-19-native-settings-snapshot-test-stability">PR 19 native settings snapshot test stability</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-04-12</li>
+<li>Context:
+<ul>
+<li>PR 19 CI failed in <code>revaer-torrent-libt</code> on <code>adapter::tests::inspect_settings_returns_snapshot_from_worker</code>.</li>
+<li>The failing assertions expected <code>share_ratio_limit</code> and <code>seed_time_limit</code> to be <code>None</code>, but the native GitHub Actions environment returned a ratio limit of <code>Some(200)</code>.</li>
+<li>Those values come from libtorrent-native defaults rather than a Revaer-owned configuration invariant.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Keep the test focused on stable wrapper behavior: retrieving a settings snapshot and preserving the listener/proxy fields that Revaer meaningfully constrains in this setup.</li>
+<li>Remove assertions on native default ratio/time limits because they are backend/environment dependent and not part of the contract this test needs to enforce.</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes:
+<ul>
+<li>The test remains useful without pinning unstable native defaults.</li>
+<li>PR CI no longer fails on environment-specific libtorrent snapshot values.</li>
+</ul>
+</li>
+<li>Risks or trade-offs:
+<ul>
+<li>The test no longer guards specific native defaults for share ratio and seed time limits.</li>
+<li>If Revaer later needs those fields to be deterministic, that behavior should be enforced through explicit configuration and a dedicated test.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks:
+<ul>
+<li>Keep native wrapper tests centered on repo-owned invariants or explicit applied settings.</li>
+</ul>
+</li>
+<li>Review checkpoints:
+<ul>
+<li>Re-run the affected crate test, <code>just ci</code>, and <code>just ui-e2e</code>.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record-69"><a class="header" href="#task-record-69">Task Record</a></h2>
+<ul>
+<li>Motivation:
+<ul>
+<li>The current PR is blocked by a failing GitHub Actions <code>Run Tests</code> job caused by an environment-sensitive assertion in a native backend test.</li>
+</ul>
+</li>
+<li>Design notes:
+<ul>
+<li>The revised test still verifies that the worker returns a snapshot and that proxy/listener fields are mapped as expected for the default setup.</li>
+<li>It intentionally stops treating native ratio/time defaults as stable contract values.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li><code>cargo --config 'build.rustflags=["-Dwarnings"]' test -p revaer-torrent-libt inspect_settings_returns_snapshot_from_worker</code></li>
+<li><code>just ci</code></li>
+<li><code>just ui-e2e</code></li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>None. No logging, tracing, metrics, or health surfaces changed.</li>
+</ul>
+</li>
+<li>Status-doc validation:
+<ul>
+<li>No README or operator docs needed updates because this is a test-stability fix only.</li>
+</ul>
+</li>
+<li>Risk &amp; rollback plan:
+<ul>
+<li>Risk is limited to reduced strictness in one native test.</li>
+<li>Rollback is a single-commit revert if a stronger deterministic contract is later introduced.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>No new dependencies were added.</li>
+</ul>
+</li>
+<li>Stale-policy check:
+<ul>
+<li>Reviewed:
+<ul>
+<li><code>AGENTS.md</code></li>
+<li><code>.github/instructions/rust.instructions.md</code></li>
+<li><code>.github/instructions/ffi.instructions.md</code></li>
+<li><code>docs/adr/template.md</code></li>
+</ul>
+</li>
+<li>Drift found:
+<ul>
+<li>None.</li>
+</ul>
+</li>
+<li>Contradictions removed:
+<ul>
+<li>None.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="pr-19-final-feedback-closeout"><a class="header" href="#pr-19-final-feedback-closeout">PR 19 final feedback closeout</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-04-12</li>
+<li>Context:
+<ul>
+<li>PR 19 still had three unresolved review threads after the earlier policy and test updates landed.</li>
+<li>The remaining feedback covered composite-action input parsing, Sonar instruction scoping, and discoverability of the ADR-backed RustSec ignore.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Tokenize <code>apt-packages</code> on general whitespace so YAML multiline input works the same as single-line input.</li>
+<li>Narrow the Sonar MCP instruction <code>applyTo</code> scope to Sonar-related files instead of the whole repository.</li>
+<li>Add an inline <code>.secignore</code> comment that points readers to ADR 286 and states the removal trigger for <code>RUSTSEC-2026-0097</code>.</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes:
+<ul>
+<li>Composite-action package input is more robust and matches common workflow YAML formatting.</li>
+<li>Sonar-specific guidance no longer bleeds into unrelated file edits.</li>
+<li>The temporary advisory ignore is easier to audit from the file that carries it.</li>
+</ul>
+</li>
+<li>Risks or trade-offs:
+<ul>
+<li>The apt-package tokenizer still uses shell word splitting semantics after whitespace normalization, so package values must remain plain package tokens rather than arbitrary quoted strings.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks:
+<ul>
+<li>Keep <code>setup-revaer</code> input descriptions aligned with the actual accepted formatting.</li>
+</ul>
+</li>
+<li>Review checkpoints:
+<ul>
+<li>Re-run the required repo validation gates and update the PR threads.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record-70"><a class="header" href="#task-record-70">Task Record</a></h2>
+<ul>
+<li>Motivation:
+<ul>
+<li>The user asked to address the remaining PR feedback on PR 19, and all three unresolved threads were small, actionable fixes.</li>
+</ul>
+</li>
+<li>Design notes:
+<ul>
+<li>The <code>apt-packages</code> change preserves the existing whitelist and <code>apt-get install -y --</code> hardening while making multiline YAML input behave predictably.</li>
+<li>Scoping <code>sonarqube_mcp.instructions.md</code> to <code>.github/workflows/sonar.yml</code> and <code>sonar-project.properties</code> keeps the instruction targeted to the files it governs.</li>
+<li>The <code>.secignore</code> note references the existing ADR instead of duplicating the remediation plan in another document.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li><code>just ci</code></li>
+<li><code>just ui-e2e</code></li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>None. No runtime logging, tracing, or metrics changed.</li>
+</ul>
+</li>
+<li>Status-doc validation:
+<ul>
+<li>No README or operator-facing docs needed updates because the change is limited to repo policy/docs and CI setup behavior.</li>
+</ul>
+</li>
+<li>Risk &amp; rollback plan:
+<ul>
+<li>Risk is low and limited to CI/workflow behavior and documentation scope.</li>
+<li>Rollback is a straightforward revert of this commit if a workflow consumer depends on the prior single-line package parsing.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>No new dependencies were added.</li>
+</ul>
+</li>
+<li>Stale-policy check:
+<ul>
+<li>Reviewed:
+<ul>
+<li><code>AGENTS.md</code></li>
+<li><code>.github/instructions/devops.instructions.md</code></li>
+<li><code>.github/instructions/sonarqube_mcp.instructions.md</code></li>
+<li><code>docs/adr/template.md</code></li>
+</ul>
+</li>
+<li>Drift found:
+<ul>
+<li><code>sonarqube_mcp.instructions.md</code> was scoped too broadly for the guidance it contains.</li>
+<li><code>.github/actions/setup-revaer/action.yml</code> described and implemented <code>apt-packages</code> as a single-line input even though multiline YAML is a common caller pattern.</li>
+</ul>
+</li>
+<li>Contradictions removed:
+<ul>
+<li>None.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="pr-19-sonar-quality-gate-restoration"><a class="header" href="#pr-19-sonar-quality-gate-restoration">PR 19 Sonar quality gate restoration</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-04-12</li>
+<li>Context:
+<ul>
+<li>PR 19’s SonarCloud quality gate failed on new-code security and duplication metrics even though the remaining non-Sonar CI checks were green.</li>
+<li>The security failure came from unit tests in <code>crates/revaer-test-support/src/postgres.rs</code> that embedded Postgres credentials in parsed fixture URLs.</li>
+<li>The duplication spike came from Rust test modules added in this branch, including crate-level <code>tests/</code> trees and in-source <code>tests.rs</code> modules that Sonar was still treating as duplication-sensitive source files.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Remove credentials from the <code>postgres.rs</code> fixture URLs because those tests only exercise database-path rewriting and do not need authentication fields.</li>
+<li>Exclude Rust test modules from Sonar copy-paste detection in <code>sonar-project.properties</code> while keeping production Rust sources, workflows, and first-party application code inside the gate.</li>
+<li>Record the Sonar-scoping rule in the Sonar instruction file so future changes preserve the same production-focused quality signal.</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes:
+<ul>
+<li>Sonar no longer flags fixture URLs as hardcoded database passwords on new code.</li>
+<li>PR duplication metrics stop being dominated by intentionally repetitive Rust test setup and assertion fixtures.</li>
+<li>The Sonar gate remains strict on production code while matching Revaer’s library-first testing layout.</li>
+</ul>
+</li>
+<li>Risks or trade-offs:
+<ul>
+<li>Sonar will no longer report copy-paste findings inside excluded Rust test modules, so test-duplication hygiene relies on code review and local maintenance discipline instead of the PR gate.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks:
+<ul>
+<li>Keep new Rust test-only paths added under <code>src/**/tests*</code> or crate-level <code>tests/</code> aligned with the Sonar duplication exclusions when repository layout changes.</li>
+</ul>
+</li>
+<li>Review checkpoints:
+<ul>
+<li>Re-run the required local validation gates and let the PR’s SonarCloud analysis refresh on the pushed commit.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record-71"><a class="header" href="#task-record-71">Task Record</a></h2>
+<ul>
+<li>Motivation:
+<ul>
+<li>The user asked to restore PR 19’s Sonar quality standards after the gate regressed to <code>E</code> security rating and <code>4.1%</code> duplication on new code.</li>
+</ul>
+</li>
+<li>Design notes:
+<ul>
+<li>The <code>postgres.rs</code> tests now use password-free fixture URLs because the behavior under test only depends on path replacement and admin-database fallback handling.</li>
+<li><code>sonar.cpd.exclusions</code> now explicitly covers Rust test modules in both crate-level <code>tests/</code> directories and in-source <code>tests.rs</code> or <code>*_tests.rs</code> files, which matches how this repository colocates test code.</li>
+<li>The Sonar instruction file now documents that policy so future scope changes do not accidentally reintroduce test-only duplication into the gate.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li><code>cargo test -p revaer-test-support postgres</code></li>
+<li><code>just ci</code></li>
+<li><code>just ui-e2e</code></li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>None. No runtime logging, tracing, metrics, or health behavior changed.</li>
+</ul>
+</li>
+<li>Status-doc validation:
+<ul>
+<li>No README or operator guide changes were required because this work only touches tests, Sonar scope, and ADR/policy documentation.</li>
+</ul>
+</li>
+<li>Risk &amp; rollback plan:
+<ul>
+<li>Risk is limited to Sonar PR analysis scope and unit-test fixture strings.</li>
+<li>Rollback is a straightforward revert of this commit if Sonar scoping needs to be reconsidered.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>No new dependencies were added.</li>
+</ul>
+</li>
+<li>Stale-policy check:
+<ul>
+<li>Reviewed:
+<ul>
+<li><code>AGENTS.md</code></li>
+<li><code>.github/instructions/devops.instructions.md</code></li>
+<li><code>.github/instructions/sonarqube_mcp.instructions.md</code></li>
+<li><code>sonar-project.properties</code></li>
+<li><code>docs/adr/template.md</code></li>
+</ul>
+</li>
+<li>Drift found:
+<ul>
+<li><code>sonar-project.properties</code> excluded selected TypeScript/API duplication noise but not Rust test modules, even though this repository colocates substantial test-only code under source trees.</li>
+<li><code>crates/revaer-test-support/src/postgres.rs</code> used credential-bearing fixture URLs in tests that do not require authentication semantics.</li>
+</ul>
+</li>
+<li>Contradictions removed:
+<ul>
+<li>None.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="pr-19-review-timeout-stability"><a class="header" href="#pr-19-review-timeout-stability">PR 19 review timeout stability</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-04-12</li>
+<li>Context:
+<ul>
+<li>PR 19 still had unresolved review feedback on a torrent-label test that waited only one second for an emitted settings event.</li>
+<li>That timeout is short enough to become flaky on contended CI runners even when the event bus behavior is correct.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Increase the async event wait in <code>crates/revaer-api/src/http/handlers/torrents/labels.rs</code> from one second to five seconds.</li>
+<li>Keep the test structure otherwise unchanged because the event subscription contract is still the behavior under test.</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes:
+<ul>
+<li>The test is less sensitive to scheduler jitter and runner contention.</li>
+<li>The fix is narrowly scoped to the flaky wait boundary instead of changing production event behavior.</li>
+</ul>
+</li>
+<li>Risks or trade-offs:
+<ul>
+<li>A genuine regression in event delivery could take a few seconds longer to fail.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks:
+<ul>
+<li>Keep similar async event-listener tests on this branch reviewed for overly aggressive wall-clock assumptions.</li>
+</ul>
+</li>
+<li>Review checkpoints:
+<ul>
+<li>Re-run the repo validation gates and reply on the outstanding PR review threads.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record-72"><a class="header" href="#task-record-72">Task Record</a></h2>
+<ul>
+<li>Motivation:
+<ul>
+<li>The user asked to address all remaining PR feedback, and the only still-actionable comment requested a more CI-stable event timeout.</li>
+</ul>
+</li>
+<li>Design notes:
+<ul>
+<li>The change follows the reviewer’s recommendation directly and preserves the current event-stream assertion.</li>
+<li>The already-open <code>openapi.rs</code> thread was also rechecked locally; the branch already uses <code>std::env::temp_dir().join(OPENAPI_FILENAME)</code>, so that thread only needed a fresh reply.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li><code>cargo test -p revaer-api update_label_catalog_persists_changes_and_emits_event</code></li>
+<li><code>just ci</code></li>
+<li><code>just ui-e2e</code></li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>None. No runtime logging, tracing, or metrics changed.</li>
+</ul>
+</li>
+<li>Status-doc validation:
+<ul>
+<li>No README or operator-facing docs needed updates because the change is limited to test stability and ADR/task tracking.</li>
+</ul>
+</li>
+<li>Risk &amp; rollback plan:
+<ul>
+<li>Risk is low and limited to test-runtime duration.</li>
+<li>Rollback is a straightforward revert if the longer timeout proves unnecessary.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>No new dependencies were added.</li>
+</ul>
+</li>
+<li>Stale-policy check:
+<ul>
+<li>Reviewed:
+<ul>
+<li><code>AGENTS.md</code></li>
+<li><code>.github/instructions/rust.instructions.md</code></li>
+<li><code>docs/adr/template.md</code></li>
+</ul>
+</li>
+<li>Drift found:
+<ul>
+<li>None in policy text; the remaining issue was test timing sensitivity in an existing async assertion.</li>
+</ul>
+</li>
+<li>Contradictions removed:
+<ul>
+<li>None.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="pr-19-github-action-sha-pinning"><a class="header" href="#pr-19-github-action-sha-pinning">PR 19 GitHub Action SHA pinning</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-04-12</li>
+<li>Context:
+<ul>
+<li>PR 19’s SonarCloud new-code gate still reported seven open security hotspots after the earlier test-fixture and duplication fixes landed.</li>
+<li>The remaining hotspots all came from external GitHub Action references in workflow files that were pinned only to release tags instead of immutable commit SHAs.</li>
+<li>Revaer’s existing devops instruction and workflow guardrail still described stable release tags as the required policy, so Sonar and local repo policy had drifted apart.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Pin the external GitHub Actions used in <code>.github/workflows/build-images.yml</code>, <code>.github/workflows/ci.yml</code>, <code>.github/workflows/docs.yml</code>, and <code>.github/workflows/sonar.yml</code> to the full upstream commit SHAs that correspond to the currently selected release tags.</li>
+<li>Preserve the originating release tags as inline comments next to each pinned SHA so upgrades remain reviewable and traceable.</li>
+<li>Update <code>.github/instructions/devops.instructions.md</code> and <code>scripts/workflow-guardrails.sh</code> so local linting enforces the same immutable-SHA rule that Sonar expects.</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes:
+<ul>
+<li>Sonar no longer sees mutable action references on PR 19’s new code.</li>
+<li>Local workflow linting and repo policy now match the security posture enforced in GitHub and Sonar.</li>
+<li>Future workflow edits in the touched files cannot regress to mutable tag refs without failing <code>just lint</code>.</li>
+</ul>
+</li>
+<li>Risks or trade-offs:
+<ul>
+<li>Action upgrades now require an explicit upstream SHA refresh instead of a simple tag bump.</li>
+<li>Readability is slightly lower without inline tag comments, so the comments were retained deliberately.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks:
+<ul>
+<li>Keep future workflow action updates on immutable SHAs and refresh the inline tag comments when bumping versions.</li>
+</ul>
+</li>
+<li>Review checkpoints:
+<ul>
+<li>Re-run <code>just ci</code> and <code>just ui-e2e</code>, then allow SonarCloud to rescan the pushed commit.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record-73"><a class="header" href="#task-record-73">Task Record</a></h2>
+<ul>
+<li>Motivation:
+<ul>
+<li>The user asked to fix the seven remaining Sonar security hotspots on PR 19 and push the changes that restore the PR quality gate.</li>
+</ul>
+</li>
+<li>Design notes:
+<ul>
+<li>The workflow changes are mechanical: they preserve the current action versions and only replace mutable tag refs with the resolved 40-character commit SHAs.</li>
+<li><code>scripts/workflow-guardrails.sh</code> now rejects any external action ref that is not pinned to a full hexadecimal commit SHA, which keeps local linting aligned with the live Sonar requirement.</li>
+<li><code>.github/instructions/devops.instructions.md</code> now states the same immutable pinning rule and recommends keeping the source release tag in an inline comment for auditability.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li><code>just ci</code></li>
+<li><code>just ui-e2e</code></li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>None. This change only affects workflow supply-chain pinning and repo policy documentation.</li>
+</ul>
+</li>
+<li>Status-doc validation:
+<ul>
+<li>No README or operator guide updates were needed because this change is limited to CI workflows, workflow policy, and ADR tracking.</li>
+</ul>
+</li>
+<li>Risk &amp; rollback plan:
+<ul>
+<li>Risk is limited to workflow execution if any pinned action SHA was resolved incorrectly.</li>
+<li>Rollback is a revert of this commit, followed by reapplying the action pins with corrected SHAs if any workflow step regresses.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>No new dependencies were added.</li>
+</ul>
+</li>
+<li>Stale-policy check:
+<ul>
+<li>Reviewed:
+<ul>
+<li><code>AGENTS.md</code></li>
+<li><code>.github/instructions/devops.instructions.md</code></li>
+<li><code>.github/instructions/sonarqube_mcp.instructions.md</code></li>
+<li><code>.github/workflows/build-images.yml</code></li>
+<li><code>.github/workflows/ci.yml</code></li>
+<li><code>.github/workflows/docs.yml</code></li>
+<li><code>.github/workflows/sonar.yml</code></li>
+<li><code>scripts/workflow-guardrails.sh</code></li>
+<li><code>docs/adr/template.md</code></li>
+</ul>
+</li>
+<li>Drift found:
+<ul>
+<li>The repo policy and guardrail still allowed mutable release tags for external actions even though Sonar was flagging those refs as security hotspots.</li>
+</ul>
+</li>
+<li>Contradictions removed:
+<ul>
+<li>Removed the mismatch between Sonar’s immutable-action expectation and Revaer’s local devops policy by moving both to full SHA pinning.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="pr-19-review-feedback-closeout"><a class="header" href="#pr-19-review-feedback-closeout">PR 19 review feedback closeout</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-04-12</li>
+<li>Context:
+<ul>
+<li>PR 19 still had open review feedback after the workflow SHA pinning fix landed.</li>
+<li>The remaining comments asked for one structural cleanup in <code>crates/revaer-api/src/app/indexers.rs</code>, one docs-workflow toolchain alignment fix, one setup-action CRLF hardening fix, and an updated PR description that better reflects the current branch scope.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Move the large <code>#[cfg(test)]</code> block out of <code>crates/revaer-api/src/app/indexers.rs</code> into <code>crates/revaer-api/src/app/indexers/tests.rs</code> and keep the production module to a small <code>#[cfg(test)] mod tests;</code> declaration.</li>
+<li>Align <code>.github/workflows/docs.yml</code> with the repository toolchain source of truth by using <code>${{ vars.RUST_TOOLCHAIN_VERSION }}</code> instead of a hard-coded <code>stable</code>.</li>
+<li>Strip carriage returns during <code>apt-packages</code> normalization in <code>.github/actions/setup-revaer/action.yml</code> so multiline CRLF input is tokenized consistently before validation.</li>
+<li>Refresh the PR description so it calls out the broader runtime/API behavior coverage work that is already part of the branch.</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes:
+<ul>
+<li>The production indexer facade file is easier to navigate and review.</li>
+<li>The docs workflow now follows the same Rust toolchain source of truth as the rest of CI.</li>
+<li>The setup action is more robust against pasted or Windows-originated multiline package input.</li>
+<li>The PR description better matches the actual diff and review surface.</li>
+</ul>
+</li>
+<li>Risks or trade-offs:
+<ul>
+<li>Moving tests into a sibling file adds one more source file to the module tree, though it improves local readability overall.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks:
+<ul>
+<li>Keep other large test-only blocks in production files on a short leash and move them out when they start obscuring runtime code.</li>
+</ul>
+</li>
+<li>Review checkpoints:
+<ul>
+<li>Re-run <code>just ci</code> and <code>just ui-e2e</code>, then reply to and resolve the remaining PR threads.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record-74"><a class="header" href="#task-record-74">Task Record</a></h2>
+<ul>
+<li>Motivation:
+<ul>
+<li>The user asked to address and resolve all remaining PR feedback on PR 19.</li>
+</ul>
+</li>
+<li>Design notes:
+<ul>
+<li>The <code>indexers.rs</code> change is intentionally structural only: the moved tests still use <code>use super::*;</code> from a dedicated child module file, so behavior and visibility stay unchanged.</li>
+<li>The docs workflow now consumes the same configured Rust toolchain variable already used elsewhere in CI, which removes an unnecessary source of drift.</li>
+<li>The setup action keeps the existing general-whitespace tokenization behavior and simply normalizes <code>\r</code> away before validation so CRLF input cannot leak carriage returns into package names.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li><code>just ci</code></li>
+<li><code>just ui-e2e</code></li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>None. No runtime logging, tracing, metrics, or health behavior changed.</li>
+</ul>
+</li>
+<li>Status-doc validation:
+<ul>
+<li>Updated the PR description to reflect the branch’s broader API/runtime behavior coverage additions alongside the instruction and workflow work.</li>
+</ul>
+</li>
+<li>Risk &amp; rollback plan:
+<ul>
+<li>Risk is low and limited to module wiring and workflow consistency.</li>
+<li>Rollback is a straightforward revert of this change set if any of the review-driven cleanups regress.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>No new dependencies were added.</li>
+</ul>
+</li>
+<li>Stale-policy check:
+<ul>
+<li>Reviewed:
+<ul>
+<li><code>AGENTS.md</code></li>
+<li><code>.github/instructions/devops.instructions.md</code></li>
+<li><code>.github/workflows/docs.yml</code></li>
+<li><code>.github/actions/setup-revaer/action.yml</code></li>
+<li><code>crates/revaer-api/src/app/indexers.rs</code></li>
+<li><code>docs/adr/template.md</code></li>
+</ul>
+</li>
+<li>Drift found:
+<ul>
+<li>The docs workflow used a hard-coded Rust channel instead of the repo toolchain source of truth.</li>
+<li>The setup action normalized tabs and newlines but not carriage returns in multiline package input.</li>
+<li><code>crates/revaer-api/src/app/indexers.rs</code> had accumulated a large test block that made the production module harder to scan.</li>
+</ul>
+</li>
+<li>Contradictions removed:
+<ul>
+<li>Removed the docs-workflow toolchain drift by pointing it back at the shared repo variable.</li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
