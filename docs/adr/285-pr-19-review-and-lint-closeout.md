@@ -1,0 +1,85 @@
+# PR 19 Review And Lint Closeout
+
+- Status: Accepted
+- Date: 2026-04-06
+- Context:
+  - Motivation:
+    - PR 19 still had unresolved review feedback across workflow guardrails, shell hardening, repo documentation portability, and Rust test hygiene.
+    - The `Check Lint` workflow was failing in GitHub Actions, which blocked the rest of the CI fan-out and left `SonarQube` pending.
+    - The repository requires instruction, workflow, and ADR updates to land together whenever operational guardrails change.
+  - Constraints:
+    - `AGENTS.md` remains the root contract and `just ci` plus `just ui-e2e` remain the completion gates.
+    - Authored code cannot add lint suppressions, dead code, or panic-based production behavior.
+    - Workflow permissions must stay minimal except where reusable publishing jobs need explicit elevation.
+  - Decision:
+    - Address the open PR review feedback by:
+      - moving external GitHub action references back to explicit latest stable release tags instead of commit SHAs
+      - switching `AGENTS.md` links from machine-local absolute paths to repo-relative links
+      - extending instruction-drift matching to recurse through `.github/actions/**`, `.github/workflows/**`, and `release/**`
+      - hardening the setup composite action package validation to reject leading-dash tokens, permit deterministic `apt` version pins, and pass `--` to `apt-get install`
+      - restoring `packages: write` on the `build-images` caller job in `ci.yml`
+      - deleting the large commented-out dead block from `crates/revaer-api/src/http/handlers/indexers/policies.rs`
+      - deleting the large commented-out legacy scaffolding block from `crates/revaer-api/src/http/handlers/indexers/search_profiles.rs`
+      - gating the bootstrap non-Unicode env test through cross-platform helper functions instead of Unix-only imports
+  - Fix the current lint failures by:
+    - boxing `run_bootstrap_services(...)` futures at the call sites that tripped `clippy::large_futures`
+    - replacing pass-by-value backup-error wrappers with direct closure-based mappings
+    - splitting the backup helper assertion test so it stays under the file’s `too_many_lines` limit
+    - making `scripts/policy-guardrails.sh` robust when `rg` is unavailable, while also handling whitespace in `allow/expect` attributes and case-insensitive inline SQL scanning
+  - Fix the `just ci` coverage failure by:
+    - switching `just cov` to collect one workspace-wide `cargo llvm-cov` dataset and then enforce the per-package 90% line gate from `cargo llvm-cov report --package ...`
+    - adding targeted `revaer-test-support` URL-shaping tests so the helper crate keeps meaningful direct coverage of its pure utility paths
+  - Update the matching instruction files to reflect the recursive drift coverage, reusable workflow permission requirement, and portable guardrail behavior.
+- Consequences:
+  - Positive outcomes:
+    - PR review feedback is reflected in live code and documentation instead of being left as open drift.
+    - The lint gate no longer depends on `rg` being present in the runner image.
+    - The coverage gate now measures each crate against the same workspace execution graph that actually exercises the libraries in CI.
+    - Bootstrap tests compile on non-Unix targets without weakening the env-validation behavior under test.
+    - The image publishing path keeps the minimal permission model while preserving the one scope GHCR pushes require.
+    - Workflow references stay readable and track the latest stable upstream tags, matching the current repository policy.
+  - Risks and trade-offs:
+    - The policy guardrail still relies on pattern matching, so future language-surface changes may require another regex update.
+    - Boxing the bootstrap future trades a small heap allocation for a deterministic lint-clean boundary.
+    - Review-thread replies document what changed, but GitHub may still show threads as unresolved until a maintainer marks them resolved in the UI.
+- Follow-up:
+  - Design notes:
+    - The shell guardrail fallback uses tracked Rust files from `git ls-files` so the same exclusion rules apply whether `rg` is installed or not.
+    - The backup error call sites now map borrowed errors inline, which keeps the behavior unchanged while satisfying Clippy’s pass-by-value rule.
+    - `just cov` still reports per-package thresholds, but it now does so from one shared workspace profile run so downstream integration coverage is preserved for library crates.
+  - Test coverage summary:
+    - `just ci`
+    - `just ui-e2e`
+    - `gh pr checks 19`
+  - Observability updates:
+    - No runtime telemetry changed.
+    - CI observability improves because the blocked lint stage now reports actual policy failures instead of missing-tool noise.
+  - Risk and rollback plan:
+    - Roll back by reverting the shell/workflow guardrail changes and the related lint fixes if they produce unexpected CI regressions.
+    - The workflow permission change can be reverted independently if image publishing responsibilities move out of the reusable workflow.
+  - Dependency rationale:
+    - No Rust dependencies were added.
+    - No new third-party GitHub actions were introduced.
+    - Existing third-party GitHub action references moved from SHAs back to explicit stable release tags by repo policy.
+  - Stale-policy check:
+    - Reviewed files:
+      - `AGENTS.md`
+      - `.github/instructions/rust.instructions.md`
+      - `.github/instructions/devops.instructions.md`
+      - `.github/workflows/ci.yml`
+      - `.github/actions/setup-revaer/action.yml`
+      - `.github/workflows/sonar.yml`
+      - `scripts/instruction-drift-check.sh`
+      - `scripts/policy-guardrails.sh`
+      - `scripts/workflow-guardrails.sh`
+      - `justfile`
+    - Drift found:
+      - machine-local absolute links in `AGENTS.md`
+      - non-recursive drift coverage wording for action and release paths
+      - missing caller-side workflow permission guidance for image publishing
+      - lint guardrails that assumed `rg` was always installed
+      - workflow instructions that still required SHA-pinned action refs after the repository moved back to stable version tags
+    - Contradictions removed:
+      - a documented hard guardrail that silently no-op'd when `rg` was missing
+      - workflow permission minimization that accidentally removed the one publishing scope the reusable workflow still required
+      - a workflow pinning rule that no longer matched the repository's current action-version policy

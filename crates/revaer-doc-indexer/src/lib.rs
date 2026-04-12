@@ -8,13 +8,10 @@
     unreachable_pub,
     clippy::all,
     clippy::pedantic,
-    clippy::cargo,
-    clippy::nursery,
     rustdoc::broken_intra_doc_links,
     rustdoc::bare_urls,
     missing_docs
 )]
-#![allow(clippy::multiple_crate_versions)]
 
 //! Documentation indexer core: parses markdown under `docs/` and emits machine-readable
 //! manifests consumed by LLM tooling.
@@ -174,6 +171,7 @@ fn parse_markdown(raw: &str, path: &Path, docs_root: &Path) -> Result<Option<Ent
     let mut summary_lines: Vec<String> = Vec::new();
     let mut headings: Vec<String> = Vec::new();
     let mut capture_summary = false;
+    let mut in_code_block = false;
     let h1_regex = Regex::new(r"^# (.+)$").map_err(|source| DocIndexError::RegexCompile {
         pattern: "^# (.+)$",
         source,
@@ -194,8 +192,13 @@ fn parse_markdown(raw: &str, path: &Path, docs_root: &Path) -> Result<Option<Ent
         let trimmed = line.trim();
 
         if trimmed.starts_with("```") {
-            // Stop capturing summary/tag lines inside code blocks.
+            in_code_block = !in_code_block;
             capture_summary = false;
+            continue;
+        }
+
+        if in_code_block {
+            continue;
         }
 
         if trimmed.starts_with('>') && summary_lines.is_empty() {
@@ -259,6 +262,7 @@ fn parse_markdown(raw: &str, path: &Path, docs_root: &Path) -> Result<Option<Ent
 fn fallback_summary(raw: &str) -> Result<String> {
     let mut text = String::new();
     let mut seen_h1 = false;
+    let mut in_code_block = false;
     for line in raw.lines() {
         let trimmed = line.trim();
         if trimmed.is_empty() {
@@ -289,6 +293,11 @@ fn fallback_summary(raw: &str) -> Result<String> {
         }
 
         if trimmed.starts_with("```") {
+            in_code_block = !in_code_block;
+            continue;
+        }
+
+        if in_code_block {
             continue;
         }
 
@@ -607,6 +616,28 @@ More text.
     }
 
     #[test]
+    fn parse_markdown_ignores_headings_inside_code_blocks()
+    -> std::result::Result<(), Box<dyn Error>> {
+        let docs_root = PathBuf::from("docs");
+        let path = docs_root.join("code.md");
+        let markdown = "# Title
+
+Paragraph outside the code block.
+
+```md
+## Hidden Heading
+```
+
+## Visible Heading
+";
+
+        let entry = parse_markdown(markdown, &path, &docs_root)?
+            .ok_or_else(|| std::io::Error::other("entry missing"))?;
+        assert_eq!(entry.tags, vec!["visible-heading".to_string()]);
+        Ok(())
+    }
+
+    #[test]
     fn parse_markdown_skips_when_missing_title() -> std::result::Result<(), Box<dyn Error>> {
         let docs_root = PathBuf::from("docs");
         let path = docs_root.join("untitled.md");
@@ -654,6 +685,22 @@ More text.
         let markdown = "# Title\n1. First item\n2) Second item\n- Bullet\n";
         let summary = fallback_summary(markdown)?;
         assert_eq!(summary, "First item Second item Bullet");
+        Ok(())
+    }
+
+    #[test]
+    fn fallback_summary_skips_code_fences_and_cleans_inline_code()
+    -> std::result::Result<(), Box<dyn Error>> {
+        let markdown = "# Title
+
+`inline` summary starts here.
+```rust
+let hidden = true;
+```
+* Bullet detail
+";
+        let summary = fallback_summary(markdown)?;
+        assert_eq!(summary, "inline summary starts here. Bullet detail");
         Ok(())
     }
 
@@ -732,6 +779,32 @@ More text.
             .err()
             .ok_or_else(|| std::io::Error::other("schema parse should fail"))?;
         assert!(matches!(err, DocIndexError::SchemaParse { .. }));
+        Ok(())
+    }
+
+    #[test]
+    fn run_surfaces_short_summary_errors() -> std::result::Result<(), Box<dyn Error>> {
+        let temp = TempDir::new()?;
+        let docs_root = temp.path().join("docs");
+        let schema_path = docs_root.join("llm/schema.json");
+        write_file(
+            &schema_path,
+            r#"{
+                "type": "object",
+                "required": ["version", "generated", "entries"],
+                "properties": {
+                    "version": { "type": "string" },
+                    "generated": { "type": "string" },
+                    "entries": { "type": "array" }
+                }
+            }"#,
+        )?;
+        write_file(&docs_root.join("short.md"), "# Title\n> short\n")?;
+
+        let err = run(&docs_root, &schema_path)
+            .err()
+            .ok_or_else(|| std::io::Error::other("short summary should fail"))?;
+        assert!(matches!(err, DocIndexError::ParseMarkdown { .. }));
         Ok(())
     }
 }

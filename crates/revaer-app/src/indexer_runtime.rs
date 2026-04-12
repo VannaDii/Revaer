@@ -269,8 +269,10 @@ fn is_skip_claim_error(error: &DataError) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::VecDeque;
+    use std::collections::{HashSet, VecDeque};
     use std::sync::Mutex;
+    use tokio::task::yield_now;
+    use tokio::time::timeout;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     enum BackendCall {
@@ -353,6 +355,31 @@ mod tests {
         }));
     }
 
+    #[test]
+    fn job_kind_metadata_is_unique_and_stable() {
+        let mut job_keys = HashSet::new();
+        let mut operations = HashSet::new();
+
+        for job in JobKind::ALL {
+            assert!(
+                job_keys.insert(job.job_key()),
+                "duplicate job key for {job:?}"
+            );
+            assert!(
+                operations.insert(job.operation()),
+                "duplicate operation for {job:?}"
+            );
+        }
+
+        assert_eq!(job_keys.len(), JobKind::ALL.len());
+        assert_eq!(operations.len(), JobKind::ALL.len());
+        assert_eq!(JobKind::RetentionPurge.job_key(), "retention_purge");
+        assert_eq!(
+            JobKind::RssSubscriptionBackfill.operation(),
+            "indexer_runtime.rss_subscription_backfill"
+        );
+    }
+
     #[tokio::test]
     async fn runtime_skips_not_due_jobs_without_running_them() -> anyhow::Result<()> {
         let backend = Arc::new(FakeIndexerJobBackend::new(
@@ -387,6 +414,41 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn runtime_run_tick_processes_every_job_and_records_success_metrics() -> anyhow::Result<()>
+    {
+        let backend = Arc::new(FakeIndexerJobBackend::new(
+            std::iter::repeat_with(|| Ok(()))
+                .take(JobKind::ALL.len())
+                .collect(),
+            std::iter::repeat_with(|| Ok(()))
+                .take(JobKind::ALL.len())
+                .collect(),
+        ));
+        let metrics = Metrics::new()?;
+        let runtime =
+            IndexerRuntime::with_backend(backend.clone(), metrics.clone(), Duration::from_secs(1));
+
+        runtime.run_tick().await;
+
+        let mut expected = Vec::with_capacity(JobKind::ALL.len() * 2);
+        for job in JobKind::ALL {
+            expected.push(BackendCall::Claim(job.job_key()));
+            expected.push(BackendCall::Run(job));
+        }
+        assert_eq!(backend.calls(), expected);
+
+        let rendered = metrics.render()?;
+        assert!(rendered.contains("indexer_job_outcomes_total"));
+        assert!(
+            rendered.contains("operation=\"indexer_runtime.retention_purge\",outcome=\"success\"")
+        );
+        assert!(rendered.contains(
+            "operation=\"indexer_runtime.rss_subscription_backfill\",outcome=\"success\""
+        ));
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn runtime_continues_after_job_failures() -> anyhow::Result<()> {
         let backend = Arc::new(FakeIndexerJobBackend::new(
             vec![Ok(()), Ok(())],
@@ -414,6 +476,72 @@ mod tests {
                 BackendCall::Claim("rate_limit_state_purge"),
                 BackendCall::Run(JobKind::RateLimitStatePurge),
             ]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn runtime_claim_failures_record_failure_metrics_without_running_jobs()
+    -> anyhow::Result<()> {
+        let backend = Arc::new(FakeIndexerJobBackend::new(
+            vec![Err(DataError::JobFailed {
+                operation: "job claim next",
+                job_key: "base_score_refresh_recent",
+                error_code: Some("XX001".to_string()),
+                error_detail: Some("claim_failed".to_string()),
+            })],
+            Vec::new(),
+        ));
+        let metrics = Metrics::new()?;
+        let runtime =
+            IndexerRuntime::with_backend(backend.clone(), metrics.clone(), Duration::from_secs(1));
+
+        runtime.run_job(JobKind::BaseScoreRefreshRecent).await;
+
+        assert_eq!(
+            backend.calls(),
+            vec![BackendCall::Claim("base_score_refresh_recent")]
+        );
+        let rendered = metrics.render()?;
+        assert!(rendered.contains(
+            "operation=\"indexer_runtime.base_score_refresh_recent\",outcome=\"failure\""
+        ));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn spawned_runtime_starts_ticks_before_abort() -> anyhow::Result<()> {
+        let backend = Arc::new(FakeIndexerJobBackend::new(
+            std::iter::repeat_with(|| Err(job_not_due_error()))
+                .take(JobKind::ALL.len() * 4)
+                .collect(),
+            Vec::new(),
+        ));
+        let runtime = IndexerRuntime::with_backend(
+            backend.clone(),
+            Metrics::new()?,
+            Duration::from_millis(1),
+        );
+
+        let handle = runtime.spawn();
+        timeout(Duration::from_secs(1), async {
+            loop {
+                if !backend.calls().is_empty() {
+                    break;
+                }
+                yield_now().await;
+            }
+        })
+        .await?;
+        handle.abort();
+        let _ = handle.await;
+
+        assert!(
+            backend
+                .calls()
+                .iter()
+                .any(|call| matches!(call, BackendCall::Claim("retention_purge"))),
+            "spawned runtime never attempted the first scheduled job"
         );
         Ok(())
     }

@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '../../fixtures/api';
+import { apiFetchRaw } from '../../support/api/raw';
 import { buildInsecureTestUrl } from '../../support/urls';
 
 test.describe('Indexer migration parity flows', () => {
-  test('covers prowlarr import and torznab parity/download paths', async ({ api, publicApi, session }) => {
+  test('covers prowlarr import and torznab parity/download paths', async ({ api, baseUrl, session }) => {
     const suffix = randomUUID().slice(0, 8);
 
     const profileCreate = await api.POST('/v1/indexers/search-profiles', {
@@ -31,54 +32,51 @@ test.describe('Indexer migration parity flows', () => {
       torznabCreate.response.status === 201 && Boolean(torznabInstanceId) && Boolean(torznabApiKey);
 
     if (hasTorznabInstance) {
-      const caps = await publicApi.GET('/torznab/{torznab_instance_public_id}/api', {
-        params: {
-          path: { torznab_instance_public_id: torznabInstanceId! },
-          query: { apikey: torznabApiKey!, t: 'caps' },
-        },
+      const caps = await apiFetchRaw({
+        baseUrl,
+        method: 'GET',
+        route: '/torznab/{torznab_instance_public_id}/api',
+        path: { torznab_instance_public_id: torznabInstanceId! },
+        query: { apikey: torznabApiKey!, t: 'caps' },
       });
-      expect(caps.response.status).toBe(200);
-      expect(await caps.response.text()).toContain('<caps>');
+      expect(caps.status).toBe(200);
+      expect(await caps.text()).toContain('<caps>');
 
-      const tvSearchInvalidCombo = await publicApi.GET('/torznab/{torznab_instance_public_id}/api', {
-        params: {
-          path: { torznab_instance_public_id: torznabInstanceId! },
-          query: { apikey: torznabApiKey!, t: 'tvsearch', ep: '2' },
-        },
+      const tvSearchInvalidCombo = await apiFetchRaw({
+        baseUrl,
+        method: 'GET',
+        route: '/torznab/{torznab_instance_public_id}/api',
+        path: { torznab_instance_public_id: torznabInstanceId! },
+        query: { apikey: torznabApiKey!, t: 'tvsearch', ep: '2' },
       });
-      expect(tvSearchInvalidCombo.response.status).toBe(200);
-      expect(await tvSearchInvalidCombo.response.text()).toContain(
+      expect(tvSearchInvalidCombo.status).toBe(200);
+      expect(await tvSearchInvalidCombo.text()).toContain(
         'torznab:response offset="0" total="0"'
       );
 
-      const missingSourceDownload = await publicApi.GET(
-        '/torznab/{torznab_instance_public_id}/download/{canonical_torrent_source_public_id}',
-        {
-          params: {
-            path: {
-              torznab_instance_public_id: torznabInstanceId!,
-              canonical_torrent_source_public_id: randomUUID(),
-            },
-            query: { apikey: torznabApiKey! },
-          },
-        }
-      );
-      expect(missingSourceDownload.response.status).toBe(404);
+      const missingSourceDownload = await apiFetchRaw({
+        baseUrl,
+        method: 'GET',
+        route: '/torznab/{torznab_instance_public_id}/download/{canonical_torrent_source_public_id}',
+        path: {
+          torznab_instance_public_id: torznabInstanceId!,
+          canonical_torrent_source_public_id: randomUUID(),
+        },
+        query: { apikey: torznabApiKey! },
+      });
+      expect(missingSourceDownload.status).toBe(404);
 
       if (session.authMode === 'api_key') {
-        const missingApiKeyDownload = await publicApi.GET(
-          '/torznab/{torznab_instance_public_id}/download/{canonical_torrent_source_public_id}',
-          {
-            params: {
-              path: {
-                torznab_instance_public_id: torznabInstanceId!,
-                canonical_torrent_source_public_id: randomUUID(),
-              },
-              query: {},
-            },
-          }
-        );
-        expect(missingApiKeyDownload.response.status).toBe(401);
+        const missingApiKeyDownload = await apiFetchRaw({
+          baseUrl,
+          method: 'GET',
+          route: '/torznab/{torznab_instance_public_id}/download/{canonical_torrent_source_public_id}',
+          path: {
+            torznab_instance_public_id: torznabInstanceId!,
+            canonical_torrent_source_public_id: randomUUID(),
+          },
+        });
+        expect(missingApiKeyDownload.status).toBe(401);
       }
     }
 

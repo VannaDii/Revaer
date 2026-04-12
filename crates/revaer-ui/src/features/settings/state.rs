@@ -338,6 +338,23 @@ mod tests {
             "settings.labels.categories"
         );
         assert_eq!(LabelKind::Tag.label_key(), "settings.labels.tags");
+        assert!(matches!(
+            LabelKind::from_str("category"),
+            Some(LabelKind::Category)
+        ));
+        assert!(matches!(LabelKind::from_str("tag"), Some(LabelKind::Tag)));
+        assert!(LabelKind::from_str("invalid").is_none());
+    }
+
+    #[test]
+    fn settings_section_keys_are_stable() {
+        let sections = SettingsSection::all();
+        assert!(matches!(sections[0], SettingsSection::AppProfile));
+        assert!(matches!(sections[1], SettingsSection::EngineProfile));
+        assert!(matches!(sections[2], SettingsSection::FsPolicy));
+        assert_eq!(SettingsSection::AppProfile.key(), "app_profile");
+        assert_eq!(SettingsSection::EngineProfile.key(), "engine_profile");
+        assert_eq!(SettingsSection::FsPolicy.key(), "fs_policy");
     }
 
     #[test]

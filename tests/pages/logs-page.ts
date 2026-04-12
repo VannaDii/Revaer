@@ -1,4 +1,5 @@
 import { expect, Page } from '@playwright/test';
+import { dismissBlockingOverlays } from './overlays';
 
 export class LogsPage {
   constructor(private readonly page: Page) {}
@@ -21,6 +22,7 @@ export class LogsPage {
   }
 
   async selectFilter(label: string): Promise<void> {
+    await dismissBlockingOverlays(this.page);
     await this.page
       .getByTestId('logs-level-filter')
       .getByRole('radio', { name: label })
@@ -45,6 +47,7 @@ export class LogsPage {
   }
 
   async search(text: string): Promise<void> {
+    await dismissBlockingOverlays(this.page);
     const input = this.page.getByRole('searchbox');
     await input.fill(text);
   }

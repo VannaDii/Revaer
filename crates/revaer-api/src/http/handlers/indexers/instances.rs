@@ -430,7 +430,10 @@ mod tests {
         TorznabInstanceServiceErrorKind,
     };
     use crate::http::handlers::indexers::test_support::{indexer_test_state, parse_problem};
-    use crate::models::{IndexerCfStateResponse, IndexerDefinitionResponse};
+    use crate::models::{
+        IndexerCfStateResponse, IndexerDefinitionResponse, IndexerInstanceFieldInventoryResponse,
+        IndexerInstanceListItemResponse,
+    };
     use async_trait::async_trait;
     use axum::response::IntoResponse;
     use std::sync::{Arc, Mutex};
@@ -438,7 +441,37 @@ mod tests {
     #[derive(Default)]
     struct RecordingIndexers {
         calls: Mutex<Vec<String>>,
+        list_items: Mutex<Vec<IndexerInstanceListItemResponse>>,
+        update_calls: Mutex<Vec<RecordedInstanceUpdateCall>>,
+        media_domain_calls: Mutex<Vec<(Uuid, Uuid, Vec<String>)>>,
+        tag_calls: Mutex<Vec<RecordedTagAssignmentCall>>,
+        field_value_calls: Mutex<Vec<RecordedFieldValueCall>>,
+        field_secret_calls: Mutex<Vec<(Uuid, Uuid, String, Uuid)>>,
+        cf_reset_calls: Mutex<Vec<(Uuid, Uuid, String)>>,
     }
+
+    type RecordedInstanceUpdateCall = (
+        Uuid,
+        Uuid,
+        Option<String>,
+        Option<i32>,
+        Option<String>,
+        Option<Uuid>,
+        Option<bool>,
+        Option<bool>,
+        Option<bool>,
+        Option<bool>,
+    );
+    type RecordedTagAssignmentCall = (Uuid, Uuid, Option<Vec<Uuid>>, Option<Vec<String>>);
+    type RecordedFieldValueCall = (
+        Uuid,
+        Uuid,
+        String,
+        Option<String>,
+        Option<i32>,
+        Option<String>,
+        Option<bool>,
+    );
 
     #[async_trait]
     impl IndexerFacade for RecordingIndexers {
@@ -819,69 +852,125 @@ mod tests {
                 .lock()
                 .expect("lock poisoned")
                 .push("update".to_string());
+            self.update_calls.lock().expect("lock poisoned").push((
+                params.actor_user_public_id,
+                params.indexer_instance_public_id,
+                params.display_name.map(ToOwned::to_owned),
+                params.priority,
+                params.trust_tier_key.map(ToOwned::to_owned),
+                params.routing_policy_public_id,
+                params.is_enabled,
+                params.enable_rss,
+                params.enable_automatic_search,
+                params.enable_interactive_search,
+            ));
             Ok(params.indexer_instance_public_id)
+        }
+
+        async fn indexer_instance_list(
+            &self,
+            _actor_user_public_id: Uuid,
+        ) -> Result<Vec<IndexerInstanceListItemResponse>, IndexerInstanceServiceError> {
+            Ok(self.list_items.lock().expect("lock poisoned").clone())
         }
 
         async fn indexer_instance_set_media_domains(
             &self,
-            _actor_user_public_id: Uuid,
-            _indexer_instance_public_id: Uuid,
-            _media_domain_keys: &[String],
+            actor_user_public_id: Uuid,
+            indexer_instance_public_id: Uuid,
+            media_domain_keys: &[String],
         ) -> Result<(), IndexerInstanceServiceError> {
             self.calls
                 .lock()
                 .expect("lock poisoned")
                 .push("media_domains".to_string());
+            self.media_domain_calls
+                .lock()
+                .expect("lock poisoned")
+                .push((
+                    actor_user_public_id,
+                    indexer_instance_public_id,
+                    media_domain_keys.to_vec(),
+                ));
             Ok(())
         }
 
         async fn indexer_instance_set_tags(
             &self,
-            _actor_user_public_id: Uuid,
-            _indexer_instance_public_id: Uuid,
-            _tag_public_ids: Option<&[Uuid]>,
-            _tag_keys: Option<&[String]>,
+            actor_user_public_id: Uuid,
+            indexer_instance_public_id: Uuid,
+            tag_public_ids: Option<&[Uuid]>,
+            tag_keys: Option<&[String]>,
         ) -> Result<(), IndexerInstanceServiceError> {
             self.calls
                 .lock()
                 .expect("lock poisoned")
                 .push("tags".to_string());
+            self.tag_calls.lock().expect("lock poisoned").push((
+                actor_user_public_id,
+                indexer_instance_public_id,
+                tag_public_ids.map(ToOwned::to_owned),
+                tag_keys.map(ToOwned::to_owned),
+            ));
             Ok(())
         }
 
         async fn indexer_instance_field_set_value(
             &self,
-            _params: IndexerInstanceFieldValueParams<'_>,
+            params: IndexerInstanceFieldValueParams<'_>,
         ) -> Result<(), IndexerInstanceFieldError> {
             self.calls
                 .lock()
                 .expect("lock poisoned")
                 .push("field_value".to_string());
+            self.field_value_calls.lock().expect("lock poisoned").push((
+                params.actor_user_public_id,
+                params.indexer_instance_public_id,
+                params.field_name.to_string(),
+                params.value_plain.map(ToOwned::to_owned),
+                params.value_int,
+                params.value_decimal.map(ToOwned::to_owned),
+                params.value_bool,
+            ));
             Ok(())
         }
 
         async fn indexer_instance_field_bind_secret(
             &self,
-            _actor_user_public_id: Uuid,
-            _indexer_instance_public_id: Uuid,
-            _field_name: &str,
-            _secret_public_id: Uuid,
+            actor_user_public_id: Uuid,
+            indexer_instance_public_id: Uuid,
+            field_name: &str,
+            secret_public_id: Uuid,
         ) -> Result<(), IndexerInstanceFieldError> {
             self.calls
                 .lock()
                 .expect("lock poisoned")
                 .push("field_secret".to_string());
+            self.field_secret_calls
+                .lock()
+                .expect("lock poisoned")
+                .push((
+                    actor_user_public_id,
+                    indexer_instance_public_id,
+                    field_name.to_string(),
+                    secret_public_id,
+                ));
             Ok(())
         }
 
         async fn indexer_cf_state_reset(
             &self,
-            _params: IndexerCfStateResetParams<'_>,
+            params: IndexerCfStateResetParams<'_>,
         ) -> Result<(), IndexerInstanceServiceError> {
             self.calls
                 .lock()
                 .expect("lock poisoned")
                 .push("cf_reset".to_string());
+            self.cf_reset_calls.lock().expect("lock poisoned").push((
+                params.actor_user_public_id,
+                params.indexer_instance_public_id,
+                params.reason.to_string(),
+            ));
             Ok(())
         }
 
@@ -1011,6 +1100,174 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn list_indexer_instances_returns_payload() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+        let indexer_instance_public_id = Uuid::new_v4();
+        let routing_policy_public_id = Uuid::new_v4();
+        let rate_limit_policy_public_id = Uuid::new_v4();
+        let secret_public_id = Uuid::new_v4();
+        indexers
+            .list_items
+            .lock()
+            .expect("lock poisoned")
+            .push(IndexerInstanceListItemResponse {
+                indexer_instance_public_id,
+                upstream_slug: "nyaa".to_string(),
+                display_name: "Nyaa".to_string(),
+                instance_status: "enabled".to_string(),
+                rss_status: "enabled".to_string(),
+                automatic_search_status: "enabled".to_string(),
+                interactive_search_status: "disabled".to_string(),
+                priority: 10,
+                trust_tier_key: Some("trusted".to_string()),
+                routing_policy_public_id: Some(routing_policy_public_id),
+                routing_policy_display_name: Some("Default".to_string()),
+                connect_timeout_ms: 1_000,
+                read_timeout_ms: 2_000,
+                max_parallel_requests: 4,
+                rate_limit_policy_public_id: Some(rate_limit_policy_public_id),
+                rate_limit_display_name: Some("Burst".to_string()),
+                rss_subscription_enabled: Some(true),
+                rss_interval_seconds: Some(300),
+                media_domain_keys: vec!["tv".to_string()],
+                tag_keys: vec!["anime".to_string()],
+                fields: vec![IndexerInstanceFieldInventoryResponse {
+                    field_name: "api_key".to_string(),
+                    field_type: "secret".to_string(),
+                    value_plain: None,
+                    value_int: None,
+                    value_decimal: None,
+                    value_bool: None,
+                    secret_public_id: Some(secret_public_id),
+                }],
+            });
+
+        let Json(payload) = list_indexer_instances(State(state)).await?;
+        assert_eq!(payload.indexer_instances.len(), 1);
+        assert_eq!(
+            payload.indexer_instances[0].indexer_instance_public_id,
+            indexer_instance_public_id
+        );
+        assert_eq!(
+            payload.indexer_instances[0].fields[0].secret_public_id,
+            Some(secret_public_id)
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn update_indexer_instance_trims_optional_fields() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+        let indexer_instance_public_id = Uuid::new_v4();
+        let routing_policy_public_id = Uuid::new_v4();
+        let request = IndexerInstanceUpdateRequest {
+            display_name: Some("  Example  ".into()),
+            priority: Some(15),
+            trust_tier_key: Some("  public  ".into()),
+            routing_policy_public_id: Some(routing_policy_public_id),
+            is_enabled: Some(true),
+            enable_rss: Some(false),
+            enable_automatic_search: Some(true),
+            enable_interactive_search: Some(false),
+        };
+
+        let Json(payload) = update_indexer_instance(
+            State(state),
+            Path(indexer_instance_public_id),
+            Json(request),
+        )
+        .await?;
+        assert_eq!(
+            payload.indexer_instance_public_id,
+            indexer_instance_public_id
+        );
+
+        let calls = indexers.update_calls.lock().expect("lock poisoned").clone();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].0, SYSTEM_ACTOR_PUBLIC_ID);
+        assert_eq!(calls[0].1, indexer_instance_public_id);
+        assert_eq!(calls[0].2.as_deref(), Some("Example"));
+        assert_eq!(calls[0].3, Some(15));
+        assert_eq!(calls[0].4.as_deref(), Some("public"));
+        assert_eq!(calls[0].5, Some(routing_policy_public_id));
+        assert_eq!(calls[0].6, Some(true));
+        assert_eq!(calls[0].7, Some(false));
+        assert_eq!(calls[0].8, Some(true));
+        assert_eq!(calls[0].9, Some(false));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn set_indexer_instance_media_domains_forwards_values() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+        let indexer_instance_public_id = Uuid::new_v4();
+        let request = IndexerInstanceMediaDomainsRequest {
+            media_domain_keys: vec!["tv".to_string(), "movies".to_string()],
+        };
+
+        let status = set_indexer_instance_media_domains(
+            State(state),
+            Path(indexer_instance_public_id),
+            Json(request),
+        )
+        .await?;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let calls = indexers
+            .media_domain_calls
+            .lock()
+            .expect("lock poisoned")
+            .clone();
+        assert_eq!(
+            calls.as_slice(),
+            &[(
+                SYSTEM_ACTOR_PUBLIC_ID,
+                indexer_instance_public_id,
+                vec!["tv".to_string(), "movies".to_string()]
+            )]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn set_indexer_instance_tags_normalizes_keys_and_preserves_ids() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+        let indexer_instance_public_id = Uuid::new_v4();
+        let tag_public_id = Uuid::new_v4();
+        let request = IndexerInstanceTagsRequest {
+            tag_public_ids: Some(vec![tag_public_id]),
+            tag_keys: Some(vec![
+                "  anime  ".to_string(),
+                String::new(),
+                " fansub ".to_string(),
+            ]),
+        };
+
+        let status = set_indexer_instance_tags(
+            State(state),
+            Path(indexer_instance_public_id),
+            Json(request),
+        )
+        .await?;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let calls = indexers.tag_calls.lock().expect("lock poisoned").clone();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].0, SYSTEM_ACTOR_PUBLIC_ID);
+        assert_eq!(calls[0].1, indexer_instance_public_id);
+        assert_eq!(calls[0].2.as_deref(), Some(&[tag_public_id][..]));
+        assert_eq!(
+            calls[0].3.as_deref(),
+            Some(&["anime".to_string(), "fansub".to_string()][..])
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn set_indexer_instance_tags_rejects_excessive_key_count() -> Result<(), ApiError> {
         let indexers = Arc::new(RecordingIndexers::default());
         let state = indexer_test_state(indexers)?;
@@ -1084,6 +1341,47 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn set_field_value_trims_optional_values() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+        let indexer_instance_public_id = Uuid::new_v4();
+        let request = IndexerInstanceFieldValueRequest {
+            field_name: "  api_key  ".into(),
+            value_plain: Some("  demo  ".into()),
+            value_int: Some(5),
+            value_decimal: Some(" 1.5 ".into()),
+            value_bool: Some(true),
+        };
+
+        let status = set_indexer_instance_field_value(
+            State(state),
+            Path(indexer_instance_public_id),
+            Json(request),
+        )
+        .await?;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let calls = indexers
+            .field_value_calls
+            .lock()
+            .expect("lock poisoned")
+            .clone();
+        assert_eq!(
+            calls.as_slice(),
+            &[(
+                SYSTEM_ACTOR_PUBLIC_ID,
+                indexer_instance_public_id,
+                "api_key".to_string(),
+                Some("demo".to_string()),
+                Some(5),
+                Some("1.5".to_string()),
+                Some(true),
+            ),]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn bind_field_secret_rejects_blank_field_name() -> Result<(), ApiError> {
         let indexers = Arc::new(RecordingIndexers::default());
         let state = indexer_test_state(indexers)?;
@@ -1102,6 +1400,75 @@ mod tests {
         assert_eq!(
             problem.detail.as_deref(),
             Some(INSTANCE_FIELD_NAME_REQUIRED)
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn bind_field_secret_trims_field_name() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+        let indexer_instance_public_id = Uuid::new_v4();
+        let secret_public_id = Uuid::new_v4();
+        let request = IndexerInstanceFieldSecretBindRequest {
+            field_name: "  api_key  ".into(),
+            secret_public_id,
+        };
+
+        let status = bind_indexer_instance_field_secret(
+            State(state),
+            Path(indexer_instance_public_id),
+            Json(request),
+        )
+        .await?;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let calls = indexers
+            .field_secret_calls
+            .lock()
+            .expect("lock poisoned")
+            .clone();
+        assert_eq!(
+            calls.as_slice(),
+            &[(
+                SYSTEM_ACTOR_PUBLIC_ID,
+                indexer_instance_public_id,
+                "api_key".to_string(),
+                secret_public_id
+            )]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn reset_cf_state_trims_reason() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+        let indexer_instance_public_id = Uuid::new_v4();
+        let request = IndexerCfStateResetRequest {
+            reason: "  operator cleared  ".into(),
+        };
+
+        let status = reset_indexer_instance_cf_state(
+            State(state),
+            Path(indexer_instance_public_id),
+            Json(request),
+        )
+        .await?;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let calls = indexers
+            .cf_reset_calls
+            .lock()
+            .expect("lock poisoned")
+            .clone();
+        assert_eq!(
+            calls.as_slice(),
+            &[(
+                SYSTEM_ACTOR_PUBLIC_ID,
+                indexer_instance_public_id,
+                "operator cleared".to_string()
+            )]
         );
         Ok(())
     }

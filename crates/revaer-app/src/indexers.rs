@@ -171,6 +171,32 @@ impl IndexerService {
         result.map_err(|error| map_error(&error))
     }
 
+    async fn run_data_operation<T, E, Future>(
+        &self,
+        operation: &'static str,
+        error_operation: &'static str,
+        future: Future,
+        map_error: fn(&'static str, &DataError) -> E,
+    ) -> Result<T, E>
+    where
+        Future: std::future::Future<Output = Result<T, DataError>>,
+    {
+        self.run_operation(operation, future, |error| map_error(error_operation, error))
+            .await
+    }
+
+    async fn run_unlabeled_data_operation<T, E, Future>(
+        &self,
+        operation: &'static str,
+        future: Future,
+        map_error: fn(&DataError) -> E,
+    ) -> Result<T, E>
+    where
+        Future: std::future::Future<Output = Result<T, DataError>>,
+    {
+        self.run_operation(operation, future, map_error).await
+    }
+
     async fn restore_backup_tags(
         &self,
         actor_user_public_id: Uuid,
@@ -191,9 +217,26 @@ impl IndexerService {
         actor_user_public_id: Uuid,
         policies: &[IndexerBackupRateLimitPolicyItem],
     ) -> Result<(i32, BTreeMap<String, Uuid>), IndexerBackupServiceError> {
+        let existing_system_policy_ids = self
+            .rate_limit_policy_list(actor_user_public_id)
+            .await
+            .map_err(|error| map_indexer_backup_rate_limit_error(&error))?
+            .into_iter()
+            .filter(|policy| policy.is_system)
+            .map(|policy| (policy.display_name, policy.rate_limit_policy_public_id))
+            .collect::<BTreeMap<_, _>>();
         let mut rate_limit_id_by_name = BTreeMap::new();
         let mut created_rate_limit_policy_count = 0_i32;
         for policy in policies {
+            if policy.is_system {
+                let policy_public_id = lookup_backup_reference(
+                    &existing_system_policy_ids,
+                    &policy.display_name,
+                    "rate_limit_reference_missing",
+                )?;
+                rate_limit_id_by_name.insert(policy.display_name.clone(), policy_public_id);
+                continue;
+            }
             let policy_public_id = self
                 .rate_limit_policy_create(
                     actor_user_public_id,
@@ -688,12 +731,10 @@ impl IndexerFacade for IndexerService {
         tag_key: &str,
         display_name: &str,
     ) -> Result<Uuid, TagServiceError> {
-        let span = info_span!(
+        let span = info_span!("indexer.tag_create", actor_user_public_id = %actor_user_public_id);
+        self.run_data_operation(
             "indexer.tag_create",
-            actor_user_public_id = %actor_user_public_id
-        );
-        self.run_operation(
-            "indexer.tag_create",
+            "tag_create",
             tag_create(
                 self.config.pool(),
                 actor_user_public_id,
@@ -701,7 +742,7 @@ impl IndexerFacade for IndexerService {
                 display_name,
             )
             .instrument(span),
-            |error| map_tag_error("tag_create", error),
+            map_tag_error,
         )
         .await
     }
@@ -710,18 +751,15 @@ impl IndexerFacade for IndexerService {
         &self,
         actor_user_public_id: Uuid,
     ) -> Result<Vec<TagListItemResponse>, TagServiceError> {
-        let span = info_span!(
-            "indexer.tag_list",
-            actor_user_public_id = %actor_user_public_id
-        );
+        let span = info_span!("indexer.tag_list", actor_user_public_id = %actor_user_public_id);
         let rows = self
-            .run_operation(
+            .run_data_operation(
                 "indexer.tag_list",
+                "tag_list",
                 tag_list(self.config.pool(), actor_user_public_id).instrument(span),
-                |error| map_tag_error("tag_list", error),
+                map_tag_error,
             )
             .await?;
-
         Ok(rows
             .into_iter()
             .map(|row| TagListItemResponse {
@@ -740,12 +778,10 @@ impl IndexerFacade for IndexerService {
         tag_key: Option<&str>,
         display_name: &str,
     ) -> Result<Uuid, TagServiceError> {
-        let span = info_span!(
+        let span = info_span!("indexer.tag_update", actor_user_public_id = %actor_user_public_id);
+        self.run_data_operation(
             "indexer.tag_update",
-            actor_user_public_id = %actor_user_public_id
-        );
-        self.run_operation(
-            "indexer.tag_update",
+            "tag_update",
             tag_update(
                 self.config.pool(),
                 actor_user_public_id,
@@ -754,7 +790,7 @@ impl IndexerFacade for IndexerService {
                 display_name,
             )
             .instrument(span),
-            |error| map_tag_error("tag_update", error),
+            map_tag_error,
         )
         .await
     }
@@ -765,12 +801,10 @@ impl IndexerFacade for IndexerService {
         tag_public_id: Option<Uuid>,
         tag_key: Option<&str>,
     ) -> Result<(), TagServiceError> {
-        let span = info_span!(
+        let span = info_span!("indexer.tag_delete", actor_user_public_id = %actor_user_public_id);
+        self.run_data_operation(
             "indexer.tag_delete",
-            actor_user_public_id = %actor_user_public_id
-        );
-        self.run_operation(
-            "indexer.tag_delete",
+            "tag_delete",
             tag_soft_delete(
                 self.config.pool(),
                 actor_user_public_id,
@@ -778,7 +812,7 @@ impl IndexerFacade for IndexerService {
                 tag_key,
             )
             .instrument(span),
-            |error| map_tag_error("tag_delete", error),
+            map_tag_error,
         )
         .await
     }
@@ -787,18 +821,14 @@ impl IndexerFacade for IndexerService {
         &self,
         actor_user_public_id: Uuid,
     ) -> Result<Vec<IndexerHealthNotificationHookResponse>, HealthNotificationServiceError> {
-        let span = info_span!(
-            "indexer.health_notification_hook_list",
-            actor_user_public_id = %actor_user_public_id
-        );
+        let span = info_span!("indexer.health_notification_hook_list", actor_user_public_id = %actor_user_public_id);
         let rows = self
-            .run_operation(
+            .run_data_operation(
                 "indexer.health_notification_hook_list",
+                "indexer_health_notification_hook_list",
                 indexer_health_notification_hook_list(self.config.pool(), actor_user_public_id)
                     .instrument(span),
-                |error| {
-                    map_health_notification_error("indexer_health_notification_hook_list", error)
-                },
+                map_health_notification_error,
             )
             .await?;
         Ok(rows
@@ -820,8 +850,9 @@ impl IndexerFacade for IndexerService {
             "indexer.health_notification_hook_create",
             actor_user_public_id = %actor_user_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.health_notification_hook_create",
+            "indexer_health_notification_hook_create",
             indexer_health_notification_hook_create(
                 self.config.pool(),
                 actor_user_public_id,
@@ -832,7 +863,7 @@ impl IndexerFacade for IndexerService {
                 email,
             )
             .instrument(span),
-            |error| map_health_notification_error("indexer_health_notification_hook_create", error),
+            map_health_notification_error,
         )
         .await
     }
@@ -842,23 +873,18 @@ impl IndexerFacade for IndexerService {
         actor_user_public_id: Uuid,
         hook_public_id: Uuid,
     ) -> Result<IndexerHealthNotificationHookResponse, HealthNotificationServiceError> {
-        let span = info_span!(
-            "indexer.health_notification_hook_get",
-            actor_user_public_id = %actor_user_public_id,
-            hook_public_id = %hook_public_id
-        );
+        let span = info_span!("indexer.health_notification_hook_get", actor_user_public_id = %actor_user_public_id, hook_public_id = %hook_public_id);
         let row = self
-            .run_operation(
+            .run_data_operation(
                 "indexer.health_notification_hook_get",
+                "indexer_health_notification_hook_get",
                 indexer_health_notification_hook_get(
                     self.config.pool(),
                     actor_user_public_id,
                     hook_public_id,
                 )
                 .instrument(span),
-                |error| {
-                    map_health_notification_error("indexer_health_notification_hook_get", error)
-                },
+                map_health_notification_error,
             )
             .await?;
         Ok(map_health_notification_hook_row(row))
@@ -873,8 +899,9 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %params.actor_user_public_id,
             hook_public_id = %params.hook_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.health_notification_hook_update",
+            "indexer_health_notification_hook_update",
             indexer_health_notification_hook_update(
                 self.config.pool(),
                 &IndexerHealthNotificationHookUpdateInput {
@@ -888,7 +915,7 @@ impl IndexerFacade for IndexerService {
                 },
             )
             .instrument(span),
-            |error| map_health_notification_error("indexer_health_notification_hook_update", error),
+            map_health_notification_error,
         )
         .await
     }
@@ -903,15 +930,16 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             hook_public_id = %hook_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.health_notification_hook_delete",
+            "indexer_health_notification_hook_delete",
             indexer_health_notification_hook_delete(
                 self.config.pool(),
                 actor_user_public_id,
                 hook_public_id,
             )
             .instrument(span),
-            |error| map_health_notification_error("indexer_health_notification_hook_delete", error),
+            map_health_notification_error,
         )
         .await
     }
@@ -963,15 +991,16 @@ impl IndexerFacade for IndexerService {
             "indexer.search_request_cancel",
             actor_user_public_id = %actor_user_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.search_request_cancel",
+            "search_request_cancel",
             search_request_cancel(
                 self.config.pool(),
                 actor_user_public_id,
                 search_request_public_id,
             )
             .instrument(span),
-            |error| map_search_request_error("search_request_cancel", error),
+            map_search_request_error,
         )
         .await
     }
@@ -1076,11 +1105,12 @@ impl IndexerFacade for IndexerService {
             "indexer.routing_policy_create",
             actor_user_public_id = %actor_user_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.routing_policy_create",
+            "routing_policy_create",
             routing_policy_create(self.config.pool(), actor_user_public_id, display_name, mode)
                 .instrument(span),
-            |error| map_routing_policy_error("routing_policy_create", error),
+            map_routing_policy_error,
         )
         .await
     }
@@ -1099,8 +1129,9 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             routing_policy_public_id = %routing_policy_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.routing_policy_set_param",
+            "routing_policy_set_param",
             routing_policy_set_param(
                 self.config.pool(),
                 actor_user_public_id,
@@ -1111,7 +1142,7 @@ impl IndexerFacade for IndexerService {
                 value_bool,
             )
             .instrument(span),
-            |error| map_routing_policy_error("routing_policy_set_param", error),
+            map_routing_policy_error,
         )
         .await
     }
@@ -1129,8 +1160,9 @@ impl IndexerFacade for IndexerService {
             routing_policy_public_id = %routing_policy_public_id,
             secret_public_id = %secret_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.routing_policy_bind_secret",
+            "routing_policy_bind_secret",
             routing_policy_bind_secret(
                 self.config.pool(),
                 actor_user_public_id,
@@ -1139,7 +1171,7 @@ impl IndexerFacade for IndexerService {
                 secret_public_id,
             )
             .instrument(span),
-            |error| map_routing_policy_error("routing_policy_bind_secret", error),
+            map_routing_policy_error,
         )
         .await
     }
@@ -1235,8 +1267,9 @@ impl IndexerFacade for IndexerService {
             "indexer.rate_limit_policy_create",
             actor_user_public_id = %actor_user_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.rate_limit_policy_create",
+            "rate_limit_policy_create",
             rate_limit_policy_create(
                 self.config.pool(),
                 actor_user_public_id,
@@ -1246,7 +1279,7 @@ impl IndexerFacade for IndexerService {
                 concurrent,
             )
             .instrument(span),
-            |error| map_rate_limit_policy_error("rate_limit_policy_create", error),
+            map_rate_limit_policy_error,
         )
         .await
     }
@@ -1265,8 +1298,9 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             rate_limit_policy_public_id = %rate_limit_policy_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.rate_limit_policy_update",
+            "rate_limit_policy_update",
             rate_limit_policy_update(
                 self.config.pool(),
                 actor_user_public_id,
@@ -1277,7 +1311,7 @@ impl IndexerFacade for IndexerService {
                 concurrent,
             )
             .instrument(span),
-            |error| map_rate_limit_policy_error("rate_limit_policy_update", error),
+            map_rate_limit_policy_error,
         )
         .await
     }
@@ -1292,15 +1326,16 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             rate_limit_policy_public_id = %rate_limit_policy_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.rate_limit_policy_soft_delete",
+            "rate_limit_policy_soft_delete",
             rate_limit_policy_soft_delete(
                 self.config.pool(),
                 actor_user_public_id,
                 rate_limit_policy_public_id,
             )
             .instrument(span),
-            |error| map_rate_limit_policy_error("rate_limit_policy_soft_delete", error),
+            map_rate_limit_policy_error,
         )
         .await
     }
@@ -1317,8 +1352,9 @@ impl IndexerFacade for IndexerService {
             indexer_instance_public_id = %indexer_instance_public_id,
             rate_limit_policy_public_id = ?rate_limit_policy_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.instance_set_rate_limit_policy",
+            "indexer_instance_set_rate_limit_policy",
             indexer_instance_set_rate_limit_policy(
                 self.config.pool(),
                 actor_user_public_id,
@@ -1326,7 +1362,7 @@ impl IndexerFacade for IndexerService {
                 rate_limit_policy_public_id,
             )
             .instrument(span),
-            |error| map_rate_limit_policy_error("indexer_instance_set_rate_limit_policy", error),
+            map_rate_limit_policy_error,
         )
         .await
     }
@@ -1343,8 +1379,9 @@ impl IndexerFacade for IndexerService {
             routing_policy_public_id = %routing_policy_public_id,
             rate_limit_policy_public_id = ?rate_limit_policy_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.routing_policy_set_rate_limit_policy",
+            "routing_policy_set_rate_limit_policy",
             routing_policy_set_rate_limit_policy(
                 self.config.pool(),
                 actor_user_public_id,
@@ -1352,7 +1389,7 @@ impl IndexerFacade for IndexerService {
                 rate_limit_policy_public_id,
             )
             .instrument(span),
-            |error| map_rate_limit_policy_error("routing_policy_set_rate_limit_policy", error),
+            map_rate_limit_policy_error,
         )
         .await
     }
@@ -1408,8 +1445,9 @@ impl IndexerFacade for IndexerService {
             "indexer.search_profile_create",
             actor_user_public_id = %actor_user_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.search_profile_create",
+            "search_profile_create",
             search_profile_create(
                 self.config.pool(),
                 actor_user_public_id,
@@ -1420,7 +1458,7 @@ impl IndexerFacade for IndexerService {
                 user_public_id,
             )
             .instrument(span),
-            |error| map_search_profile_error("search_profile_create", error),
+            map_search_profile_error,
         )
         .await
     }
@@ -1437,8 +1475,9 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             search_profile_public_id = %search_profile_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.search_profile_update",
+            "search_profile_update",
             search_profile_update(
                 self.config.pool(),
                 actor_user_public_id,
@@ -1447,7 +1486,7 @@ impl IndexerFacade for IndexerService {
                 page_size,
             )
             .instrument(span),
-            |error| map_search_profile_error("search_profile_update", error),
+            map_search_profile_error,
         )
         .await
     }
@@ -1463,8 +1502,9 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             search_profile_public_id = %search_profile_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.search_profile_set_default",
+            "search_profile_set_default",
             search_profile_set_default(
                 self.config.pool(),
                 actor_user_public_id,
@@ -1472,7 +1512,7 @@ impl IndexerFacade for IndexerService {
                 page_size,
             )
             .instrument(span),
-            |error| map_search_profile_error("search_profile_set_default", error),
+            map_search_profile_error,
         )
         .await
     }
@@ -1488,8 +1528,9 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             search_profile_public_id = %search_profile_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.search_profile_set_default_domain",
+            "search_profile_set_default_domain",
             search_profile_set_default_domain(
                 self.config.pool(),
                 actor_user_public_id,
@@ -1497,7 +1538,7 @@ impl IndexerFacade for IndexerService {
                 default_media_domain_key,
             )
             .instrument(span),
-            |error| map_search_profile_error("search_profile_set_default_domain", error),
+            map_search_profile_error,
         )
         .await
     }
@@ -1513,8 +1554,9 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             search_profile_public_id = %search_profile_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.search_profile_set_domain_allowlist",
+            "search_profile_set_domain_allowlist",
             search_profile_set_domain_allowlist(
                 self.config.pool(),
                 actor_user_public_id,
@@ -1522,7 +1564,7 @@ impl IndexerFacade for IndexerService {
                 media_domain_keys,
             )
             .instrument(span),
-            |error| map_search_profile_error("search_profile_set_domain_allowlist", error),
+            map_search_profile_error,
         )
         .await
     }
@@ -1539,8 +1581,9 @@ impl IndexerFacade for IndexerService {
             search_profile_public_id = %search_profile_public_id,
             policy_set_public_id = %policy_set_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.search_profile_add_policy_set",
+            "search_profile_add_policy_set",
             search_profile_add_policy_set(
                 self.config.pool(),
                 actor_user_public_id,
@@ -1548,7 +1591,7 @@ impl IndexerFacade for IndexerService {
                 policy_set_public_id,
             )
             .instrument(span),
-            |error| map_search_profile_error("search_profile_add_policy_set", error),
+            map_search_profile_error,
         )
         .await
     }
@@ -1565,8 +1608,9 @@ impl IndexerFacade for IndexerService {
             search_profile_public_id = %search_profile_public_id,
             policy_set_public_id = %policy_set_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.search_profile_remove_policy_set",
+            "search_profile_remove_policy_set",
             search_profile_remove_policy_set(
                 self.config.pool(),
                 actor_user_public_id,
@@ -1574,7 +1618,7 @@ impl IndexerFacade for IndexerService {
                 policy_set_public_id,
             )
             .instrument(span),
-            |error| map_search_profile_error("search_profile_remove_policy_set", error),
+            map_search_profile_error,
         )
         .await
     }
@@ -1590,8 +1634,9 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             search_profile_public_id = %search_profile_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.search_profile_indexer_allow",
+            "search_profile_indexer_allow",
             search_profile_indexer_allow(
                 self.config.pool(),
                 actor_user_public_id,
@@ -1599,7 +1644,7 @@ impl IndexerFacade for IndexerService {
                 indexer_instance_public_ids,
             )
             .instrument(span),
-            |error| map_search_profile_error("search_profile_indexer_allow", error),
+            map_search_profile_error,
         )
         .await
     }
@@ -1615,8 +1660,9 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             search_profile_public_id = %search_profile_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.search_profile_indexer_block",
+            "search_profile_indexer_block",
             search_profile_indexer_block(
                 self.config.pool(),
                 actor_user_public_id,
@@ -1624,7 +1670,7 @@ impl IndexerFacade for IndexerService {
                 indexer_instance_public_ids,
             )
             .instrument(span),
-            |error| map_search_profile_error("search_profile_indexer_block", error),
+            map_search_profile_error,
         )
         .await
     }
@@ -1641,8 +1687,9 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             search_profile_public_id = %search_profile_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.search_profile_tag_allow",
+            "search_profile_tag_allow",
             search_profile_tag_allow(
                 self.config.pool(),
                 actor_user_public_id,
@@ -1651,7 +1698,7 @@ impl IndexerFacade for IndexerService {
                 tag_keys,
             )
             .instrument(span),
-            |error| map_search_profile_error("search_profile_tag_allow", error),
+            map_search_profile_error,
         )
         .await
     }
@@ -1668,8 +1715,9 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             search_profile_public_id = %search_profile_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.search_profile_tag_block",
+            "search_profile_tag_block",
             search_profile_tag_block(
                 self.config.pool(),
                 actor_user_public_id,
@@ -1678,7 +1726,7 @@ impl IndexerFacade for IndexerService {
                 tag_keys,
             )
             .instrument(span),
-            |error| map_search_profile_error("search_profile_tag_block", error),
+            map_search_profile_error,
         )
         .await
     }
@@ -1695,8 +1743,9 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             search_profile_public_id = %search_profile_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.search_profile_tag_prefer",
+            "search_profile_tag_prefer",
             search_profile_tag_prefer(
                 self.config.pool(),
                 actor_user_public_id,
@@ -1705,7 +1754,7 @@ impl IndexerFacade for IndexerService {
                 tag_keys,
             )
             .instrument(span),
-            |error| map_search_profile_error("search_profile_tag_prefer", error),
+            map_search_profile_error,
         )
         .await
     }
@@ -1740,12 +1789,11 @@ impl IndexerFacade for IndexerService {
         target_search_profile_public_id: Option<Uuid>,
         target_torznab_instance_public_id: Option<Uuid>,
     ) -> Result<Uuid, ImportJobServiceError> {
-        let span = info_span!(
+        let span =
+            info_span!("indexer.import_job_create", actor_user_public_id = %actor_user_public_id);
+        self.run_data_operation(
             "indexer.import_job_create",
-            actor_user_public_id = %actor_user_public_id
-        );
-        self.run_operation(
-            "indexer.import_job_create",
+            "import_job_create",
             import_job_create(
                 self.config.pool(),
                 actor_user_public_id,
@@ -1755,7 +1803,7 @@ impl IndexerFacade for IndexerService {
                 target_torznab_instance_public_id,
             )
             .instrument(span),
-            |error| map_import_job_error("import_job_create", error),
+            map_import_job_error,
         )
         .await
     }
@@ -1770,8 +1818,9 @@ impl IndexerFacade for IndexerService {
             "indexer.import_job_run_prowlarr_api",
             import_job_public_id = %import_job_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.import_job_run_prowlarr_api",
+            "import_job_run_prowlarr_api",
             import_job_run_prowlarr_api(
                 self.config.pool(),
                 import_job_public_id,
@@ -1779,7 +1828,7 @@ impl IndexerFacade for IndexerService {
                 prowlarr_api_key_secret_public_id,
             )
             .instrument(span),
-            |error| map_import_job_error("import_job_run_prowlarr_api", error),
+            map_import_job_error,
         )
         .await
     }
@@ -1793,15 +1842,16 @@ impl IndexerFacade for IndexerService {
             "indexer.import_job_run_prowlarr_backup",
             import_job_public_id = %import_job_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.import_job_run_prowlarr_backup",
+            "import_job_run_prowlarr_backup",
             import_job_run_prowlarr_backup(
                 self.config.pool(),
                 import_job_public_id,
                 backup_blob_ref,
             )
             .instrument(span),
-            |error| map_import_job_error("import_job_run_prowlarr_backup", error),
+            map_import_job_error,
         )
         .await
     }
@@ -1884,7 +1934,7 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             conflict_id = conflict_id
         );
-        self.run_operation(
+        self.run_unlabeled_data_operation(
             "indexer.source_metadata_conflict_resolve",
             source_metadata_conflict_resolve(
                 self.config.pool(),
@@ -1910,7 +1960,7 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             conflict_id = conflict_id
         );
-        self.run_operation(
+        self.run_unlabeled_data_operation(
             "indexer.source_metadata_conflict_reopen",
             source_metadata_conflict_reopen(
                 self.config.pool(),
@@ -2027,12 +2077,11 @@ impl IndexerFacade for IndexerService {
         scope: &str,
         enabled: Option<bool>,
     ) -> Result<Uuid, PolicyServiceError> {
-        let span = info_span!(
+        let span =
+            info_span!("indexer.policy_set_create", actor_user_public_id = %actor_user_public_id);
+        self.run_data_operation(
             "indexer.policy_set_create",
-            actor_user_public_id = %actor_user_public_id
-        );
-        self.run_operation(
-            "indexer.policy_set_create",
+            "policy_set_create",
             policy_set_create(
                 self.config.pool(),
                 actor_user_public_id,
@@ -2041,7 +2090,7 @@ impl IndexerFacade for IndexerService {
                 enabled,
             )
             .instrument(span),
-            |error| map_policy_error("policy_set_create", error),
+            map_policy_error,
         )
         .await
     }
@@ -2057,8 +2106,9 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             policy_set_public_id = %policy_set_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.policy_set_update",
+            "policy_set_update",
             policy_set_update(
                 self.config.pool(),
                 actor_user_public_id,
@@ -2066,7 +2116,7 @@ impl IndexerFacade for IndexerService {
                 display_name,
             )
             .instrument(span),
-            |error| map_policy_error("policy_set_update", error),
+            map_policy_error,
         )
         .await
     }
@@ -2081,15 +2131,16 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             policy_set_public_id = %policy_set_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.policy_set_enable",
+            "policy_set_enable",
             policy_set_enable(
                 self.config.pool(),
                 actor_user_public_id,
                 policy_set_public_id,
             )
             .instrument(span),
-            |error| map_policy_error("policy_set_enable", error),
+            map_policy_error,
         )
         .await
     }
@@ -2104,15 +2155,16 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             policy_set_public_id = %policy_set_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.policy_set_disable",
+            "policy_set_disable",
             policy_set_disable(
                 self.config.pool(),
                 actor_user_public_id,
                 policy_set_public_id,
             )
             .instrument(span),
-            |error| map_policy_error("policy_set_disable", error),
+            map_policy_error,
         )
         .await
     }
@@ -2126,15 +2178,16 @@ impl IndexerFacade for IndexerService {
             "indexer.policy_set_reorder",
             actor_user_public_id = %actor_user_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.policy_set_reorder",
+            "policy_set_reorder",
             policy_set_reorder(
                 self.config.pool(),
                 actor_user_public_id,
                 ordered_policy_set_public_ids,
             )
             .instrument(span),
-            |error| map_policy_error("policy_set_reorder", error),
+            map_policy_error,
         )
         .await
     }
@@ -2176,10 +2229,11 @@ impl IndexerFacade for IndexerService {
             rationale: params.rationale.as_deref(),
             expires_at: params.expires_at,
         };
-        self.run_operation(
+        self.run_data_operation(
             "indexer.policy_rule_create",
+            "policy_rule_create",
             policy_rule_create(self.config.pool(), &input).instrument(span),
-            |error| map_policy_error("policy_rule_create", error),
+            map_policy_error,
         )
         .await
     }
@@ -2194,15 +2248,16 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             policy_rule_public_id = %policy_rule_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.policy_rule_enable",
+            "policy_rule_enable",
             policy_rule_enable(
                 self.config.pool(),
                 actor_user_public_id,
                 policy_rule_public_id,
             )
             .instrument(span),
-            |error| map_policy_error("policy_rule_enable", error),
+            map_policy_error,
         )
         .await
     }
@@ -2217,15 +2272,16 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             policy_rule_public_id = %policy_rule_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.policy_rule_disable",
+            "policy_rule_disable",
             policy_rule_disable(
                 self.config.pool(),
                 actor_user_public_id,
                 policy_rule_public_id,
             )
             .instrument(span),
-            |error| map_policy_error("policy_rule_disable", error),
+            map_policy_error,
         )
         .await
     }
@@ -2241,8 +2297,9 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             policy_set_public_id = %policy_set_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.policy_rule_reorder",
+            "policy_rule_reorder",
             policy_rule_reorder(
                 self.config.pool(),
                 actor_user_public_id,
@@ -2250,7 +2307,7 @@ impl IndexerFacade for IndexerService {
                 ordered_policy_rule_public_ids,
             )
             .instrument(span),
-            |error| map_policy_error("policy_rule_reorder", error),
+            map_policy_error,
         )
         .await
     }
@@ -2282,8 +2339,9 @@ impl IndexerFacade for IndexerService {
             "indexer.tracker_category_mapping_upsert",
             actor_user_public_id = %params.actor_user_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.tracker_category_mapping_upsert",
+            "tracker_category_mapping_upsert",
             tracker_category_mapping_upsert(
                 self.config.pool(),
                 params.actor_user_public_id,
@@ -2298,7 +2356,7 @@ impl IndexerFacade for IndexerService {
                 },
             )
             .instrument(span),
-            |error| map_category_mapping_error("tracker_category_mapping_upsert", error),
+            map_category_mapping_error,
         )
         .await
     }
@@ -2311,8 +2369,9 @@ impl IndexerFacade for IndexerService {
             "indexer.tracker_category_mapping_delete",
             actor_user_public_id = %params.actor_user_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.tracker_category_mapping_delete",
+            "tracker_category_mapping_delete",
             tracker_category_mapping_delete(
                 self.config.pool(),
                 params.actor_user_public_id,
@@ -2325,7 +2384,7 @@ impl IndexerFacade for IndexerService {
                 },
             )
             .instrument(span),
-            |error| map_category_mapping_error("tracker_category_mapping_delete", error),
+            map_category_mapping_error,
         )
         .await
     }
@@ -2341,8 +2400,9 @@ impl IndexerFacade for IndexerService {
             "indexer.media_domain_mapping_upsert",
             actor_user_public_id = %actor_user_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.media_domain_mapping_upsert",
+            "media_domain_mapping_upsert",
             media_domain_mapping_upsert(
                 self.config.pool(),
                 actor_user_public_id,
@@ -2351,7 +2411,7 @@ impl IndexerFacade for IndexerService {
                 is_primary,
             )
             .instrument(span),
-            |error| map_category_mapping_error("media_domain_mapping_upsert", error),
+            map_category_mapping_error,
         )
         .await
     }
@@ -2366,8 +2426,9 @@ impl IndexerFacade for IndexerService {
             "indexer.media_domain_mapping_delete",
             actor_user_public_id = %actor_user_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.media_domain_mapping_delete",
+            "media_domain_mapping_delete",
             media_domain_mapping_delete(
                 self.config.pool(),
                 actor_user_public_id,
@@ -2375,7 +2436,7 @@ impl IndexerFacade for IndexerService {
                 torznab_cat_id,
             )
             .instrument(span),
-            |error| map_category_mapping_error("media_domain_mapping_delete", error),
+            map_category_mapping_error,
         )
         .await
     }
@@ -2391,9 +2452,10 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             search_profile_public_id = %search_profile_public_id
         );
-        let credentials = self
-            .run_operation(
+        let value = self
+            .run_data_operation(
                 "indexer.torznab_instance_create",
+                "torznab_instance_create",
                 torznab_instance_create(
                     self.config.pool(),
                     actor_user_public_id,
@@ -2401,13 +2463,12 @@ impl IndexerFacade for IndexerService {
                     display_name,
                 )
                 .instrument(span),
-                |error| map_torznab_instance_error("torznab_instance_create", error),
+                map_torznab_instance_error,
             )
             .await?;
-
         Ok(TorznabInstanceCredentials {
-            torznab_instance_public_id: credentials.torznab_instance_public_id,
-            api_key_plaintext: credentials.api_key_plaintext,
+            torznab_instance_public_id: value.torznab_instance_public_id,
+            api_key_plaintext: value.api_key_plaintext,
         })
     }
 
@@ -2421,22 +2482,22 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             torznab_instance_public_id = %torznab_instance_public_id
         );
-        let api_key_plaintext = self
-            .run_operation(
+        let value = self
+            .run_data_operation(
                 "indexer.torznab_instance_rotate_key",
+                "torznab_instance_rotate_key",
                 torznab_instance_rotate_key(
                     self.config.pool(),
                     actor_user_public_id,
                     torznab_instance_public_id,
                 )
                 .instrument(span),
-                |error| map_torznab_instance_error("torznab_instance_rotate_key", error),
+                map_torznab_instance_error,
             )
             .await?;
-
         Ok(TorznabInstanceCredentials {
             torznab_instance_public_id,
-            api_key_plaintext,
+            api_key_plaintext: value,
         })
     }
 
@@ -2452,8 +2513,9 @@ impl IndexerFacade for IndexerService {
             torznab_instance_public_id = %torznab_instance_public_id,
             is_enabled = is_enabled
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.torznab_instance_enable_disable",
+            "torznab_instance_enable_disable",
             torznab_instance_enable_disable(
                 self.config.pool(),
                 actor_user_public_id,
@@ -2461,7 +2523,7 @@ impl IndexerFacade for IndexerService {
                 is_enabled,
             )
             .instrument(span),
-            |error| map_torznab_instance_error("torznab_instance_enable_disable", error),
+            map_torznab_instance_error,
         )
         .await
     }
@@ -2476,15 +2538,16 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             torznab_instance_public_id = %torznab_instance_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.torznab_instance_soft_delete",
+            "torznab_instance_soft_delete",
             torznab_instance_soft_delete(
                 self.config.pool(),
                 actor_user_public_id,
                 torznab_instance_public_id,
             )
             .instrument(span),
-            |error| map_torznab_instance_error("torznab_instance_soft_delete", error),
+            map_torznab_instance_error,
         )
         .await
     }
@@ -2498,13 +2561,13 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id
         );
         let rows = self
-            .run_operation(
+            .run_data_operation(
                 "indexer.torznab_instance_list",
+                "torznab_instance_list",
                 torznab_instance_list(self.config.pool(), actor_user_public_id).instrument(span),
-                |error| map_torznab_instance_error("torznab_instance_list", error),
+                map_torznab_instance_error,
             )
             .await?;
-
         Ok(rows
             .into_iter()
             .map(build_torznab_instance_inventory_item)
@@ -2521,15 +2584,16 @@ impl IndexerFacade for IndexerService {
             torznab_instance_public_id = %torznab_instance_public_id
         );
         let row = self
-            .run_operation(
+            .run_data_operation(
                 "indexer.torznab_instance_authenticate",
+                "torznab_instance_authenticate",
                 torznab_instance_authenticate(
                     self.config.pool(),
                     torznab_instance_public_id,
                     api_key_plaintext,
                 )
                 .instrument(span),
-                |error| map_torznab_access_error("torznab_instance_authenticate", error),
+                map_torznab_access_error,
             )
             .await?;
 
@@ -2550,15 +2614,16 @@ impl IndexerFacade for IndexerService {
             torznab_instance_public_id = %torznab_instance_public_id,
             canonical_torrent_source_public_id = %canonical_torrent_source_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.torznab_download_prepare",
+            "torznab_download_prepare",
             torznab_download_prepare(
                 self.config.pool(),
                 torznab_instance_public_id,
                 canonical_torrent_source_public_id,
             )
             .instrument(span),
-            |error| map_torznab_access_error("torznab_download_prepare", error),
+            map_torznab_access_error,
         )
         .await
     }
@@ -2566,13 +2631,13 @@ impl IndexerFacade for IndexerService {
     async fn torznab_category_list(&self) -> Result<Vec<TorznabCategory>, TorznabAccessError> {
         let span = info_span!("torznab.category_list");
         let rows = self
-            .run_operation(
+            .run_data_operation(
                 "indexer.torznab_category_list",
+                "torznab_category_list",
                 torznab_category_list(self.config.pool()).instrument(span),
-                |error| map_torznab_access_error("torznab_category_list", error),
+                map_torznab_access_error,
             )
             .await?;
-
         Ok(rows
             .into_iter()
             .map(|row| TorznabCategory {
@@ -2594,8 +2659,9 @@ impl IndexerFacade for IndexerService {
             torznab_instance_public_id = %torznab_instance_public_id,
             indexer_instance_public_id = %indexer_instance_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.torznab_feed_category_ids",
+            "torznab_feed_category_ids",
             tracker_category_mapping_resolve_feed(
                 self.config.pool(),
                 torznab_instance_public_id,
@@ -2604,7 +2670,7 @@ impl IndexerFacade for IndexerService {
                 tracker_subcategory,
             )
             .instrument(span),
-            |error| map_torznab_access_error("torznab_feed_category_ids", error),
+            map_torznab_access_error,
         )
         .await
     }
@@ -2624,8 +2690,9 @@ impl IndexerFacade for IndexerService {
             indexer_definition_upstream_slug = indexer_definition_upstream_slug,
             routing_policy_public_id = ?routing_policy_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.instance_create",
+            "indexer_instance_create",
             indexer_instance_create(
                 self.config.pool(),
                 actor_user_public_id,
@@ -2636,7 +2703,7 @@ impl IndexerFacade for IndexerService {
                 routing_policy_public_id,
             )
             .instrument(span),
-            |error| map_indexer_instance_error("indexer_instance_create", error),
+            map_indexer_instance_error,
         )
         .await
     }
@@ -2650,22 +2717,26 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %params.actor_user_public_id,
             indexer_instance_public_id = %params.indexer_instance_public_id
         );
-        let input = IndexerInstanceUpdateInput {
-            actor_user_public_id: params.actor_user_public_id,
-            indexer_instance_public_id: params.indexer_instance_public_id,
-            display_name: params.display_name,
-            priority: params.priority,
-            trust_tier_key: params.trust_tier_key,
-            routing_policy_public_id: params.routing_policy_public_id,
-            is_enabled: params.is_enabled,
-            enable_rss: params.enable_rss,
-            enable_automatic_search: params.enable_automatic_search,
-            enable_interactive_search: params.enable_interactive_search,
-        };
-        self.run_operation(
+        self.run_data_operation(
             "indexer.instance_update",
-            indexer_instance_update(self.config.pool(), &input).instrument(span),
-            |error| map_indexer_instance_error("indexer_instance_update", error),
+            "indexer_instance_update",
+            indexer_instance_update(
+                self.config.pool(),
+                &IndexerInstanceUpdateInput {
+                    actor_user_public_id: params.actor_user_public_id,
+                    indexer_instance_public_id: params.indexer_instance_public_id,
+                    display_name: params.display_name,
+                    priority: params.priority,
+                    trust_tier_key: params.trust_tier_key,
+                    routing_policy_public_id: params.routing_policy_public_id,
+                    is_enabled: params.is_enabled,
+                    enable_rss: params.enable_rss,
+                    enable_automatic_search: params.enable_automatic_search,
+                    enable_interactive_search: params.enable_interactive_search,
+                },
+            )
+            .instrument(span),
+            map_indexer_instance_error,
         )
         .await
     }
@@ -2706,8 +2777,9 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             indexer_instance_public_id = %indexer_instance_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.instance_set_media_domains",
+            "indexer_instance_set_media_domains",
             indexer_instance_set_media_domains(
                 self.config.pool(),
                 actor_user_public_id,
@@ -2715,7 +2787,7 @@ impl IndexerFacade for IndexerService {
                 media_domain_keys,
             )
             .instrument(span),
-            |error| map_indexer_instance_error("indexer_instance_set_media_domains", error),
+            map_indexer_instance_error,
         )
         .await
     }
@@ -2732,8 +2804,9 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             indexer_instance_public_id = %indexer_instance_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.instance_set_tags",
+            "indexer_instance_set_tags",
             indexer_instance_set_tags(
                 self.config.pool(),
                 actor_user_public_id,
@@ -2742,7 +2815,7 @@ impl IndexerFacade for IndexerService {
                 tag_keys,
             )
             .instrument(span),
-            |error| map_indexer_instance_error("indexer_instance_set_tags", error),
+            map_indexer_instance_error,
         )
         .await
     }
@@ -2766,10 +2839,11 @@ impl IndexerFacade for IndexerService {
             value_decimal: params.value_decimal,
             value_bool: params.value_bool,
         };
-        self.run_operation(
+        self.run_data_operation(
             "indexer.instance_field_set_value",
+            "indexer_instance_field_set_value",
             indexer_instance_field_set_value(self.config.pool(), &input).instrument(span),
-            |error| map_indexer_instance_field_error("indexer_instance_field_set_value", error),
+            map_indexer_instance_field_error,
         )
         .await
     }
@@ -2788,8 +2862,9 @@ impl IndexerFacade for IndexerService {
             secret_public_id = %secret_public_id,
             field_name = field_name
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.instance_field_bind_secret",
+            "indexer_instance_field_bind_secret",
             indexer_instance_field_bind_secret(
                 self.config.pool(),
                 actor_user_public_id,
@@ -2798,7 +2873,7 @@ impl IndexerFacade for IndexerService {
                 secret_public_id,
             )
             .instrument(span),
-            |error| map_indexer_instance_field_error("indexer_instance_field_bind_secret", error),
+            map_indexer_instance_field_error,
         )
         .await
     }
@@ -2812,8 +2887,9 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %params.actor_user_public_id,
             indexer_instance_public_id = %params.indexer_instance_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.cf_state_reset",
+            "indexer_cf_state_reset",
             indexer_cf_state_reset(
                 self.config.pool(),
                 params.actor_user_public_id,
@@ -2821,7 +2897,7 @@ impl IndexerFacade for IndexerService {
                 params.reason,
             )
             .instrument(span),
-            |error| map_indexer_instance_error("indexer_cf_state_reset", error),
+            map_indexer_instance_error,
         )
         .await
     }
@@ -2837,15 +2913,16 @@ impl IndexerFacade for IndexerService {
             indexer_instance_public_id = %indexer_instance_public_id
         );
         let row = self
-            .run_operation(
+            .run_data_operation(
                 "indexer.cf_state_get",
+                "indexer_cf_state_get",
                 indexer_cf_state_get(
                     self.config.pool(),
                     actor_user_public_id,
                     indexer_instance_public_id,
                 )
                 .instrument(span),
-                |error| map_indexer_instance_error("indexer_cf_state_get", error),
+                map_indexer_instance_error,
             )
             .await?;
 
@@ -2871,15 +2948,16 @@ impl IndexerFacade for IndexerService {
             indexer_instance_public_id = %indexer_instance_public_id
         );
         let row = self
-            .run_operation(
+            .run_data_operation(
                 "indexer.connectivity_profile_get",
+                "indexer_connectivity_profile_get",
                 indexer_connectivity_profile_get(
                     self.config.pool(),
                     actor_user_public_id,
                     indexer_instance_public_id,
                 )
                 .instrument(span),
-                |error| map_indexer_instance_error("indexer_connectivity_profile_get", error),
+                map_indexer_instance_error,
             )
             .await?;
 
@@ -2906,8 +2984,9 @@ impl IndexerFacade for IndexerService {
             window_key = params.window_key.unwrap_or("1h")
         );
         let rows = self
-            .run_operation(
+            .run_data_operation(
                 "indexer.source_reputation_list",
+                "indexer_source_reputation_list",
                 indexer_source_reputation_list(
                     self.config.pool(),
                     params.actor_user_public_id,
@@ -2916,7 +2995,7 @@ impl IndexerFacade for IndexerService {
                     params.limit,
                 )
                 .instrument(span),
-                |error| map_indexer_instance_error("indexer_source_reputation_list", error),
+                map_indexer_instance_error,
             )
             .await?;
 
@@ -2949,8 +3028,9 @@ impl IndexerFacade for IndexerService {
             indexer_instance_public_id = %params.indexer_instance_public_id
         );
         let rows = self
-            .run_operation(
+            .run_data_operation(
                 "indexer.health_event_list",
+                "indexer_health_event_list",
                 indexer_health_event_list(
                     self.config.pool(),
                     params.actor_user_public_id,
@@ -2958,7 +3038,7 @@ impl IndexerFacade for IndexerService {
                     params.limit,
                 )
                 .instrument(span),
-                |error| map_indexer_instance_error("indexer_health_event_list", error),
+                map_indexer_instance_error,
             )
             .await?;
 
@@ -2986,15 +3066,16 @@ impl IndexerFacade for IndexerService {
             indexer_instance_public_id = %indexer_instance_public_id
         );
         let row = self
-            .run_operation(
+            .run_data_operation(
                 "indexer.instance_test_prepare",
+                "indexer_instance_test_prepare",
                 indexer_instance_test_prepare(
                     self.config.pool(),
                     Some(actor_user_public_id),
                     indexer_instance_public_id,
                 )
                 .instrument(span),
-                |error| map_indexer_instance_error("indexer_instance_test_prepare", error),
+                map_indexer_instance_error,
             )
             .await?;
 
@@ -3037,10 +3118,11 @@ impl IndexerFacade for IndexerService {
             result_count: params.result_count,
         };
         let row = self
-            .run_operation(
+            .run_data_operation(
                 "indexer.instance_test_finalize",
+                "indexer_instance_test_finalize",
                 indexer_instance_test_finalize(self.config.pool(), &input).instrument(span),
-                |error| map_indexer_instance_error("indexer_instance_test_finalize", error),
+                map_indexer_instance_error,
             )
             .await?;
 
@@ -3064,15 +3146,16 @@ impl IndexerFacade for IndexerService {
             indexer_instance_public_id = %indexer_instance_public_id
         );
         let row = self
-            .run_operation(
+            .run_data_operation(
                 "indexer.rss_subscription_get",
+                "indexer_rss_subscription_get",
                 rss_subscription_get(
                     self.config.pool(),
                     actor_user_public_id,
                     indexer_instance_public_id,
                 )
                 .instrument(span),
-                |error| map_indexer_instance_error("indexer_rss_subscription_get", error),
+                map_indexer_instance_error,
             )
             .await?;
 
@@ -3105,8 +3188,9 @@ impl IndexerFacade for IndexerService {
             indexer_instance_public_id = %params.indexer_instance_public_id,
             subscription_enabled = params.is_enabled
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.rss_subscription_set",
+            "indexer_rss_subscription_set",
             rss_subscription_set(
                 self.config.pool(),
                 params.actor_user_public_id,
@@ -3115,7 +3199,7 @@ impl IndexerFacade for IndexerService {
                 params.interval_seconds,
             )
             .instrument(span),
-            |error| map_indexer_instance_error("indexer_rss_subscription_set", error),
+            map_indexer_instance_error,
         )
         .await?;
 
@@ -3136,8 +3220,9 @@ impl IndexerFacade for IndexerService {
             indexer_instance_public_id = %params.indexer_instance_public_id
         );
         let rows = self
-            .run_operation(
+            .run_data_operation(
                 "indexer.rss_seen_list",
+                "indexer_rss_seen_list",
                 rss_item_seen_list(
                     self.config.pool(),
                     params.actor_user_public_id,
@@ -3145,7 +3230,7 @@ impl IndexerFacade for IndexerService {
                     params.limit,
                 )
                 .instrument(span),
-                |error| map_indexer_instance_error("indexer_rss_seen_list", error),
+                map_indexer_instance_error,
             )
             .await?;
 
@@ -3171,8 +3256,9 @@ impl IndexerFacade for IndexerService {
             indexer_instance_public_id = %params.indexer_instance_public_id
         );
         let row = self
-            .run_operation(
+            .run_data_operation(
                 "indexer.rss_seen_mark",
+                "indexer_rss_seen_mark",
                 rss_item_seen_mark(
                     self.config.pool(),
                     &RssSeenMarkInput {
@@ -3185,7 +3271,7 @@ impl IndexerFacade for IndexerService {
                     },
                 )
                 .instrument(span),
-                |error| map_indexer_instance_error("indexer_rss_seen_mark", error),
+                map_indexer_instance_error,
             )
             .await?;
 
@@ -3212,8 +3298,9 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             secret_type = secret_type
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.secret_create",
+            "secret_create",
             secret_create(
                 self.config.pool(),
                 actor_user_public_id,
@@ -3221,7 +3308,7 @@ impl IndexerFacade for IndexerService {
                 secret_value,
             )
             .instrument(span),
-            |error| map_secret_error("secret_create", error),
+            map_secret_error,
         )
         .await
     }
@@ -3235,13 +3322,13 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id
         );
         let rows = self
-            .run_operation(
+            .run_data_operation(
                 "indexer.secret_metadata_list",
+                "secret_metadata_list",
                 secret_metadata_list(self.config.pool(), actor_user_public_id).instrument(span),
-                |error| map_secret_error("secret_metadata_list", error),
+                map_secret_error,
             )
             .await?;
-
         Ok(rows
             .into_iter()
             .map(|row| SecretMetadataResponse {
@@ -3266,8 +3353,9 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             secret_public_id = %secret_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.secret_rotate",
+            "secret_rotate",
             secret_rotate(
                 self.config.pool(),
                 actor_user_public_id,
@@ -3275,7 +3363,7 @@ impl IndexerFacade for IndexerService {
                 secret_value,
             )
             .instrument(span),
-            |error| map_secret_error("secret_rotate", error),
+            map_secret_error,
         )
         .await
     }
@@ -3290,16 +3378,16 @@ impl IndexerFacade for IndexerService {
             actor_user_public_id = %actor_user_public_id,
             secret_public_id = %secret_public_id
         );
-        self.run_operation(
+        self.run_data_operation(
             "indexer.secret_revoke",
+            "secret_revoke",
             secret_revoke(self.config.pool(), actor_user_public_id, secret_public_id)
                 .instrument(span),
-            |error| map_secret_error("secret_revoke", error),
+            map_secret_error,
         )
         .await
     }
 }
-
 fn map_indexer_definition_row(row: IndexerDefinitionRow) -> IndexerDefinitionResponse {
     IndexerDefinitionResponse {
         upstream_source: row.upstream_source,
@@ -5081,245 +5169,5 @@ fn indexer_instance_field_error_kind(detail: Option<&str>) -> IndexerInstanceFie
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use revaer_config::{ConfigService, DbSessionConfig};
-    use revaer_test_support::postgres::start_postgres;
-    use sqlx::query;
-    use uuid::Uuid;
-
-    const SYSTEM_USER_PUBLIC_ID: Uuid = Uuid::nil();
-
-    async fn build_service()
-    -> anyhow::Result<(IndexerService, revaer_test_support::postgres::TestDatabase)> {
-        let database = start_postgres()?;
-        let config = ConfigService::new_with_session(
-            database.connection_string(),
-            Some(DbSessionConfig::new("test-key", "test-secret")),
-        )
-        .await?;
-
-        // Ensure every connection (postgres or revaer role) sees the secret key settings.
-        query("ALTER ROLE revaer SET revaer.secret_key_id = 'test-key'")
-            .execute(config.pool())
-            .await?;
-        query("ALTER ROLE revaer SET revaer.secret_key = 'test-secret'")
-            .execute(config.pool())
-            .await?;
-        query("ALTER ROLE postgres SET revaer.secret_key_id = 'test-key'")
-            .execute(config.pool())
-            .await?;
-        query("ALTER ROLE postgres SET revaer.secret_key = 'test-secret'")
-            .execute(config.pool())
-            .await?;
-
-        // Apply to the current session immediately to avoid waiting for reconnect.
-        query("SELECT set_config('revaer.secret_key_id', 'test-key', false)")
-            .execute(config.pool())
-            .await?;
-        query("SELECT set_config('revaer.secret_key', 'test-secret', false)")
-            .execute(config.pool())
-            .await?;
-
-        Ok((
-            IndexerService::new(Arc::new(config), Metrics::new()?),
-            database,
-        ))
-    }
-
-    #[test]
-    fn parse_cardigann_definition_import_normalizes_settings() {
-        let yaml = r"
-id: Example-Tracker
-name: Example Tracker
-caps:
-  search: [q]
-settings:
-  - name: ApiKey
-    label: API key
-    type: apikey
-    required: true
-  - name: sort
-    type: select
-    advanced: true
-    default: seeders
-    options:
-      - value: seeders
-        label: Seeders
-      - date
-";
-
-        let prepared =
-            parse_cardigann_definition_import(yaml).expect("cardigann import should parse");
-        assert_eq!(prepared.upstream_slug, "example-tracker");
-        assert_eq!(prepared.display_name, "Example Tracker");
-        assert_eq!(prepared.fields.len(), 2);
-        assert_eq!(prepared.fields[0].field_type, "api_key");
-        assert_eq!(prepared.fields[1].field_type, "select_single");
-        assert_eq!(prepared.fields[1].option_values, vec!["seeders", "date"]);
-        assert!(
-            prepared
-                .canonical_definition_text
-                .contains("example-tracker")
-        );
-    }
-
-    #[test]
-    fn parse_cardigann_definition_import_rejects_unknown_setting_type() {
-        let yaml = r"
-id: example
-name: Example
-settings:
-  - name: mode
-    type: unsupported
-";
-
-        let err = parse_cardigann_definition_import(yaml).expect_err("expected invalid type");
-        assert_eq!(err.kind(), IndexerDefinitionServiceErrorKind::Invalid);
-        assert_eq!(err.code(), Some("cardigann_setting_type_unsupported"));
-    }
-
-    #[tokio::test]
-    async fn secret_create_rotate_revoke_roundtrip() -> anyhow::Result<()> {
-        let Ok((service, _db)) = build_service().await else {
-            return Ok(());
-        };
-
-        let secret_id = service
-            .secret_create(SYSTEM_USER_PUBLIC_ID, "api_key", "initial-value")
-            .await
-            .unwrap_or_else(|err| {
-                panic!(
-                    "secret_create failed: kind={:?} code={:?}",
-                    err.kind(),
-                    err.code()
-                )
-            });
-        let rotated = service
-            .secret_rotate(SYSTEM_USER_PUBLIC_ID, secret_id, "rotated-value")
-            .await
-            .unwrap_or_else(|err| {
-                panic!(
-                    "secret_rotate failed: kind={:?} code={:?}",
-                    err.kind(),
-                    err.code()
-                )
-            });
-        assert_eq!(rotated, secret_id);
-
-        service
-            .secret_revoke(SYSTEM_USER_PUBLIC_ID, secret_id)
-            .await?;
-
-        let err = service
-            .secret_rotate(SYSTEM_USER_PUBLIC_ID, secret_id, "after-revoke")
-            .await
-            .unwrap_err();
-        assert_eq!(err.kind(), SecretServiceErrorKind::NotFound);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn cardigann_definition_import_roundtrip() -> anyhow::Result<()> {
-        let Ok((service, _db)) = build_service().await else {
-            return Ok(());
-        };
-
-        let yaml = format!(
-            "id: cardigann-app-{}\nname: Cardigann Import {}\nsettings:\n  - name: apiKey\n    label: API key\n    type: apikey\n    required: true\n  - name: sort\n    type: select\n    options:\n      - value: seeders\n        label: Seeders\n      - date\n",
-            Uuid::new_v4().simple(),
-            Uuid::new_v4().simple()
-        );
-
-        let response = service
-            .indexer_definition_import_cardigann(SYSTEM_USER_PUBLIC_ID, &yaml, Some(false))
-            .await?;
-
-        assert_eq!(response.definition.upstream_source, "cardigann");
-        assert_eq!(response.definition.engine, "cardigann");
-        assert_eq!(response.field_count, 2);
-        assert_eq!(response.option_count, 2);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn secret_create_rejects_empty_value() -> anyhow::Result<()> {
-        let Ok((service, _db)) = build_service().await else {
-            return Ok(());
-        };
-
-        let err = service
-            .secret_create(SYSTEM_USER_PUBLIC_ID, "api_key", "")
-            .await
-            .unwrap_err();
-        assert_eq!(err.kind(), SecretServiceErrorKind::Invalid);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn torznab_instance_create_requires_profile() -> anyhow::Result<()> {
-        let Ok((service, _db)) = build_service().await else {
-            return Ok(());
-        };
-
-        let err = service
-            .torznab_instance_create(SYSTEM_USER_PUBLIC_ID, Uuid::new_v4(), "Torznab")
-            .await
-            .unwrap_err();
-        assert_eq!(err.kind(), TorznabInstanceServiceErrorKind::NotFound);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn torznab_instance_rotate_requires_instance() -> anyhow::Result<()> {
-        let Ok((service, _db)) = build_service().await else {
-            return Ok(());
-        };
-
-        let err = service
-            .torznab_instance_rotate_key(SYSTEM_USER_PUBLIC_ID, Uuid::new_v4())
-            .await
-            .unwrap_err();
-        assert_eq!(err.kind(), TorznabInstanceServiceErrorKind::NotFound);
-        Ok(())
-    }
-
-    #[test]
-    fn map_error_helpers_preserve_context_without_logging_side_effects() {
-        let data_error = DataError::JobFailed {
-            operation: "indexer_test",
-            job_key: "indexer_test",
-            error_code: Some("P0001".to_string()),
-            error_detail: Some("actor_not_found".to_string()),
-        };
-
-        let definition_error = map_indexer_definition_error("definition_get", &data_error);
-        assert_eq!(
-            definition_error.kind(),
-            IndexerDefinitionServiceErrorKind::Unauthorized
-        );
-        assert_eq!(definition_error.code(), Some("actor_not_found"));
-        assert_eq!(definition_error.sqlstate(), Some("P0001"));
-
-        let tag_error = map_tag_error("tag_create", &data_error);
-        assert_eq!(tag_error.kind(), TagServiceErrorKind::Unauthorized);
-        assert_eq!(tag_error.code(), Some("actor_not_found"));
-        assert_eq!(tag_error.sqlstate(), Some("P0001"));
-
-        let health_notification_error = map_health_notification_error("hook_create", &data_error);
-        assert_eq!(
-            health_notification_error.kind(),
-            HealthNotificationServiceErrorKind::Unauthorized
-        );
-        assert_eq!(health_notification_error.code(), Some("actor_not_found"));
-        assert_eq!(health_notification_error.sqlstate(), Some("P0001"));
-
-        let field_error = map_indexer_instance_field_error("field_bind", &data_error);
-        assert_eq!(
-            field_error.kind(),
-            IndexerInstanceFieldErrorKind::Unauthorized
-        );
-        assert_eq!(field_error.code(), Some("actor_not_found"));
-        assert_eq!(field_error.sqlstate(), Some("P0001"));
-    }
-}
+#[path = "indexers/tests/mod.rs"]
+mod tests;

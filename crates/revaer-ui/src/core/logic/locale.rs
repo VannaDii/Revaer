@@ -39,5 +39,22 @@ mod tests {
         assert_eq!(locale_flag(LocaleCode::En), "gb");
         assert_eq!(locale_flag(LocaleCode::Fr), "fr");
         assert_eq!(locale_flag(LocaleCode::Ja), "jp");
+        assert_eq!(locale_flag(LocaleCode::Ar), "sa");
+        assert_eq!(locale_flag(LocaleCode::Bn), "bd");
+        assert_eq!(locale_flag(LocaleCode::De), "de");
+        assert_eq!(locale_flag(LocaleCode::Es), "es");
+        assert_eq!(locale_flag(LocaleCode::Hi), "in");
+        assert_eq!(locale_flag(LocaleCode::Mr), "in");
+        assert_eq!(locale_flag(LocaleCode::Ta), "in");
+        assert_eq!(locale_flag(LocaleCode::Pa), "in");
+        assert_eq!(locale_flag(LocaleCode::Te), "in");
+        assert_eq!(locale_flag(LocaleCode::It), "it");
+        assert_eq!(locale_flag(LocaleCode::Jv), "id");
+        assert_eq!(locale_flag(LocaleCode::Id), "id");
+        assert_eq!(locale_flag(LocaleCode::Pt), "pt");
+        assert_eq!(locale_flag(LocaleCode::Tr), "tr");
+        assert_eq!(locale_flag(LocaleCode::Ko), "kr");
+        assert_eq!(locale_flag(LocaleCode::Ru), "ru");
+        assert_eq!(locale_flag(LocaleCode::Zh), "cn");
     }
 }

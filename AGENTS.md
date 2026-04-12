@@ -2,637 +2,106 @@
 
 > **Prime Directives**
 >
-> 1. **Rust 2024** only (never lower).
-> 2. **No dead code** (no unused items, no “future stubs”).
-> 3. **Minimal dependencies** (prefer `std`; add crates only with written rationale).
-> 4. **All operations via `just`**. CI **and** local dev MUST use the Justfile—never raw cargo in pipelines.
-> 5. **Stored procedures or bust**: every runtime database interaction is executed via stored procedures; inline SQL is only allowed inside migrations.
-> 6. **`just ci` before every hand-off**: run the full pipeline locally and fix failures before you declare a task done.
-> 7. **E2E gate**: `just ui-e2e` must pass for every change.
-> 8. **Dependencies are injected**: runtime logic receives collaborators from callers (traits/fakes allowed); only bootstrap/wiring code may construct concrete impls or read the environment.
+> 1. **Rust 2024 only**. Never lower the edition.
+> 2. **No dead code**. No unused items, no future stubs, no parking-lot code.
+> 3. **Minimal dependencies**. Prefer `std`; every new dependency needs written rationale.
+> 4. **The Justfile is law**. Local and CI build/test/lint/release gates run through [`justfile`](./justfile).
+> 5. **Stored procedures or bust**. Runtime database access goes through stored procedures; raw SQL belongs only in migrations and tightly scoped operational bootstrap scripts.
+> 6. **Deterministic, panic-free production code**. No `panic!`, `unwrap()`, `expect()`, `unreachable!()`, or silent error suppression in authored production or bootstrap code.
+> 7. **No source-level lint suppressions**. `#[allow(...)]` and `#[expect(...)]` are not permitted in authored code.
+> 8. **`just ci` and `just ui-e2e` before every hand-off**. A task is not complete until both pass cleanly.
+> 9. **Dependencies are injected**. Runtime logic receives collaborators from callers; only bootstrap/wiring code constructs concrete implementations or reads the environment.
 >
-> **Completion Rule:** Because Codex runs locally, **a task is not complete** until **all requirements in this AGENT.MD are satisfied** and **`just ci` passes cleanly (no warnings, no errors)**.
+> **Completion Rule:** Because Codex runs locally, a task is complete only when all requirements in this file and the scoped instruction files are satisfied, `just ci` passes without warnings or errors, and `just ui-e2e` passes.
 
 ---
 
-## 0) Repository Shape (use & extend these patterns)
+## 0) Policy Precedence And Source Of Truth
 
-```
-Cargo.toml          # workspace manifest (rust-version, profiles)
-Cargo.lock
-justfile            # the single interface for build/test/release/etc.
-README.md
-rust-toolchain.toml # pinned toolchain (1.91.0); edition 2024 in all crates
-codealike.json
-
-config/             # samples, docs
-crates/
-  revaer-api/               src/
-  revaer-app/               src/           # thin bin: wires libs
-  revaer-cli/               src/
-  revaer-config/            {migrations,src,tests}
-  revaer-events/            src/
-  revaer-fsops/             src/
-  revaer-telemetry/         src/
-  revaer-torrent-core/      src/
-  revaer-torrent-libt/      src/
-docs/
-  adr/                      # architecture decision records
-  api/
-    guides/
-  phase-one-roadmap.md
-target/              # build artifacts
-
-.git/
-.github/workflows/
-.vscode/
-```
-
--   **Library-first:** `revaer-app` is a thin binary; all logic lives in libraries under `crates/`.
--   Keep **public API small** and **`pub(crate)` by default**. Only expose what’s needed across crates.
--   New subsystems must follow the same pattern (crate-per-domain, small public surface).
+- [`AGENTS.md`](./AGENTS.md) is the non-negotiable root contract.
+- Scoped instruction files under [`.github/instructions/`](./.github/instructions/) may only tighten or specialize the root contract for their matching paths. They may not relax root policy.
+- If two instruction files appear to conflict, precedence is:
+  1. [`AGENTS.md`](./AGENTS.md)
+  2. the most specific scoped instruction file
+  3. supporting docs and ADRs
+- Operational source-of-truth files are:
+  - [`justfile`](./justfile)
+  - [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)
+  - [`.github/workflows/pr.yml`](./.github/workflows/pr.yml)
+  - [`.github/workflows/sonar.yml`](./.github/workflows/sonar.yml)
+  - [`sonar-project.properties`](./sonar-project.properties)
+- This file must reference those operational files instead of copying large command bodies or stale workflow inventories.
+- Current scoped instruction files:
+  - [`.github/instructions/rust.instructions.md`](./.github/instructions/rust.instructions.md)
+  - [`.github/instructions/revaer-data.instructions.md`](./.github/instructions/revaer-data.instructions.md)
+  - [`.github/instructions/revaer-ui.instructions.md`](./.github/instructions/revaer-ui.instructions.md)
+  - [`.github/instructions/ffi.instructions.md`](./.github/instructions/ffi.instructions.md)
+  - [`.github/instructions/devops.instructions.md`](./.github/instructions/devops.instructions.md)
+  - [`.github/instructions/sonarqube_mcp.instructions.md`](./.github/instructions/sonarqube_mcp.instructions.md)
 
 ---
 
-## 1) Language & Compiler Gates (enforced in every crate)
+## 1) Repository Invariants
 
--   **Edition:** `2024` (crate `Cargo.toml`: `edition = "2024"`). **Never lower this.**
--   **MSRV:** pinned via `rust-toolchain.toml` and `package.rust-version` in the workspace.
--   Top-level crate attributes (add to each `lib.rs`/`main.rs`):
-    ```rust
-    #![forbid(unsafe_code)]
-    #![deny(
-        warnings,
-        dead_code,
-        unused,
-        unused_imports,
-        unused_must_use,
-        unreachable_pub,
-        clippy::all,
-        clippy::pedantic,
-        clippy::cargo,
-        clippy::nursery,
-        rustdoc::broken_intra_doc_links,
-        rustdoc::bare_urls,
-        missing_docs
-    )]
-    ```
--   FFI-boundary crates may use `#![deny(unsafe_code)]` with a scoped `#[allow(unsafe_code)]` on the boundary module when native bindings are unavoidable; keep all unsafe isolated (e.g., `ffi.rs`) and prefer `#![forbid(unsafe_code)]` elsewhere.
--   **Ban:** `#[allow(dead_code)]`, `#[allow(missing_docs)]`, `#[allow(clippy::cast_precision_loss)]`,`#[allow(clippy::cast_sign_loss)]`, `#[allow(clippy::missing_const_for_fn)]`, `#[allow(clippy::cast_possible_truncation)]`, `#[allow(clippy::missing_errors_doc)]`, `#[allow(clippy::non_send_fields_in_send_ty)]` anywhere. If you have unused items, delete them or feature-gate them behind code that is exercised in CI; do not leave “parking lot” code lying around.
-    -   Exceptions: The minimal and necessary `#[allow(...)]` code can only be used in FFI interactions that cannot be accomplished in Rust or thru an existing crate.
--   **Ban:** `panic!`, `unwrap()`, `expect()`, `unreachable!()` in production code. All errors must be handled gracefully and returned via proper `Result<T, E>` types. Test code may use these for controlled failure scenarios only.
-    -   Production code must use `?` operator, `map_err()`, or explicit `match` to handle errors.
-    -   Bootstrap/main functions may use `expect()` only for truly unrecoverable initialization failures with clear error messages.
--   **Ban:** `std::panic::catch_unwind` and any try-catch patterns that suppress or ignore errors. Errors must be handled explicitly, never caught and discarded.
-    -   No error suppression: `let _ = some_fallible_operation();` is forbidden; handle or propagate all errors.
-    -   No panic recovery: catching panics masks programming errors; fix the root cause instead.
--   **Ban:** Logging errors multiple times in the call chain. Errors must be logged only at their origin point, never re-logged when propagated up.
--   **Ban:** Interpolating context data into error messages or log messages. Error messages must be constant strings; context must be stored in separate structured fields for filtering and analysis.
--   **Ban:** `Option<T>` return types for fallible operations. All operations that can fail must return `Result<T, E>` to explicitly indicate success or error, even for void operations (`Result<(), E>`).
--   **Ban:** `#[allow(clippy::too_many_lines)]` anywhere—split the code instead. Resolve the lint by extracting helpers that group related steps, moving reusable logic into private modules, or introducing small structs/impl blocks to own stateful behavior. Keep the original function as a thin orchestrator and add tests around the new pieces.
--   **Ban:** crate-level allowances for `clippy::module_name_repetitions`, `unexpected_cfgs`, and `clippy::multiple_crate_versions`. Design names and dependency graphs so these lints pass without suppressions.
-    -   **Temporary exception:** allow `clippy::multiple_crate_versions` in crate roots + lint recipe while `sqlx-core` pins `hashlink ^0.10` and `yew` requires `indexmap ^2.11` (ADR 076). Remove once SQLx supports `hashlink ^0.11` and the graph unifies.
--   Dependency hygiene is enforced with `cargo-deny` and `cargo-udeps`; `clippy::cargo` as well as the crate-level lint set.
--   Mark important return values `#[must_use]` (IDs, handles, results with side effects).
--   Deny `unreachable_pub` to prevent unused public API leakage across crates.
+- Keep the repo library-first. Binaries are thin bootstrap/wiring layers; reusable logic lives in library crates.
+- Keep the public API small. Use `pub(crate)` by default and expose cross-crate items intentionally.
+- Runtime database access uses stored procedures only. No runtime inline SQL outside the migration/operational exceptions called out in scoped instructions.
+- `JSONB` and other conglomerate persistence formats are banned for application state. Persist normalized data.
+- Runtime collaborators are injected. Do not read environment variables or construct concrete infra implementations inside domain logic.
+- Zero dead code is mandatory. If code ships, it is exercised in production, tests, or an explicitly exercised feature configuration.
+- Temporary operational exceptions, such as duplicate-crate tolerances in [`deny.toml`](./deny.toml) or advisory ignores in [`.secignore`](./.secignore), must be explicit, ADR-backed, time-bounded, and kept outside authored source code.
 
 ---
 
-## 2) Dead Code Policy (absolute)
+## 2) Authored Code Quality Posture
 
--   If code is merged, it’s **used**: in production paths or tests behind `#[cfg(test)]` or feature gates that are exercised by CI.
--   No “parking lots”—design ideas go in `docs/adr/`; **unused code is removed**.
--   Feature-gated items MUST be exercised by **both** local and CI feature matrices; otherwise remove them.
--   `cargo-udeps` (via `just udeps`) must be **clean**—no unused dependencies or targets.
-
----
-
-## 3) Dependencies (minimalism)
-
--   Prefer **`std`** and small, well-maintained crates. Add a dependency **only** with a concise written rationale in the **task record**:
-    -   “why this, why now, and the alternatives considered.”
--   Canonical choices (only if needed; keep feature sets minimal):
-    -   Async runtime: **Tokio** (single runtime; opt-in features only).
-    -   HTTP/API: **Axum**, **tower**, **tower-http** (selective features).
-    -   Serde: **serde**, **serde_json** (derive only).
-    -   Errors: **thiserror** (libs); **anyhow** allowed only in bins/tests.
-    -   Tracing: **tracing**, **tracing-subscriber** (fmt/json via features).
--   Avoid heavy transitive trees (templating engines, ORMs, giant utility crates); prioritize **explicit code** and **narrow helpers**.
--   **Temporary exception:** `vendor/yewdux` is permitted to keep `yew`/`yew-router` on the latest crates.io releases. This vendored copy **MUST** be removed as soon as the Yew ecosystem stabilizes on version compatibility and a crates.io `yewdux` release supports `yew`/`yew-router` latest. Track removal in ADR 074.
--   **Temporary exception:** `clippy::multiple_crate_versions` is allowed (crate roots + lint recipe) to tolerate the `hashbrown 0.15` + `0.16` split until SQLx releases a compatible `hashlink` bump. Track removal in ADR 076.
--   **Temporary exception:** `deny.toml` permits duplicate `hashbrown`/`foldhash` versions for the same SQLx/Yew split (ADR 076). Remove alongside the clippy exception.
--   License and security policy is enforced by `just deny` and `just audit`.
-
-### 3.1) Error Handling (mandatory patterns)
-
--   **No panics in production:** `panic!`, `unwrap()`, `expect()`, and `unreachable!()` are forbidden in all production code paths. Use `Result<T, E>` for all fallible operations.
--   **No Option returns:** All fallible operations must return `Result<T, E>`, never `Option<T>`. This includes void operations that return `Result<(), E>` to explicitly indicate success or failure.
--   **No try-catch patterns:** `std::panic::catch_unwind` and error suppression patterns (`let _ = fallible_op();`) are forbidden. Handle errors explicitly, never catch and discard them.
--   **Consistent error types:** Each crate defines one primary error enum implementing `std::error::Error + Send + Sync + 'static`. Use `thiserror` for structured errors in libraries.
--   **Error context (mandatory):** All error types must contain sufficient contextual information to recreate the failure scenario in a unit test—include all relevant input parameters, state values, and operation details. Error messages must be constant strings; context must be stored in separate structured fields, never interpolated into messages.
-    -   Context fields: operation name, input parameters, relevant state, timing information where applicable.
-    -   Message format: `"Failed to {operation}"` with context in separate fields, not `"Failed to process {filename}"`.
--   **Single-point logging:** Errors must be logged only at their origin point where they first occur. Never re-log errors when propagating them up the call chain.
--   **Error propagation:** Use the `?` operator for clean error propagation. Handle errors at appropriate boundaries (HTTP handlers, CLI commands, service entry points).
--   **External system wrappers:** All interactions with external crates, FFI, or systems must be wrapped in `tryOp<V, E>(...)` functions that catch any errors/panics and convert them to domain error types. The wrapper returns `Result<V, E>` with inferred types where possible.
--   **Graceful degradation:** Design error handling to fail gracefully—log errors, return safe defaults where appropriate, and maintain system stability.
--   **Bootstrap exception:** Only `main.rs` and bootstrap code may use `expect()` for truly unrecoverable initialization failures, with descriptive messages explaining the failure and required remediation.
+- Edition and MSRV are pinned by [`Cargo.toml`](./Cargo.toml) and [`rust-toolchain.toml`](./rust-toolchain.toml). Keep them aligned.
+- Treat warnings as errors across the workspace. Do not weaken lint posture in source or ad hoc commands.
+- Authored production and bootstrap code must not panic. Return errors explicitly and terminate cleanly at the top-level boundary.
+- Silent error suppression is forbidden. Handle, translate, or propagate every fallible operation.
+- Log errors at their origin point once. Do not re-log the same error as it travels up the call chain.
+- `Option<T>` is allowed only for legitimate absence semantics or partial-function domains where `None` is the complete, expected result.
+- `Result<T, E>` is required for recoverable failure. Do not hide failure in `Option`, booleans, sentinel values, or logs.
+- `std::panic::catch_unwind` is forbidden everywhere except documented FFI boundary shims covered by [`.github/instructions/ffi.instructions.md`](./.github/instructions/ffi.instructions.md).
+- If a rule cannot be satisfied cleanly, redesign, split, delete, or isolate the code behind the documented FFI boundary. Do not silence the rule.
 
 ---
 
-## 4) Configuration, Telemetry, Events
+## 3) Quality Gates
 
--   **`revaer-config`**: strongly typed config structs; load order = defaults → file → env → CLI. Validate at load; log **effective config** with secrets redacted (dev only human-readable; prod JSON).
--   **`revaer-telemetry`**: single init for tracing, structured logs, and metrics. Prod defaults JSON logs; dev defaults pretty logs. Include log level, target, and correlation IDs.
--   **`revaer-events`**: internal event types for decoupled subsystems—document topic names, payload schema, and cardinality considerations. Avoid dynamic strings for event kinds—use enums.
-
----
-
-## 5) Database Access (stored procedures only)
-
--   **Disallowed Data Types**: The `JSONB` type is BANNED, and all types like it. Never persist conglomerate data into the database. All data must be normalized.
--   **Runtime code never embeds SQL**—all `sqlx::query` calls must wrap stored procedure invocations (e.g., `SELECT revaer_config.apply_patch($1, $2)`).
--   **Parameter binding & Transactions**: Use Named Bind Parameters and Transactions for Consistency and Safety in accordance with https://sqlx.dev/article/Best_Practices_for_Writing_SQLX_Code.html
--   **Inline SQL is migration-only**: schema definitions, stored procedure bodies, and seed data live under `crates/*/migrations/`. No other crate may ship raw DML/DDL text.
--   **Versioned procedures**: every behavioural change ships as a migration that updates the procedure(s) and bumps the revision.
--   **Shared access**: when multiple crates touch the same DB state, they all call the same stored procedure(s); don’t duplicate logic per crate.
--   **Tests follow suit**: unit/integration tests exercise behaviour through the stored procedure APIs so coverage stays representative.
+- All local and CI operations run through `just` recipes. Workflows may install tools or stage artifacts, but build/test/lint/release gates must call `just`.
+- Handoff requires:
+  - `just ci`
+  - `just ui-e2e`
+- [`justfile`](./justfile) is the canonical command surface for build, lint, test, coverage, release, docs, and local dev loops.
+- [`ci.yml`](./.github/workflows/ci.yml), [`pr.yml`](./.github/workflows/pr.yml), and [`sonar.yml`](./.github/workflows/sonar.yml) must stay aligned with the Justfile and this policy.
+- Sonar analysis scope and first-party signal shaping are versioned in [`sonar-project.properties`](./sonar-project.properties). Keep PR quality-gate behavior and new-code policy aligned with that file.
 
 ---
 
-## 6) HTTP API & CLI
+## 4) Maintainability Guardrails
 
--   **API** (`revaer-api`): Axum, versioned under `/v1`. Apply Tower middleware for tracing, timeouts, compression, request size limits, and optional rate limiting.
--   **SSE** endpoints: must be cancellable, heartbeat at an interval, and obey client fan-out caps.
--   **OpenAPI**: deterministic export via `just api:export`; keep `docs/api/openapi.json` in sync; document examples on all routes and types.
--   **CLI** (`revaer-cli`): `--output json|table` (JSON is stable for scripting); idempotent reads; safe prompts (or `--yes`) for destructive actions; propagate correlation IDs.
-
----
-
-## 7) Torrent Engine & FS Ops
-
--   **`revaer-torrent-core`**: domain logic, policies, selection rules, state machines; deterministic seeds where RNG is used.
--   **`revaer-torrent-libt`**: bindings/integration (feature-gated; isolate FFI; never leak unsafe into the rest of the codebase).
--   **`revaer-fsops`**: file/dir operations; non-blocking design in async contexts (use `spawn_blocking` when unavoidable, with explicit comments and tests).
+- Keep one canonical statement of each global rule. Root policy belongs here; scoped files should reference it and add path-specific details instead of repeating or rewording it inconsistently.
+- Any change to [`justfile`](./justfile), workflow files, release scripts, lint posture, or [`sonar-project.properties`](./sonar-project.properties) must update the relevant instruction file in the same change.
+- Review the instruction set whenever crate layout, workflow layout, release flow, or quality gates change materially.
+- Keep user-facing docs, examples, and generated API/reference artifacts in sync when exposed surfaces change.
 
 ---
 
-## 8) Revaer Domain Rules
-
--   **File selection**: user-customizable glob filters; defaults are sensible (include common archives like `zip`, `rar`, `7z`, `tar.gz`, etc.; exclude junk). Users can reset to defaults.
--   **Seeding**: ratio/time goals; seed monitoring can re-start idle torrents when swarm health is low; scheduled bandwidth and torrent-count limits.
--   **Indexers**: trait abstraction; retries with jitter/backoff for idempotent ops only; normalized schema and result de-duplication.
--   **Media managers**: deterministic, explainable decisions (rationale fields in logs/spans).
-
----
-
-## 9) Testing & Coverage
-
--   **Unit tests** per module (happy + edge cases). Use `#[cfg(test)]` for helpers instead of exporting them.
--   **Integration tests** in `/tests` (API, CLI, engine flows with mocks/fixtures); no real network by default.
--   **Property tests** (`proptest`) for parsers, schedulers, selection policies.
--   **Fuzz** (where applicable): torrent/magnet/file-pattern parsers.
--   **Determinism**: seeded RNGs; avoid flaky time-based assertions (use injected clocks).
--   **Coverage**: `cargo-llvm-cov` via `just cov`; every crate must meet **≥ 90%** line coverage; **no regression** allowed.
--   **All crates are covered**: the workspace coverage gate (90% line, per-crate) applies to every crate, including new ones. If a crate ships a binary, put logic in `lib` and test it to satisfy the gate; no exemptions.
--   **No coverage suppression**: never pass `--ignore-filename-regex`, `--ignore-run-fail`, `--no-report`, `--summary-only`, target filters, or any other `cargo llvm-cov` option that hides code from analysis. If the gate fails, add tests or remove code—do not suppress it.
-
----
-
-## 10) Observability
-
--   **Spans** on all external boundaries: `http.request`, `engine.add_torrent`, `engine.tick`, `indexer.search`, `media.decide`.
--   **Span fields**: `request_id`, `torrent_id`, `indexer`, `decision_reason` (no PII; redact secrets).
--   **Metrics** (`revaer_*`):
-    -   Counters: events (e.g., `revaer_engine_torrents_started_total`)
-    -   Histograms: latencies (e.g., `revaer_indexer_query_latency_ms`)
-    -   Gauges: active/queue sizes (e.g., `revaer_engine_active`)
--   Dev: human-readable logs; Prod: JSON logs. Both controlled via config.
-
----
-
-## 11) Security
-
--   **Input validation** at all boundaries; body/response size limits; timeouts everywhere.
--   **Auth** extractors isolated; constant-time compares for tokens.
--   **HTTP security**: headers set; server banners disabled; minimize error leakage.
--   **Secrets**: env/OS store; never in repo; never logged (mask via tracing layer).
--   **Supply chain**: `just audit` and `just deny` must pass without exceptions—any temporary ignore must live in `.secignore` and be backed by an ADR with remediation recorded in `docs/adr/`.
-
----
-
-## 12) Task & Review Rules (Local Codex, No PRs)
-
-Since Codex runs locally, **a task is not complete** until **all requirements in this AGENT.MD are satisfied** and **all quality gates pass cleanly (no warnings, no errors)** via `just ci`.
-
--   **Conventional Commits (optional local log):** keep a concise local change log using conventional-style entries to aid future OSS history.
--   **Task Record Must Include:** Motivation, Design notes, Test coverage summary, Observability updates, Risk & rollback plan, and **Dependency rationale** (if any) with alternatives considered.
--   **No ad-hoc env overrides:** enforce warnings-as-errors through `cargo --config 'build.rustflags=["-Dwarnings"]' …`; never hide commands with `@` or depend on transient `RUSTFLAGS`.
--   **Local Review Loop (ignore README.md as authoritative context; always keep README.md in sync with changes):**
-
-    1. Run `just fmt` and `just lint` (no warnings allowed).
-    2. Run `just udeps` (must be clean; unused dependencies are disallowed).
-    3. Run `just test` and `just cov` (≥ 90% per-crate coverage; no regressions).
-    4. Run `just audit` and `just deny` (must pass cleanly; any temporary advisory ignores belong in `.secignore` and require an ADR with remediation steps).
-    5. Run `just build-release` to ensure release readiness.
-    6. Run `just ui-e2e` (spins up temp DBs + API/UI servers; ports 7070/8080 must be free, runner stops Revaer dev servers; `tests/.env` controls base URLs).
-
--   **Checklist (must all be true before marking the task complete):**
-    -   [ ] **No panics:** No `panic!`, `unwrap()`, `expect()`, or `unreachable!()` in production code; all errors handled via `Result<T, E>`
-    -   [ ] **Result-only returns:** No `Option<T>` returns for fallible operations; all operations return `Result<T, E>` including void (`Result<(), E>`)
-    -   [ ] **Error handling:** Each crate has consistent error types with context; graceful error propagation and recovery
-    -   [ ] **Error logging:** Errors logged only at origin point; external integrations wrapped in `tryOp<V, E>(...)`
-    -   [ ] No `unsafe`, no production `unwrap/expect` (outside tests/bootstrap/examples)
-    -   [ ] **Zero dead code**; `just udeps` clean; `unreachable_pub` denied
-    -   [ ] Edition **2024**; builds with `-D warnings` across all crates
-    -   [ ] Minimal dependency footprint; feature flags minimized; any new deps justified in the task record
-    -   [ ] Tracing/metrics added where relevant; sensitive data redacted
-    -   [ ] Config validated at load; effective config logged (secrets redacted)
-    -   [ ] OpenAPI/CLI/help/docs updated if surfaces changed
-    -   [ ] Coverage ≥ 90% per crate, **no coverage regression**
-    -   [ ] UI E2E: `just ui-e2e` (API + UI suites) passes for every change
-    -   [ ] All `just` gates (`just ci`) pass **without warnings or errors**
-
-**Completion Rule:** Do **not** declare a task complete or exit until all above checks pass. Persist the task record alongside code changes (e.g., `docs/adr/NNN-task.md`).
-
--   Use `docs/adr/template.md` as the starting point for new ADRs—copy it with standard shell tooling (`cp`, `mv`) and number the file sequentially.
--   Append new ADR entries to `docs/adr/index.md` (Catalogue section) and also append the same entry under `ADRs` in `docs/SUMMARY.md`, keeping it nested so the sidebar stays collapsed.
-
----
-
-## 13) The Justfile Is Law
-
-All ops—local and CI—MUST run through these recipes (names are normative).
-
-> **Do not** add raw `cargo` invocations to CI. If a new step is needed, add a `just` recipe and call it in CI **and** local runs.
-
-### Required `just` recipes (canonical names)
-
-```make
-# Bootstrap & hygiene
-fmt:          cargo fmt --all --check
-fmt-fix:      cargo fmt --all
-lint:         cargo clippy --workspace --all-targets --all-features -- -D warnings
-check:        cargo --config 'build.rustflags=["-Dwarnings"]' check --workspace --all-targets --all-features
-udeps:        cargo +stable udeps --workspace --all-targets
-audit:        ignore_args=""; \
-              if [ -f .secignore ]; then \
-                  while IFS= read -r advisory; do \
-                      case "$advisory" in \
-                          \#*|"") ;; \
-                          *) ignore_args="$ignore_args --ignore $advisory" ;; \
-                      esac; \
-                  done < .secignore; \
-              fi; \
-              cargo audit --deny warnings $ignore_args
-deny:         cargo deny check
-
-# Build & test
-build:        cargo build --workspace --all-features
-build-release:cargo build --workspace --release --all-features
-test:         cargo --config 'build.rustflags=["-Dwarnings"]' test --workspace --all-features
-cov:          cargo llvm-cov clean --workspace; per-crate llvm-cov (≥90%) via `just cov`
-
-# API & docs
-api-export:   cargo run -p revaer-api --bin generate_openapi
-
-# Full CI gate
-ci:           just fmt lint udeps audit deny test cov
-```
-
--   If you introduce new feature flags, add a **feature matrix** section with additional `just` recipes (e.g., `test:feat[min]`, `test:feat[full]`) and have **both CI and local loops** call them.
-
----
-
-## 14) CI (GitHub Actions) — must call `just`
-
-Required jobs (fail-fast):
-
-1. **fmt** → `just fmt`
-2. **lint** → `just lint`
-3. **udeps** → `just udeps`
-4. **supply-chain** → `just audit` and `just deny`
-5. **test** → `just test`
-6. **coverage** → `just cov`
-7. **build-release** (tags/main) → `just build-release` and publish artifacts (binaries, OpenAPI, SBOM/license report)
-8. **feature-matrix** → run additional `just test:feat[...]` if features exist
-9. **msrv** (if distinct from stable) → call the same `just` targets using the MSRV toolchain
-
-> CI must never run `cargo …` directly—only `just …`.
-
----
-
-## 15) How Codex Must Implement Work
-
-1. Pick target crate/module (adhere to structure above).
-2. Add a `/// # Design` rustdoc section on new modules, covering invariants and failure modes.
-3. Write tests first (or alongside) so new code is **immediately used** (no dead items).
-4. Implement minimal, clear code; avoid adding deps; if unavoidable, justify in the task record.
-5. Add tracing/metrics; plumb config with validation.
-6. Update OpenAPI/CLI/docs if surfaces change.
-7. Run `just ci` locally; only then **mark the task complete**.
-
----
-
-## 16) Style & Practical Tips
-
--   Prefer **newtype IDs** (`struct TorrentId(Uuid);`) and explicit constructors marked `#[must_use]`.
--   Keep modules cohesive (< ~300 LOC). Extract helpers.
--   Avoid premature generics; prefer concrete types until clarity demands abstraction.
--   Avoid blocking in async; if needed, `spawn_blocking` with clear rationale and tests.
--   Don’t leak types across crates without intent; enforce `pub(crate)` by default.
--   **Error Handling Pattern (mandatory):** All fallible operations return `Result<T, E>` with domain-specific error types, never `Option<T>`. Never use `panic!`, `unwrap()`, `expect()`, or `unreachable!()` in production paths—errors must be handled or propagated via `?` operator.
--   **Result-only policy:** Even void operations return `Result<(), E>` to explicitly indicate success or failure. No operation should silently fail or use `Option` to represent failure states.
--   **Common Error Structure:** Each crate defines a primary error enum (e.g., `ApiError`, `TorrentError`) that implements `std::error::Error + Send + Sync`. Use `thiserror` for libraries, `anyhow` only in binaries/tests.
--   **External Integration Pattern:** Wrap all external system calls (FFI, third-party crates, network) in `tryOp<V, E>(...)` functions that convert foreign errors/panics into domain error types.
--   Use `Result<T, E>` with domain-specific `E`; avoid boolean flags that hide errors.
-
----
-
-## 17) Frontend (`crates/revaer-ui`) organization (retroactive and forward)
-
--   Layout (normalize existing files to match; no new grab-bags at crate root):
-
-```text
-crates/revaer-ui/src/
-  app/{mod.rs,routes.rs,preferences.rs,storage.rs,sse.rs}
-  core/{ui.rs,breakpoints.rs,theme.rs,i18n/,logic/{layout.rs,shortcuts.rs,format.rs,virtual_list.rs}}
-  services/{api.rs,sse.rs}
-  features/
-    torrents/{mod.rs,view.rs,state.rs,actions.rs,logic.rs,api.rs}
-    dashboard/{mod.rs,view.rs,state.rs,api.rs}
-    ... (one folder per route/vertical slice)
-  components/   # shared UI atoms/composites only
-  models.rs     # transport DTOs only
-  main.rs       # wasm entry stub
-  lib.rs        # exports/re-exports of core primitives
-```
-
--   `app/*` is the only place that touches `window`, `LocalStorage`, `EventSource`, router, and context providers. `preferences.rs` owns persistence keys + `api_base_url` remapping; `sse.rs` handles EventSource + backoff + dispatch to reducers.
--   `core/*` is DOM-free and testable on the host; keep UI primitives (`UiMode`, `Density`, `Pane`), breakpoints, theme tokens, i18n data, and pure logic helpers there.
--   `services/*` is transport-only (REST + SSE); no Yew/gloo/web-sys. Convert DTOs to feature state before returning.
--   `features/*` are vertical slices. Each owns `state.rs` (view state + reducers, pure), `actions.rs` (enums/toast text), `logic.rs` (per-feature helpers), `api.rs` (calls into services), `view.rs` (Yew components), `mod.rs` (re-exports). Features do not reach into each other directly; they depend on `core`, `components`, and `services`.
--   `components/*` hosts shared UI pieces (AppShell, ToastHost, SseOverlay, virtual list). No persistence, API calls, or SSE side effects inside components; data flows via props/callbacks.
--   `models.rs` holds transport DTOs only. UI-only fields live in feature state. Keep conversions in `services` or feature `state.rs`.
--   Retroactive mandate: migrate existing `app.rs`, `logic.rs`, `state.rs`, and other root-level helpers into the structure above. New code must align with this layout; deviations require ADR approval.
-
----
-
-## 18) Crate archetypes & layout (retroactive; applies to all crates)
-
-Pick the matching archetype and align existing crates; no grab-bag modules at root. Each crate’s `main.rs` (if any) must be a thin bootstrap that defers to `lib.rs`.
-
----
-
-## 19) File & Module Organization (small, cohesive units)
-
-The goal is that **no single file becomes a grab-bag**. Files must stay **small, cohesive, and named for what they own**. If you’re scrolling forever or adding unrelated types “because they’re nearby,” you’re breaking this rule.
-
-### 19.1 General rules
-
--   **Single responsibility per file**
-
-    -   Each `*.rs` file must have **one primary responsibility** along a clear axis:
-        -   by layer (`domain`, `app`, `http`, `infra`, `tasks`, `telemetry`, `config`, etc.), or
-        -   by feature/vertical (`torrents`, `setup`, `dashboard`, `indexers`), or
-        -   by type kind (`requests`, `responses`, `errors`, `extractors`, `rate_limit`, etc.).
-    -   If you can’t summarize the file in a single sentence without “and also,” it’s probably doing too much.
-
--   **File size guidance**
-
-    -   Target **≤ ~300–400 non-test LOC per file** for production code.
-    -   Hitting `clippy::too_many_lines` is treated as a **design smell**, not a lint to be silenced. Fix it by:
-        -   extracting helpers into private functions,
-        -   moving cohesive logic into a dedicated module, or
-        -   splitting the file along a clear responsibility boundary.
-    -   Test modules may be larger, but if a single `tests` module starts to sprawl, split into `mod something_tests;` files under `tests/`.
-
--   **Naming must reflect contents**
-    -   A file name must clearly describe what it owns. Some canonical patterns:
-        -   `api.rs` – API trait / router wiring for a feature or service.
-        -   `requests.rs` / `responses.rs` – transport DTOs for HTTP.
-        -   `errors.rs` – error enums/types for that module.
-        -   `state.rs` – module-local state structs, not global grab-bags.
-        -   `auth.rs`, `rate_limit.rs`, `sse.rs`, `health.rs` – behaviorally scoped modules.
-    -   If someone can’t guess what’s inside from the filename, rename or split it.
-
-### 19.2 Types-per-file rules (“like-kind” only)
-
--   **Allowed:** multiple types of the same “kind” in a single file when the name reflects that:
-
-    -   `responses.rs` may contain all HTTP response shapes for a given area:
-        -   `DashboardResponse`, `HealthResponse`, `FullHealthResponse`, etc.
-    -   `errors.rs` may hold `ApiError`, `DomainError`, helper structs like `ErrorRateLimitContext`, as long as they are **error-centric and local** to that module.
-    -   `rate_limit.rs` may hold `RateLimiter`, `RateLimitStatus`, `RateLimitSnapshot`, `RateLimitError`, plus helpers.
-
--   **Not allowed:** mixing unrelated kinds in one file:
-
-    -   Do **not** define API traits, HTTP handlers, router construction, DTOs, auth extractors, rate limiting, OpenAPI persistence, and test harnesses all in a single `lib.rs` or `api.rs`.
-    -   Do **not** put domain types, HTTP DTOs, and infra adapters in one file “for convenience.”
-    -   If two types **would normally live in different folders** (`domain/`, `http/`, `infra/`, `telemetry/`), they must **not** share a file.
-
--   **Like-kind rule of thumb**
-    -   If all types would be described with the same suffix in docs (“…response types”, “…request types”, “…rate limiting primitives”, “…auth extractors”), they can share a file.
-    -   If you’d naturally split the sentence (“this file has API traits, response types, and the whole router”), it must be split.
-
-### 19.3 `lib.rs` and `main.rs` constraints
-
--   **`lib.rs`**
-
-    -   `lib.rs` is for:
-        -   crate docs (`//!`),
-        -   `pub mod` declarations,
-        -   **light** re-exports, and
-        -   very small glue types (simple newtypes, marker traits) that truly represent the crate boundary.
-    -   `lib.rs` must **not**:
-        -   contain full API implementations,
-        -   define large structs with behavior,
-        -   host HTTP handlers, routers, or Axum/Tower wiring,
-        -   embed rate limiting logic, event streaming, or complex state structs.
-    -   Any non-trivial behavior seen in `lib.rs` must be moved to an appropriately named module:
-        -   e.g. `http/api_server.rs`, `http/state.rs`, `http/auth.rs`, `http/rate_limit.rs`, `http/sse.rs`, `http/health.rs`, `http/openapi.rs`, etc., with `lib.rs` re-exporting as needed.
-
--   **`main.rs`**
-    -   `main.rs` remains a **thin bootstrap only**:
-        -   parse config/CLI,
-        -   initialize telemetry,
-        -   wire concrete implementations,
-        -   call a `run()` in `bootstrap.rs` or equivalent.
-    -   No business logic, no HTTP handlers, no domain types in `main.rs`.
-
-### 19.4 Module hierarchy & layering
-
--   **Respect crate archetypes (Section 18)** at the directory level and mirror that at the file level:
-
-    -   `http/`:
-        -   `router.rs` – route wiring.
-        -   `handlers/` – one file per feature/vertical (e.g. `torrents.rs`, `setup.rs`, `health.rs`, `dashboard.rs`).
-        -   `dto/` – `requests.rs`, `responses.rs`, `errors.rs`.
-        -   `auth.rs`, `rate_limit.rs`, `sse.rs`, `middleware.rs` – cross-cutting concerns.
-    -   `app/`:
-        -   `services/` – orchestration per use-case (`torrents_service.rs`, `setup_service.rs`).
-        -   No HTTP or transport types here; operate on domain types.
-    -   `domain/`:
-        -   `model/` – core types per concept (`torrent.rs`, `config.rs`).
-        -   `policy/` – rules/decisions in dedicated files.
-        -   `service/` – pure services per domain concern.
-
--   **Tests and support code**
-    -   Unit tests local to a module live in the same file in `#[cfg(test)] mod tests { … }`, or in a dedicated `modname_tests.rs` if they get large.
-    -   Shared test helpers belong in a test support crate (`revaer-test-support`) or clearly named `tests/fixtures.rs`, **never** in production modules.
-
-### 19.5 Refactoring triggers (when you MUST split a file)
-
-You **must** split or reorganize a file when any of the following are true:
-
-1. Clippy complains about `too_many_lines` and you’re tempted to silence it.
-2. The file defines:
-    - a long-lived state struct (`ApiState`) **and**
-    - a server wrapper (`ApiServer`) **and**
-    - HTTP handlers **and**
-    - middleware **and/or**
-    - DTOs and helper types.
-3. A reviewer or your future self struggles to find where a given behaviour lives (“where is rate limiting implemented?”, “where is SSE filtered?”).
-4. You find yourself using comments like `// region: X` to mentally group sections — each “region” probably deserves a module.
-
-At each trigger, **split by responsibility** and ensure file names and paths reflect the new structure. Update `lib.rs`/`mod.rs` docs to describe the layout after the change.
-
-_This section is normative. If a file organization choice conflicts with 19.x, reorganize the code to comply rather than weakening lints or adding grab-bag files._
-
----
-
-### Service/daemon crates (`revaer-api`, `revaer-runtime`, `revaer-doc-indexer`)
-
-```
-src/
-  main.rs       # thin: parse config, call bootstrap
-  lib.rs        # re-exports + crate docs
-  bootstrap.rs  # wire config, telemetry, infra, router/workers
-  config/       # typed config + validation (no IO side effects)
-  domain/       # pure domain models/policies (no IO)
-  app/          # use-cases/services orchestrating domain + infra
-  http/         # router.rs, routes.rs, handlers/, dto/, extractors/, middleware/
-  infra/        # adapters: db repos, external clients, storage, queues, cache
-  tasks/        # background jobs/cron/schedulers (no HTTP handlers)
-  telemetry/    # crate-scoped metrics/tracing helpers (rely on revaer-telemetry)
-```
-
--   `http` owns request/response DTOs; domain stays JSON-free.
--   `app` uses interfaces defined in `domain` and implemented in `infra`; no direct DB calls from handlers.
-
-### CLI crate (`revaer-cli`)
-
-```
-src/
-  main.rs     # thin: parse CLI, invoke commands
-  lib.rs
-  cli.rs      # clap args + validation
-  commands/   # one file per subcommand (pure orchestration)
-  client.rs   # API client wrapper
-  output.rs   # renderers (table/json), no network
-  config.rs   # CLI config loading/merging (reuse revaer-config types)
-```
-
--   Commands call `client.rs`/`app` helpers; rendering isolated in `output.rs`.
-
-### Config crate (`revaer-config`)
-
-```
-src/
-  lib.rs
-  model.rs     # typed config structs
-  defaults.rs
-  loader.rs    # file/env/cli merge (no globals)
-  validate.rs
-```
-
--   No runtime state; pure data + validation.
-
-### Data/migrations crate (`revaer-data`)
-
-```
-src/
-  lib.rs
-  config.rs
-  runtime.rs      # migration runner/stores facade
-migrations/       # SQL/procs only
-tests/            # integration tests hitting migrator/stores
-```
-
--   Runtime code calls stored procedures only; no inline SQL outside migrations.
-
-### Telemetry crate (`revaer-telemetry`)
-
-```
-src/
-  lib.rs
-  init.rs       # setup tracing/metrics/logging
-  filters.rs
-  layers.rs
-  context.rs    # request/task scoped IDs, redaction helpers
-  metrics.rs    # metric registrations/helpers
-```
-
--   No business logic; only observability primitives consumed by other crates.
-
-### Events crate (`revaer-events`)
-
-```
-src/
-  lib.rs
-  topics.rs     # topic/channel names
-  payloads.rs   # event structs/enums (serde)
-  routing.rs    # helper traits for producers/consumers
-```
-
--   Pure types + helpers; no transport clients here.
-
-### Domain/engine crates (`revaer-torrent-core`, `revaer-fsops`)
-
-```
-src/
-  lib.rs
-  model/        # core types/newtypes
-  policy/       # rules/decisions
-  service/      # pure services/use-cases (no IO)
-  planner/      # schedulers/strategies (pure)
-  adapters/     # optional abstractions for IO implemented elsewhere
-```
-
--   Keep them IO-free; external effects belong to callers/adapters in infra crates.
-
-### FFI/integration crate (`revaer-torrent-libt`)
-
-```
-src/
-  lib.rs
-  ffi.rs        # unsafe boundary isolated here
-  types.rs      # translated types/newtypes
-  adapter.rs    # safe wrappers around FFI calls
-  convert.rs    # mapping between FFI and domain types
-```
-
--   Unsafe contained to `ffi.rs`; public surface is safe wrappers.
-
-### Runtime/support crates (`revaer-runtime`, `revaer-test-support`)
-
--   `revaer-runtime`: follow Service layout; background workers/schedulers live under `tasks/`; runtime wiring in `bootstrap.rs`.
--   `revaer-test-support`: helpers/fixtures only. `src/{lib.rs,fixtures.rs,mocks.rs,assert.rs}`; no network/DB side effects by default (use traits/injected clients for fakes).
-
-### Cross-cutting rules
-
--   No new root-level catch-all modules (`utils`, `helpers`, `logic`) in any crate. Place code in the archetype folders above.
--   Retroactive mandate: reorganize existing crates to match; deviations require an ADR with rationale.
--   Keep domain modules pure; IO and side effects live in `infra`, `http`, or `tasks` as appropriate.
--   Each crate documents its module layout in `lib.rs` rustdoc (one paragraph, updated with structure changes).
--   New crates (forward-looking rules):
-    -   Choose an archetype above before creating files; note the choice + rationale in an ADR.
-    -   Scaffold the directory tree up front (empty modules with `// TODO` are not allowed; add minimal code + tests or omit the file).
-    -   No `utils.rs`/`helpers.rs`/`misc.rs` in new crates; place code in the archetype folders.
-    -   Keep `pub(crate)` by default; expose only the minimal API needed by dependants.
-    -   Add crate docs in `lib.rs` describing its purpose and chosen archetype; update when structure changes.
-    -   Wire new crates into `just`/CI if they add binaries, migrations, or feature flags.
-
----
-
-_This document is normative. If code and AGENT.MD disagree, update the code to comply._
+## 5) Task Record And ADR Rules
+
+- Every task persists a task record alongside the change as an ADR under [`docs/adr/`](./docs/adr/).
+- Start from [`docs/adr/template.md`](./docs/adr/template.md), number sequentially, and keep the file name concise and searchable.
+- Every task record must include:
+  - Motivation
+  - Design notes
+  - Test coverage summary
+  - Observability updates
+  - Risk and rollback plan
+  - Dependency rationale
+  - Stale-policy check
+- The stale-policy check must record:
+  - which instruction files were reviewed
+  - whether drift was found
+  - which contradictions or stale references were removed
+- Update [`docs/adr/index.md`](./docs/adr/index.md) and [`docs/SUMMARY.md`](./docs/SUMMARY.md) in the same change that adds the ADR.

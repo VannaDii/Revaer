@@ -1,4 +1,3 @@
-#![deny(unsafe_code)]
 #![deny(
     warnings,
     dead_code,
@@ -8,15 +7,15 @@
     unreachable_pub,
     clippy::all,
     clippy::pedantic,
-    clippy::cargo,
-    clippy::nursery,
     rustdoc::broken_intra_doc_links,
     rustdoc::bare_urls,
     missing_docs
 )]
-#![allow(clippy::multiple_crate_versions)]
 
 //! Libtorrent adapter implementation backed by the native C++ session bridge.
+//!
+//! Unsafe operations are confined to the `ffi` boundary modules and are guarded by
+//! `scripts/policy-guardrails.sh`, which runs as part of `just lint`.
 
 /// Safe wrapper around the libtorrent worker and FFI bindings.
 pub mod adapter;

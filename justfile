@@ -6,28 +6,43 @@ fmt:
 fmt-fix:
     cargo fmt --all
 
-lint:
-    cargo clippy --workspace --all-targets --all-features -- -D warnings -A clippy::multiple_crate_versions
+policy:
+    bash scripts/policy-guardrails.sh
+    bash scripts/workflow-guardrails.sh
+
+instruction-drift:
+    bash scripts/instruction-drift-check.sh
+
+lint: policy
+    cargo clippy --workspace --all-targets --all-features -- -D warnings -W clippy::cargo -W clippy::nursery -A clippy::multiple_crate_versions -A clippy::redundant_pub_crate
+    cargo clippy --workspace --lib --bins --examples --all-features -- \
+        -D warnings \
+        -W clippy::expect_used \
+        -W clippy::panic \
+        -W clippy::todo \
+        -W clippy::unimplemented \
+        -W clippy::unreachable \
+        -W clippy::unwrap_used
 
 check:
     cargo --config 'build.rustflags=["-Dwarnings"]' check --workspace --all-targets --all-features
 
 test:
-    REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}" \
+    REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/postgres}" \
     DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}" \
         cargo --config 'build.rustflags=["-Dwarnings"]' test --workspace --all-features
 
 test-native:
     REVAER_NATIVE_IT=1 \
-    REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}" \
+    REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/postgres}" \
     DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}" \
         cargo --config 'build.rustflags=["-Dwarnings"]' test -p revaer-torrent-libt --all-features
 
 test-features-min:
-    REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}" \
+    REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/postgres}" \
     DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}" \
         cargo --config 'build.rustflags=["-Dwarnings"]' test -p revaer-api --no-default-features
-    REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}" \
+    REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/postgres}" \
     DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}" \
         cargo --config 'build.rustflags=["-Dwarnings"]' test -p revaer-app --no-default-features
 
@@ -61,7 +76,7 @@ sqlx-install:
     fi
 
 db-migrate: sqlx-install
-    db_url="${DATABASE_URL:-${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}}"; \
+    db_url="${DATABASE_URL:-${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/postgres}}"; \
     DATABASE_URL="${db_url}" sqlx migrate run --source crates/revaer-data/migrations
 
 audit:
@@ -127,38 +142,42 @@ cov:
     fi
     rustup component add llvm-tools-preview
     cargo llvm-cov clean --workspace
-    REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}" \
-    DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}" \
-        fail_list=""; \
+    REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/postgres}"; \
+    DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}"; \
+        export REVAER_TEST_DATABASE_URL DATABASE_URL; \
+    just db-start
+    RUST_TEST_THREADS="${RUST_TEST_THREADS:-1}" \
+    CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-1}" \
+        cargo llvm-cov --workspace --all-features --no-report
+    fail_list=""; \
         while IFS= read -r member; do \
             manifest="${member}/Cargo.toml"; \
             if [ ! -f "${manifest}" ]; then \
                 continue; \
             fi; \
             if command -v rg >/dev/null 2>&1; then \
-                name="$(rg -m1 '^name = \"' "${manifest}" | sed -E 's/^name = \"([^\"]+)\".*/\\1/')"; \
+                name="$(rg -m1 '^name = "' "${manifest}" | sed -E 's/^name = "([^"]+)".*/\1/')"; \
             else \
-                name="$(grep -m1 '^name = \"' "${manifest}" | sed -E 's/^name = \"([^\"]+)\".*/\\1/')"; \
+                name="$(grep -m1 '^name = "' "${manifest}" | sed -E 's/^name = "([^"]+)".*/\1/')"; \
             fi; \
             if [ -z "${name}" ]; then \
                 continue; \
             fi; \
             echo "== coverage: ${name} =="; \
-            if ! cargo llvm-cov --package "${name}" --fail-under-lines 90; then \
+            if ! cargo llvm-cov report --package "${name}" --json --summary-only --fail-under-lines 90 >/dev/null; then \
                 fail_list="${fail_list} ${name}"; \
             fi; \
-        done < <(awk '/^members = \\[/{in_members=1;next} in_members && /^]/{in_members=0} in_members { if (match($0, /\"[^\"]+\"/)) print substr($0, RSTART + 1, RLENGTH - 2) }' Cargo.toml); \
+        done < <(awk ' \
+            /^members = \[/ { in_members=1; next } \
+            in_members && /^]/ { in_members=0; next } \
+            in_members && match($0, /"[^"]+"/) { print substr($0, RSTART + 1, RLENGTH - 2) } \
+        ' Cargo.toml); \
         if [ -n "${fail_list}" ]; then \
             echo "Coverage below 90% for:${fail_list}"; \
             exit 1; \
         fi
     rm -rf coverage
     mkdir -p coverage
-    cargo llvm-cov clean --workspace
-    REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}" \
-    DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}" \
-    CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-1}" \
-        cargo llvm-cov --workspace --all-features --no-report
     cargo llvm-cov report --lcov --output-path coverage/lcov.info
     cargo llvm-cov report --html --output-dir coverage
 
@@ -193,11 +212,11 @@ release-lock:
     npm --prefix release install --package-lock-only
 
 validate:
-    REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}"
+    REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/postgres}"
     DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}"
     export REVAER_TEST_DATABASE_URL DATABASE_URL
     just db-start
-    just fmt lint check-assets udeps audit deny ui-build test test-features-min cov
+    just fmt lint instruction-drift check-assets udeps audit deny ui-build test test-features-min cov
 
 ci: validate
     just build-release
@@ -470,11 +489,19 @@ db-start:
     fi; \
     echo "Using database URL: ${db_url}"; \
     container_name="${PG_CONTAINER:-revaer-db}"; \
-    volume_name="${PG_VOLUME:-revaer-pgdata}"; \
+    db_data_dir="${PWD}/.server_root/postgres-data"; \
+    mkdir -p "${db_data_dir}"; \
+    existing_container="$(docker ps -aq -f name=^${container_name}$)"; \
+    if [ -n "${existing_container}" ] && [ -z "$(docker ps -q -f name=^${container_name}$)" ]; then \
+        if docker logs --tail 50 "${container_name}" 2>&1 | grep -q 'No space left on device'; then \
+            echo "Recreating failed Postgres container (${container_name}) with host-backed storage"; \
+            docker rm -f "${container_name}" >/dev/null 2>&1 || true; \
+            existing_container=""; \
+        fi; \
+    fi; \
     if python3 -c 'import socket, sys; probe = socket.create_connection((sys.argv[1], int(sys.argv[2])), 1); probe.close()' "${db_host}" "${db_port}" >/dev/null 2>&1; then \
         echo "Using existing Postgres endpoint ${db_host}:${db_port}"; \
     else \
-        existing_container="$(docker ps -aq -f name=^${container_name}$)"; \
         if [ -n "$existing_container" ]; then \
             published_port="$(docker port "${container_name}" 5432/tcp 2>/dev/null || true)"; \
             if [ -z "$published_port" ]; then \
@@ -500,7 +527,7 @@ db-start:
                 -e POSTGRES_PASSWORD=revaer \
                 -e POSTGRES_DB=revaer \
                 -p "${db_port}:5432" \
-                -v "${volume_name}:/var/lib/postgresql/data" \
+                -v "${db_data_dir}:/var/lib/postgresql/data" \
                 postgres:16-alpine >/dev/null; \
         fi; \
         echo "Waiting for Postgres to become ready..."; \
@@ -524,34 +551,93 @@ db-start:
         echo "Postgres endpoint ${db_host}:${db_port} did not become reachable."; \
         exit 1; \
     fi; \
-    just sqlx-install; \
-    echo "Waiting for Postgres to accept SQL connections..."; \
-    sql_ready="0"; \
-    for _ in $(seq 1 30); do \
-        if DATABASE_URL="${db_url}" sqlx database create --database-url "${db_url}" >/dev/null 2>&1; then \
-            sql_ready="1"; \
-            break; \
-        fi; \
-        sleep 1; \
-    done; \
-    if [ "${sql_ready}" != "1" ]; then \
-        echo "Postgres endpoint ${db_host}:${db_port} did not become SQL-ready."; \
-        exit 1; \
+    wait_for_local_postgres_writable() { \
+        attempt="1"; \
+        while [ "${attempt}" -le 60 ]; do \
+            writable="$(docker exec -e PGPASSWORD=revaer "${container_name}" psql -U revaer -d postgres -Atqc 'SELECT CASE WHEN pg_is_in_recovery() THEN 0 ELSE 1 END' 2>/dev/null | tr -d '[:space:]')"; \
+            if [ "${writable}" = "1" ]; then \
+                return 0; \
+            fi; \
+            echo "Local Postgres is still in recovery; waiting for writable state (attempt ${attempt}/60)..."; \
+            attempt="$((attempt + 1))"; \
+            sleep 1; \
+        done; \
+        echo "Local Postgres container ${container_name} did not exit recovery in time."; \
+        return 1; \
+    }; \
+    if [ -n "${existing_container}" ]; then \
+        wait_for_local_postgres_writable; \
     fi; \
+    just sqlx-install; \
+    run_sqlx_with_recovery_retry() { \
+        attempt="1"; \
+        while true; do \
+            output="$("$@" 2>&1)"; \
+            status=$?; \
+            if [ "${status}" -eq 0 ]; then \
+                if [ -n "${output}" ]; then \
+                    printf '%s\n' "${output}"; \
+                fi; \
+                return 0; \
+            fi; \
+            if printf '%s' "${output}" | grep -Eq 'the database system is (in recovery mode|starting up|not yet accepting connections)|consistent recovery state has not been yet reached'; then \
+                printf '%s\n' "${output}" >&2; \
+                if [ "${attempt}" -ge 30 ]; then \
+                    echo "Postgres did not become writable in time." >&2; \
+                    return 2; \
+                fi; \
+                echo "Postgres is still recovering; retrying in 1s (attempt ${attempt}/30)..."; \
+                attempt="$((attempt + 1))"; \
+                sleep 1; \
+                continue; \
+            fi; \
+            printf '%s\n' "${output}" >&2; \
+            return "${status}"; \
+        done; \
+    }; \
+    DATABASE_URL="${db_url}" sqlx database create --database-url "${db_url}" 2>/dev/null || true; \
     reset_db="${REVAER_DB_RESET:-0}"; \
     if [ "${reset_db}" = "1" ]; then \
         if echo "${db_url}" | grep -Eq '@(localhost|127\.0\.0\.1|host\.docker\.internal)(:|/)'; then \
             echo "Resetting local database..."; \
-            DATABASE_URL="${db_url}" sqlx database reset -y --database-url "${db_url}" --source crates/revaer-data/migrations; \
+            if run_sqlx_with_recovery_retry env DATABASE_URL="${db_url}" sqlx database reset -y --database-url "${db_url}" --source crates/revaer-data/migrations; then \
+                reset_status="0"; \
+            else \
+                reset_status="$?"; \
+            fi; \
+            if [ "${reset_status}" -ne 0 ]; then \
+                if [ "${reset_status}" -eq 2 ]; then \
+                    exit 1; \
+                fi; \
+                exit "${reset_status}"; \
+            fi; \
         else \
             echo "Reset requested for ${db_url}; refusing to reset non-local database."; \
             exit 1; \
         fi; \
     else \
-        if ! DATABASE_URL="${db_url}" sqlx migrate run --database-url "${db_url}" --source crates/revaer-data/migrations; then \
+        if run_sqlx_with_recovery_retry env DATABASE_URL="${db_url}" sqlx migrate run --database-url "${db_url}" --source crates/revaer-data/migrations; then \
+            migrate_status="0"; \
+        else \
+            migrate_status="$?"; \
+        fi; \
+        if [ "${migrate_status}" -ne 0 ]; then \
+            if [ "${migrate_status}" -eq 2 ]; then \
+                exit 1; \
+            fi; \
             if echo "${db_url}" | grep -Eq '@(localhost|127\.0\.0\.1|host\.docker\.internal)(:|/)'; then \
                 echo "Migration history mismatch; resetting local database..."; \
-                DATABASE_URL="${db_url}" sqlx database reset -y --database-url "${db_url}" --source crates/revaer-data/migrations; \
+                if run_sqlx_with_recovery_retry env DATABASE_URL="${db_url}" sqlx database reset -y --database-url "${db_url}" --source crates/revaer-data/migrations; then \
+                    reset_status="0"; \
+                else \
+                    reset_status="$?"; \
+                fi; \
+                if [ "${reset_status}" -ne 0 ]; then \
+                    if [ "${reset_status}" -eq 2 ]; then \
+                        exit 1; \
+                    fi; \
+                    exit "${reset_status}"; \
+                fi; \
             else \
                 echo "Migration history mismatch for ${db_url}; refusing to reset non-local database."; \
                 exit 1; \
@@ -564,6 +650,6 @@ db-reset:
 
 # Seed the dev database with a default API key and sensible defaults for local runs.
 db-seed:
-    db_url="${DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}"; \
+    db_url="${DATABASE_URL:-postgres://revaer:revaer@localhost:5432/postgres}"; \
     just db-start; \
     cat scripts/dev-seed.sql | DATABASE_URL="${db_url}" docker exec -i "${PG_CONTAINER:-revaer-db}" psql -U revaer -d revaer >/dev/null

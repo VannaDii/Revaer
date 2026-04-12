@@ -1,0 +1,53 @@
+# PR 19 OpenAPI test portability
+
+- Status: Accepted
+- Date: 2026-04-11
+- Context:
+  - PR 19 still had one unresolved review thread on `crates/revaer-api/src/openapi.rs`.
+  - The affected test hard-coded a POSIX `/tmp/openapi.json` path, which is not portable across non-Unix targets and weakens the repo's cross-platform test posture.
+- Decision:
+  - Replace the hard-coded POSIX path with `std::env::temp_dir().join(OPENAPI_FILENAME)` in the test that verifies `OpenApiDependencies::embedded_at`.
+  - Record the portability fix in an ADR and update the ADR indexes in the same change.
+- Consequences:
+  - Positive outcomes:
+    - The test no longer assumes a Unix filesystem layout.
+    - The remaining actionable PR review thread is addressed with a minimal code change and no new dependencies.
+  - Risks or trade-offs:
+    - `temp_dir()` is environment-dependent, but this test only verifies the selected path is preserved and does not write to disk, so there is no shared-temp collision risk.
+- Follow-up:
+  - Implementation tasks:
+    - Keep future path-shape tests platform-neutral unless a test is explicitly OS-specific.
+  - Review checkpoints:
+    - Re-run the affected crate tests plus the repo handoff gates.
+
+## Task Record
+
+- Motivation:
+  - The open PR feedback requested a platform-neutral path in the `embedded_at_uses_requested_path` test, and the task scope includes addressing PR feedback and updating the branch.
+- Design notes:
+  - The test now uses the existing `OPENAPI_FILENAME` constant together with `std::env::temp_dir()` so the assertion remains coupled to the real embedded filename instead of a duplicated string literal.
+  - No runtime behavior changed; this is test-only portability cleanup.
+- Test coverage summary:
+  - `cargo --config 'build.rustflags=["-Dwarnings"]' test -p revaer-api embedded_at_uses_requested_path`
+  - `just ci`
+  - `just ui-e2e`
+- Observability updates:
+  - None. No logging, tracing, metrics, or health surfaces changed.
+- Status-doc validation:
+  - No README or operator-facing status docs required updates because behavior and workflow policy are unchanged.
+- Risk & rollback plan:
+  - Risk is limited to the targeted test behavior.
+  - Rollback is a single-commit revert of the test-path change and ADR entry if it causes unexpected test issues.
+- Dependency rationale:
+  - No new dependencies were added.
+  - Using `std::env::temp_dir()` avoided adding `tempfile` for a test that does not need filesystem lifecycle management.
+- Stale-policy check:
+  - Reviewed:
+    - `AGENTS.md`
+    - `.github/instructions/rust.instructions.md`
+    - `.github/instructions/devops.instructions.md`
+    - `docs/adr/template.md`
+  - Drift found:
+    - None. The task was a test portability fix and did not require policy changes.
+  - Contradictions removed:
+    - None.

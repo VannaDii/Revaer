@@ -8,15 +8,10 @@
     unreachable_pub,
     clippy::all,
     clippy::pedantic,
-    clippy::cargo,
-    clippy::nursery,
     rustdoc::broken_intra_doc_links,
     rustdoc::bare_urls,
     missing_docs
 )]
-#![allow(clippy::multiple_crate_versions)]
-#![allow(clippy::redundant_pub_crate)]
-
 //! Administrative CLI for interacting with a Revaer server instance.
 //!
 //! Layout:

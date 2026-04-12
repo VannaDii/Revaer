@@ -8,13 +8,10 @@
     unreachable_pub,
     clippy::all,
     clippy::pedantic,
-    clippy::cargo,
-    clippy::nursery,
     rustdoc::broken_intra_doc_links,
     rustdoc::bare_urls,
     missing_docs
 )]
-#![allow(clippy::multiple_crate_versions)]
 
 //! Thin entrypoint that delegates to the library for CLI execution.
 
@@ -22,7 +19,27 @@
 #[tokio::main]
 async fn main() {
     let exit_code = revaer_cli::run().await;
-    if exit_code != 0 {
+    if let Some(exit_code) = exit_code_for_failure(exit_code) {
         std::process::exit(exit_code);
+    }
+}
+
+fn exit_code_for_failure(exit_code: i32) -> Option<i32> {
+    (exit_code != 0).then_some(exit_code)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn exit_code_for_failure_ignores_success() {
+        assert_eq!(exit_code_for_failure(0), None);
+    }
+
+    #[test]
+    fn exit_code_for_failure_returns_non_zero_codes() {
+        assert_eq!(exit_code_for_failure(2), Some(2));
+        assert_eq!(exit_code_for_failure(64), Some(64));
     }
 }

@@ -281,6 +281,7 @@ mod tests {
     use super::*;
     use std::collections::HashSet;
     use std::net::{Ipv4Addr, Ipv6Addr};
+    use std::time::Duration;
     use uuid::Uuid;
 
     #[test]
@@ -389,5 +390,80 @@ mod tests {
             Err(ConfigError::ImmutableField { .. })
         ));
         assert!(ensure_mutable(&immutables, "app_profile", "immutable_keys").is_ok());
+    }
+
+    #[test]
+    fn default_local_networks_cover_loopback_and_private_ranges() {
+        let defaults = default_local_networks();
+        assert!(defaults.contains(&"127.0.0.0/8".to_string()));
+        assert!(defaults.contains(&"10.0.0.0/8".to_string()));
+        assert!(defaults.contains(&"::1/128".to_string()));
+        assert!(defaults.contains(&"fd00::/8".to_string()));
+    }
+
+    #[test]
+    fn validate_api_key_rate_limit_rejects_zero_values() {
+        let err = validate_api_key_rate_limit(&ApiKeyRateLimit {
+            burst: 0,
+            replenish_period: Duration::from_secs(5),
+        })
+        .expect_err("zero burst should fail");
+        assert!(matches!(
+            err,
+            ConfigError::InvalidField { section, field, reason, .. }
+            if section == "api_keys" && field == "rate_limit.burst" && reason == "must be positive"
+        ));
+
+        let err = validate_api_key_rate_limit(&ApiKeyRateLimit {
+            burst: 5,
+            replenish_period: Duration::from_secs(0),
+        })
+        .expect_err("zero replenish period should fail");
+        assert!(matches!(
+            err,
+            ConfigError::InvalidField { section, field, reason, .. }
+            if section == "api_keys" && field == "rate_limit.per_seconds" && reason == "must be at least 1 second"
+        ));
+
+        assert!(
+            validate_api_key_rate_limit(&ApiKeyRateLimit {
+                burst: 5,
+                replenish_period: Duration::from_secs(10),
+            })
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn ensure_mutable_rejects_section_and_field_shortcuts() {
+        let mut section_immutable = HashSet::new();
+        section_immutable.insert("app_profile".to_string());
+        assert!(matches!(
+            ensure_mutable(&section_immutable, "app_profile", "bind_addr"),
+            Err(ConfigError::ImmutableField { .. })
+        ));
+
+        let mut field_immutable = HashSet::new();
+        field_immutable.insert("http_port".to_string());
+        assert!(matches!(
+            ensure_mutable(&field_immutable, "app_profile", "http_port"),
+            Err(ConfigError::ImmutableField { .. })
+        ));
+    }
+
+    #[test]
+    fn parse_cidr_entry_rejects_non_numeric_and_missing_components() {
+        assert!(matches!(
+            parse_cidr_entry("10.0.0.0/not-a-number", "app_profile", "local_networks"),
+            Err(ConfigError::InvalidField { reason, .. }) if reason == "CIDR prefix must be numeric"
+        ));
+        assert!(matches!(
+            parse_cidr_entry("/24", "app_profile", "local_networks"),
+            Err(ConfigError::InvalidField { reason, .. }) if reason == "CIDR entries must include a network and prefix"
+        ));
+        assert!(matches!(
+            parse_cidr_entry("10.0.0.0/", "app_profile", "local_networks"),
+            Err(ConfigError::InvalidField { reason, .. }) if reason == "CIDR entries must include a network and prefix"
+        ));
     }
 }

@@ -145,6 +145,20 @@ mod tests {
     }
 
     #[test]
+    fn accept_language_ignores_unsupported_or_empty_values() {
+        assert_eq!(parse_accept_language("fr-FR, de;q=0.7"), None);
+        assert_eq!(parse_accept_language(" , "), None);
+    }
+
+    #[test]
+    fn parse_locale_falls_back_without_valid_header() {
+        let mut headers = HeaderMap::new();
+        headers.insert(ACCEPT_LANGUAGE, "fr-FR".parse().expect("valid header"));
+        assert_eq!(parse_locale(&headers), LocaleCode::En);
+        assert_eq!(parse_locale(&HeaderMap::new()), LocaleCode::En);
+    }
+
+    #[test]
     fn translations_load_for_default_locale() {
         let bundle = translations_for(LocaleCode::En);
         assert!(bundle.lookup("bad request").is_some());
@@ -154,5 +168,10 @@ mod tests {
     fn localize_message_falls_back_when_missing() {
         let translated = localize_message(LocaleCode::En, "missing-key");
         assert_eq!(translated, "missing-key");
+    }
+
+    #[test]
+    fn current_locale_defaults_outside_request_scope() {
+        assert_eq!(current_locale(), LocaleCode::En);
     }
 }

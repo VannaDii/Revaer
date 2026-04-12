@@ -1,0 +1,145 @@
+# Instruction Refresh And Sonar Scope Hardening
+
+- Status: Accepted
+- Date: 2026-04-03
+- Context:
+  - Motivation:
+    - The repository root instructions had drifted from the live `justfile`, CI workflows, and Sonar workflow.
+    - The previous instruction set mixed global invariants, stale repository snapshots, copied command bodies, UI layout details, and contradictory Rust guidance in one file.
+    - Sonar guidance in `.github/instructions/sonarqube_mcp.instructions.md` referenced MCP tools that are not available in this environment.
+    - The repository wants the strictest possible authored-code posture without source-level lint suppressions, while still allowing idiomatic `Option` semantics and a narrow FFI-only unwind boundary.
+  - Constraints:
+    - `AGENTS.md` remains the non-negotiable root contract.
+    - Scoped instruction files may only tighten or specialize the root policy.
+    - Production and bootstrap code must remain deterministic and panic-free.
+    - CI and local quality gates must continue to run through `just`.
+    - Sonar must remain a blocking pull-request signal while reducing noise from generated and vendored assets.
+- Decision:
+  - Replace the stale monolithic `AGENTS.md` with a shorter root contract that defines:
+    - prime directives
+    - policy precedence
+    - repository invariants
+    - authored-code quality posture
+    - quality-gate expectations
+    - task-record and drift-control rules
+  - Add scoped instruction files under `.github/instructions/`:
+    - `rust.instructions.md`
+    - `revaer-data.instructions.md`
+    - `revaer-ui.instructions.md`
+    - `ffi.instructions.md`
+    - `devops.instructions.md`
+    - refreshed `sonarqube_mcp.instructions.md`
+  - Keep maximum-strictness source posture:
+    - no `#[allow(...)]` or `#[expect(...)]` in authored code
+    - no production or bootstrap panics
+    - no silent error suppression
+    - no relaxation of root policy from scoped files
+  - Correct two contradictory rules only:
+    - allow `Option<T>` for expected absence or partial-function semantics
+    - allow `catch_unwind` only at explicit FFI boundaries that prevent unwinds from crossing foreign ABIs
+  - Version Sonar scope in `sonar-project.properties` and make it the source of truth for:
+    - project identity
+    - first-party analysis scope
+    - coverage exclusions
+    - duplication exclusions
+    - new-code reference branch
+  - Tighten workflow hygiene in live GitHub Actions files by:
+    - pinning third-party actions to full SHAs with version comments
+    - removing direct interpolation of `${{ inputs.* }}` into the setup action shell script
+    - keeping Sonar scanner properties in `sonar-project.properties` instead of repeating them in workflow arguments
+    - reducing top-level CI permissions to the minimum shared baseline
+  - Repair `just cov` validation logic so the per-crate coverage loop:
+    - parses workspace members correctly
+    - extracts actual package names instead of the literal `\1`
+    - reports the real coverage baseline instead of silently skipping per-crate enforcement
+  - Increase `tests/.env` `E2E_HTTP_WAIT_SECONDS` from `180` to `600` so the required `just ui-e2e` gate can tolerate cold local `trunk serve` compile time instead of timing out before the UI is reachable
+  - Remove redundant crate-level `#![allow(clippy::multiple_crate_versions)]` attributes now that the temporary duplicate-crate exception already lives in `just lint` and ADR-backed repo policy instead of authored source.
+  - Remove the remaining FFI `#[allow(unsafe_code)]` attributes and replace them with a repo-level policy guardrail in `scripts/policy-guardrails.sh` that runs as part of `just lint`.
+  - Remove the CLI crate's `#![allow(clippy::redundant_pub_crate)]` by making the internal module declarations private.
+  - Move `clippy::cargo` and `clippy::nursery` enforcement out of crate attributes and into `just lint` so the `multiple_crate_versions` and `redundant_pub_crate` exceptions remain centralized in the Justfile instead of source code.
+  - Add `scripts/instruction-drift-check.sh`, `just instruction-drift`, and dedicated `pr.yml` / `ci.yml` jobs that compare against the real base revision so workflow, Justfile, and Sonar configuration changes cannot land without touching the corresponding instruction files.
+  - Extend `scripts/policy-guardrails.sh` to reject authored `todo!()` and `unimplemented!()` stubs, and add a second production-target `cargo clippy` pass in `just lint` that forbids `panic!`, `unwrap()`, `expect()`, `unreachable!()`, `todo!()`, and `unimplemented!()` in workspace libs, bins, and examples without applying those restrictions to test targets.
+  - Extend `scripts/policy-guardrails.sh` to enforce the stored-procedure-only runtime DB rule by confining `sqlx::query*` usage to `crates/revaer-data/src` and rejecting inline DDL/DML text in authored Rust.
+  - Add `scripts/workflow-guardrails.sh` to `just lint` so workflow policy is checked mechanically: external GitHub actions must use full-SHA pins with version comments, and `${{ inputs.* }}` values may not be interpolated directly into `run:` blocks.
+  - Alternatives considered:
+    - Keep the existing monolithic `AGENTS.md`: rejected because stale copied facts and contradictions were already undermining maintainability.
+    - Move all rules into scoped files: rejected because root invariants need a single canonical contract.
+    - Relax lint posture with `#[expect(...)]`: rejected because the repository explicitly requires zero source-level suppressions.
+    - Keep Sonar scanner arguments inline in the workflow: rejected because it would duplicate and eventually drift from the intended versioned scope file.
+- Consequences:
+  - Positive outcomes:
+    - Global policy now lives in one canonical place and domain-specific details are scoped by path.
+    - Contradictory Rust guidance is removed without weakening the repository's strictness posture.
+    - Sonar scope and MCP guidance now match the actual project key, tooling, and desired first-party signal.
+    - Workflow security posture improves through full-SHA pinning and safer shell handling in the composite action.
+    - Coverage enforcement now reflects the true repository baseline instead of passing through broken shell parsing.
+  - Risks and trade-offs:
+    - More instruction files means future changes must update the correct scoped document or drift can return.
+    - Full-SHA action pinning requires periodic maintenance when upstream action versions are refreshed.
+    - Sonar exclusions require deliberate review if new generated or vendored paths are introduced.
+    - The repaired coverage gate currently blocks `just ci` because multiple existing crates remain below the documented 90% line-coverage threshold.
+    - The longer local HTTP wait budget makes `just ui-e2e` less eager to fail, but increases the time to surface genuine startup failures during a cold build.
+    - The new policy guardrail adds another early failure mode to `just lint`, but that is deliberate because it prevents source-level suppressions and out-of-scope unsafe code from quietly returning.
+    - The instruction-drift guard is only as good as its path-to-instruction mapping, so the script must evolve when new operational source-of-truth files are introduced.
+    - The production-only Clippy pass makes `just lint` slower, but it turns a previously documentary panic-free rule into a mechanical gate without forcing panic-free test code.
+    - The SQL guardrail is pattern-based, so any future operational exception must be explicit and the regexes must evolve with the real query surface.
+    - The workflow guardrail is YAML-pattern-based rather than schema-aware, so unusual workflow syntax may require future parser refinement.
+- Follow-up:
+  - Design notes:
+    - Root policy stays intentionally short so it can remain accurate.
+    - Scoped files add path-specific constraints rather than restating global rules.
+  - Test coverage summary:
+    - Validate formatting and YAML integrity with `just fmt` and `just lint`.
+    - Validate repository gates with `just ci`.
+    - Validate the required UI regression gate with `just ui-e2e`.
+    - `just ui-e2e` now passes locally after increasing `E2E_HTTP_WAIT_SECONDS` to cover the initial `trunk serve` compile on a cold workspace.
+    - `just lint` now validates both Clippy and the repo-specific policy guardrail script.
+    - `just instruction-drift` now validates that Justfile/workflow/Sonar changes are paired with matching instruction-file updates.
+    - `pr.yml` passes `github.event.pull_request.base.sha` and `github.event.pull_request.head.sha` into the drift check, while `ci.yml` passes `github.event.before` and `github.sha` for `main` pushes.
+    - `just lint` now includes a production-only Clippy pass that rejects panic/stub patterns in libs, bins, and examples while leaving test targets out of scope.
+    - `just lint` now also rejects `sqlx::query*` usage outside `crates/revaer-data/src` and catches inline DDL/DML text in authored Rust.
+    - `just lint` now rejects unpinned external GitHub actions and direct `${{ inputs.* }}` interpolation inside workflow `run:` blocks.
+  - Observability updates:
+    - No runtime telemetry changed.
+    - Workflow visibility improves by centralizing Sonar scope and keeping scanner configuration versioned.
+  - Risk and rollback plan:
+    - Roll back by restoring the previous root instructions and removing the new scoped files if the instruction split proves unworkable.
+    - Workflow pinning and setup-action hardening can be reverted independently if an upstream action regression is discovered.
+  - Dependency rationale:
+    - No Rust dependencies were added.
+    - Third-party GitHub actions remain in use, but are now pinned to exact upstream commits to reduce supply-chain drift.
+  - Stale-policy check:
+    - Reviewed files:
+      - `AGENTS.md`
+      - `.github/instructions/*.instructions.md`
+      - `.github/actions/setup-revaer/action.yml`
+      - `.github/workflows/ci.yml`
+      - `.github/workflows/pr.yml`
+      - `.github/workflows/sonar.yml`
+      - `.github/workflows/docs.yml`
+      - `.github/workflows/build-images.yml`
+      - `justfile`
+      - `scripts/policy-guardrails.sh`
+      - `scripts/instruction-drift-check.sh`
+      - `tests/.env`
+      - `sonar-project.properties`
+    - Drift found:
+      - stale copied command inventories and repository-shape snapshots in `AGENTS.md`
+      - Sonar MCP instructions referencing unavailable tools
+      - Sonar workflow arguments duplicating scanner properties
+      - unpinned third-party GitHub actions
+      - direct `${{ inputs.* }}` shell interpolation in the setup composite action
+      - broken `just cov` workspace-member parsing and package-name extraction
+      - local UI E2E startup timeout budget that was shorter than a cold `trunk serve` compile
+      - redundant source-level `clippy::multiple_crate_versions` suppressions that duplicated the existing Justfile exception
+      - FFI `#[allow(unsafe_code)]` attributes that contradicted the new root policy
+      - CLI `redundant_pub_crate` suppression that was covering a simple module-visibility cleanup
+      - `pub(crate)`-by-default style colliding with Clippy's `redundant_pub_crate` heuristic, which is now handled centrally in `just lint` instead of per-crate source attributes
+      - a purely documentary instruction-drift rule with no mechanical enforcement
+      - a purely documentary panic-free/stub-free production policy with no dedicated lint enforcement
+      - a purely documentary stored-procedure-only runtime SQL rule with no dedicated lint enforcement
+      - documentary-only workflow pinning and shell-safety rules that depended on reviewers noticing YAML mistakes
+    - Contradictions removed:
+      - blanket `Option` ban versus legitimate absence semantics
+      - blanket `catch_unwind` ban versus FFI boundary containment requirements
+      - stale root references that no longer matched the active `justfile` and workflow files

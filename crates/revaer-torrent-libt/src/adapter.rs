@@ -212,7 +212,7 @@ mod tests {
     fn repo_root() -> PathBuf {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         for ancestor in manifest_dir.ancestors() {
-            if ancestor.join("AGENT.md").is_file() {
+            if ancestor.join("AGENTS.md").is_file() {
                 return ancestor.to_path_buf();
             }
         }
@@ -390,6 +390,23 @@ mod tests {
             resume_dir.exists(),
             "fast-resume store should ensure directory exists"
         );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn inspect_settings_returns_snapshot_from_worker() -> Result<()> {
+        let events = EventBus::with_capacity(4);
+        let engine = LibtorrentEngine::new(events)?;
+
+        let settings = engine.inspect_settings().await?;
+
+        let listen_interfaces = settings.listen_interfaces.as_str();
+        assert!(
+            listen_interfaces.is_empty() || listen_interfaces == "0.0.0.0:6881,[::]:6881",
+            "unexpected default listen interfaces snapshot: {listen_interfaces}"
+        );
+        assert_eq!(settings.proxy_username, None);
+        assert_eq!(settings.proxy_password, None);
         Ok(())
     }
 }

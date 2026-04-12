@@ -295,3 +295,14 @@
 -   [281](281-pr-21-sonar-and-review-closeout.md) – PR 21 Sonar and review closeout
 -   [282](282-pr-21-final-feedback-closeout.md) – PR 21 final feedback closeout
 -   [283](283-pr-21-trivy-action-pin-refresh.md) – PR 21 Trivy action pin refresh
+-   [284](284-instruction-refresh-and-sonar-scope.md) – Instruction refresh and Sonar scope hardening
+-   [285](285-pr-19-review-and-lint-closeout.md) – PR 19 review and lint closeout
+-   [286](286-advisory-rustsec-2026-0097.md) – Advisory RUSTSEC-2026-0097 temporary ignore
+-   [287](287-pr-19-policy-reconciliation.md) – PR 19 policy reconciliation
+-   [288](288-pr-19-openapi-test-portability.md) – PR 19 OpenAPI test portability
+-   [289](289-pr-19-native-settings-snapshot-test-stability.md) – PR 19 native settings snapshot test stability
+-   [290](290-pr-19-final-feedback-closeout.md) – PR 19 final feedback closeout
+-   [291](291-pr-19-sonar-quality-gate-restoration.md) – PR 19 Sonar quality gate restoration
+-   [292](292-pr-19-review-timeout-stability.md) – PR 19 review timeout stability
+-   [293](293-pr-19-github-action-sha-pinning.md) – PR 19 GitHub Action SHA pinning
+-   [294](294-pr-19-review-feedback-closeout.md) – PR 19 review feedback closeout

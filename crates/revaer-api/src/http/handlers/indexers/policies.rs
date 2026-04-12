@@ -393,1225 +393,19 @@ fn map_policy_error(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app::indexers::{
-        CategoryMappingServiceError, CategoryMappingServiceErrorKind, IndexerCfStateResetParams,
-        IndexerDefinitionServiceError, IndexerDefinitionServiceErrorKind, IndexerFacade,
-        IndexerInstanceFieldError, IndexerInstanceFieldErrorKind, IndexerInstanceFieldValueParams,
-        IndexerInstanceServiceError, IndexerInstanceServiceErrorKind,
-        IndexerInstanceTestFinalizeParams, IndexerInstanceUpdateParams,
-        RateLimitPolicyServiceError, RateLimitPolicyServiceErrorKind, RoutingPolicyServiceError,
-        RoutingPolicyServiceErrorKind, SearchProfileServiceError, SearchProfileServiceErrorKind,
-        SecretServiceError, SecretServiceErrorKind, TagServiceError, TagServiceErrorKind,
-        TorznabInstanceCredentials, TorznabInstanceServiceError, TorznabInstanceServiceErrorKind,
+    use crate::app::indexers::{PolicyServiceError, PolicyServiceErrorKind};
+    use crate::http::handlers::indexers::test_support::{
+        RecordingIndexers, indexer_test_state, parse_problem,
     };
-    use crate::config::ConfigFacade;
-    use crate::models::{
-        IndexerCfStateResponse, IndexerDefinitionResponse, IndexerInstanceTestFinalizeResponse,
-        IndexerInstanceTestPrepareResponse, ProblemDetails,
-    };
-    use async_trait::async_trait;
+    use crate::models::{PolicyRuleListItemResponse, PolicySetListItemResponse};
     use axum::response::IntoResponse;
-    use revaer_config::{
-        ApiKeyAuth, AppMode, AppProfile, AppliedChanges, ConfigError, ConfigResult, ConfigSnapshot,
-        SettingsChangeset, SetupToken, TelemetryConfig, validate::default_local_networks,
-    };
-    use revaer_events::EventBus;
-    use revaer_telemetry::Metrics;
-    use serde_json::json;
-    use std::sync::{Arc, Mutex};
-    use std::time::Duration;
+    use std::sync::Arc;
     use uuid::Uuid;
-
-    #[derive(Clone)]
-    struct StubConfig;
-
-    #[async_trait]
-    impl ConfigFacade for StubConfig {
-        async fn get_app_profile(&self) -> ConfigResult<AppProfile> {
-            Ok(AppProfile {
-                id: Uuid::new_v4(),
-                instance_name: "test".into(),
-                mode: AppMode::Active,
-                auth_mode: revaer_config::AppAuthMode::ApiKey,
-                version: 1,
-                http_port: 8080,
-                bind_addr: "127.0.0.1"
-                    .parse()
-                    .map_err(|_| ConfigError::InvalidBindAddr {
-                        value: "127.0.0.1".to_string(),
-                    })?,
-                local_networks: default_local_networks(),
-                telemetry: TelemetryConfig::default(),
-                label_policies: Vec::new(),
-                immutable_keys: Vec::new(),
-            })
-        }
-
-        async fn issue_setup_token(&self, _: Duration, _: &str) -> ConfigResult<SetupToken> {
-            Err(ConfigError::InvalidField {
-                section: "config".to_string(),
-                field: "setup_token".to_string(),
-                value: None,
-                reason: "not implemented",
-            })
-        }
-
-        async fn validate_setup_token(&self, _: &str) -> ConfigResult<()> {
-            Err(ConfigError::InvalidField {
-                section: "config".to_string(),
-                field: "setup_token".to_string(),
-                value: None,
-                reason: "not implemented",
-            })
-        }
-
-        async fn consume_setup_token(&self, _: &str) -> ConfigResult<()> {
-            Err(ConfigError::InvalidField {
-                section: "config".to_string(),
-                field: "setup_token".to_string(),
-                value: None,
-                reason: "not implemented",
-            })
-        }
-
-        async fn apply_changeset(
-            &self,
-            _: &str,
-            _: &str,
-            _: SettingsChangeset,
-        ) -> ConfigResult<AppliedChanges> {
-            Err(ConfigError::InvalidField {
-                section: "config".to_string(),
-                field: "changeset".to_string(),
-                value: None,
-                reason: "not implemented",
-            })
-        }
-
-        async fn snapshot(&self) -> ConfigResult<ConfigSnapshot> {
-            Err(ConfigError::InvalidField {
-                section: "config".to_string(),
-                field: "snapshot".to_string(),
-                value: None,
-                reason: "not implemented",
-            })
-        }
-
-        async fn authenticate_api_key(&self, _: &str, _: &str) -> ConfigResult<Option<ApiKeyAuth>> {
-            Ok(None)
-        }
-
-        async fn has_api_keys(&self) -> ConfigResult<bool> {
-            Ok(false)
-        }
-
-        async fn factory_reset(&self) -> ConfigResult<()> {
-            Err(ConfigError::InvalidField {
-                section: "config".to_string(),
-                field: "factory_reset".to_string(),
-                value: None,
-                reason: "not implemented",
-            })
-        }
-    }
-
-    type PolicySetCreateCall = (Uuid, String, String, Option<bool>);
-
-    #[derive(Default)]
-    struct RecordingIndexers {
-        policy_calls: Mutex<Vec<PolicySetCreateCall>>,
-        policy_rule_calls: Mutex<Vec<PolicyRuleCreateParams>>,
-    }
-
-    #[async_trait]
-    impl IndexerFacade for RecordingIndexers {
-        async fn indexer_definition_list(
-            &self,
-            _actor_user_public_id: Uuid,
-        ) -> Result<Vec<IndexerDefinitionResponse>, IndexerDefinitionServiceError> {
-            Err(IndexerDefinitionServiceError::new(
-                IndexerDefinitionServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn tag_create(
-            &self,
-            _actor_user_public_id: Uuid,
-            _tag_key: &str,
-            _display_name: &str,
-        ) -> Result<Uuid, TagServiceError> {
-            Err(TagServiceError::new(TagServiceErrorKind::Storage))
-        }
-
-        async fn tag_update(
-            &self,
-            _actor_user_public_id: Uuid,
-            _tag_public_id: Option<Uuid>,
-            _tag_key: Option<&str>,
-            _display_name: &str,
-        ) -> Result<Uuid, TagServiceError> {
-            Err(TagServiceError::new(TagServiceErrorKind::Storage))
-        }
-
-        async fn tag_delete(
-            &self,
-            _actor_user_public_id: Uuid,
-            _tag_public_id: Option<Uuid>,
-            _tag_key: Option<&str>,
-        ) -> Result<(), TagServiceError> {
-            Err(TagServiceError::new(TagServiceErrorKind::Storage))
-        }
-
-        async fn routing_policy_create(
-            &self,
-            _actor_user_public_id: Uuid,
-            _display_name: &str,
-            _mode: &str,
-        ) -> Result<Uuid, RoutingPolicyServiceError> {
-            Err(RoutingPolicyServiceError::new(
-                RoutingPolicyServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn routing_policy_set_param(
-            &self,
-            _actor_user_public_id: Uuid,
-            _routing_policy_public_id: Uuid,
-            _param_key: &str,
-            _value_plain: Option<&str>,
-            _value_int: Option<i32>,
-            _value_bool: Option<bool>,
-        ) -> Result<(), RoutingPolicyServiceError> {
-            Err(RoutingPolicyServiceError::new(
-                RoutingPolicyServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn routing_policy_bind_secret(
-            &self,
-            _actor_user_public_id: Uuid,
-            _routing_policy_public_id: Uuid,
-            _param_key: &str,
-            _secret_public_id: Uuid,
-        ) -> Result<(), RoutingPolicyServiceError> {
-            Err(RoutingPolicyServiceError::new(
-                RoutingPolicyServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn rate_limit_policy_create(
-            &self,
-            _actor_user_public_id: Uuid,
-            _display_name: &str,
-            _rpm: i32,
-            _burst: i32,
-            _concurrent: i32,
-        ) -> Result<Uuid, RateLimitPolicyServiceError> {
-            Err(RateLimitPolicyServiceError::new(
-                RateLimitPolicyServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn rate_limit_policy_update(
-            &self,
-            _actor_user_public_id: Uuid,
-            _rate_limit_policy_public_id: Uuid,
-            _display_name: Option<&str>,
-            _rpm: Option<i32>,
-            _burst: Option<i32>,
-            _concurrent: Option<i32>,
-        ) -> Result<(), RateLimitPolicyServiceError> {
-            Err(RateLimitPolicyServiceError::new(
-                RateLimitPolicyServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn rate_limit_policy_soft_delete(
-            &self,
-            _actor_user_public_id: Uuid,
-            _rate_limit_policy_public_id: Uuid,
-        ) -> Result<(), RateLimitPolicyServiceError> {
-            Err(RateLimitPolicyServiceError::new(
-                RateLimitPolicyServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn indexer_instance_set_rate_limit_policy(
-            &self,
-            _actor_user_public_id: Uuid,
-            _indexer_instance_public_id: Uuid,
-            _rate_limit_policy_public_id: Option<Uuid>,
-        ) -> Result<(), RateLimitPolicyServiceError> {
-            Err(RateLimitPolicyServiceError::new(
-                RateLimitPolicyServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn routing_policy_set_rate_limit_policy(
-            &self,
-            _actor_user_public_id: Uuid,
-            _routing_policy_public_id: Uuid,
-            _rate_limit_policy_public_id: Option<Uuid>,
-        ) -> Result<(), RateLimitPolicyServiceError> {
-            Err(RateLimitPolicyServiceError::new(
-                RateLimitPolicyServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn search_profile_create(
-            &self,
-            _actor_user_public_id: Uuid,
-            _display_name: &str,
-            _is_default: Option<bool>,
-            _page_size: Option<i32>,
-            _default_media_domain_key: Option<&str>,
-            _user_public_id: Option<Uuid>,
-        ) -> Result<Uuid, SearchProfileServiceError> {
-            Err(SearchProfileServiceError::new(
-                SearchProfileServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn search_profile_update(
-            &self,
-            _actor_user_public_id: Uuid,
-            _search_profile_public_id: Uuid,
-            _display_name: Option<&str>,
-            _page_size: Option<i32>,
-        ) -> Result<Uuid, SearchProfileServiceError> {
-            Err(SearchProfileServiceError::new(
-                SearchProfileServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn search_profile_set_default(
-            &self,
-            _actor_user_public_id: Uuid,
-            _search_profile_public_id: Uuid,
-            _page_size: Option<i32>,
-        ) -> Result<(), SearchProfileServiceError> {
-            Err(SearchProfileServiceError::new(
-                SearchProfileServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn search_profile_set_default_domain(
-            &self,
-            _actor_user_public_id: Uuid,
-            _search_profile_public_id: Uuid,
-            _default_media_domain_key: Option<&str>,
-        ) -> Result<(), SearchProfileServiceError> {
-            Err(SearchProfileServiceError::new(
-                SearchProfileServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn search_profile_set_domain_allowlist(
-            &self,
-            _actor_user_public_id: Uuid,
-            _search_profile_public_id: Uuid,
-            _media_domain_keys: &[String],
-        ) -> Result<(), SearchProfileServiceError> {
-            Err(SearchProfileServiceError::new(
-                SearchProfileServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn search_profile_add_policy_set(
-            &self,
-            _actor_user_public_id: Uuid,
-            _search_profile_public_id: Uuid,
-            _policy_set_public_id: Uuid,
-        ) -> Result<(), SearchProfileServiceError> {
-            Err(SearchProfileServiceError::new(
-                SearchProfileServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn search_profile_remove_policy_set(
-            &self,
-            _actor_user_public_id: Uuid,
-            _search_profile_public_id: Uuid,
-            _policy_set_public_id: Uuid,
-        ) -> Result<(), SearchProfileServiceError> {
-            Err(SearchProfileServiceError::new(
-                SearchProfileServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn search_profile_indexer_allow(
-            &self,
-            _actor_user_public_id: Uuid,
-            _search_profile_public_id: Uuid,
-            _indexer_instance_public_ids: &[Uuid],
-        ) -> Result<(), SearchProfileServiceError> {
-            Err(SearchProfileServiceError::new(
-                SearchProfileServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn search_profile_indexer_block(
-            &self,
-            _actor_user_public_id: Uuid,
-            _search_profile_public_id: Uuid,
-            _indexer_instance_public_ids: &[Uuid],
-        ) -> Result<(), SearchProfileServiceError> {
-            Err(SearchProfileServiceError::new(
-                SearchProfileServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn search_profile_tag_allow(
-            &self,
-            _actor_user_public_id: Uuid,
-            _search_profile_public_id: Uuid,
-            _tag_public_ids: Option<&[Uuid]>,
-            _tag_keys: Option<&[String]>,
-        ) -> Result<(), SearchProfileServiceError> {
-            Err(SearchProfileServiceError::new(
-                SearchProfileServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn search_profile_tag_block(
-            &self,
-            _actor_user_public_id: Uuid,
-            _search_profile_public_id: Uuid,
-            _tag_public_ids: Option<&[Uuid]>,
-            _tag_keys: Option<&[String]>,
-        ) -> Result<(), SearchProfileServiceError> {
-            Err(SearchProfileServiceError::new(
-                SearchProfileServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn search_profile_tag_prefer(
-            &self,
-            _actor_user_public_id: Uuid,
-            _search_profile_public_id: Uuid,
-            _tag_public_ids: Option<&[Uuid]>,
-            _tag_keys: Option<&[String]>,
-        ) -> Result<(), SearchProfileServiceError> {
-            Err(SearchProfileServiceError::new(
-                SearchProfileServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn policy_set_create(
-            &self,
-            actor_user_public_id: Uuid,
-            display_name: &str,
-            scope: &str,
-            enabled: Option<bool>,
-        ) -> Result<Uuid, PolicyServiceError> {
-            self.policy_calls.lock().expect("lock poisoned").push((
-                actor_user_public_id,
-                display_name.to_string(),
-                scope.to_string(),
-                enabled,
-            ));
-            Ok(Uuid::new_v4())
-        }
-
-        async fn policy_rule_create(
-            &self,
-            params: PolicyRuleCreateParams,
-        ) -> Result<Uuid, PolicyServiceError> {
-            self.policy_rule_calls
-                .lock()
-                .expect("lock poisoned")
-                .push(params);
-            Ok(Uuid::new_v4())
-        }
-
-        async fn tracker_category_mapping_upsert(
-            &self,
-            _params: crate::app::indexers::TrackerCategoryMappingUpsertParams<'_>,
-        ) -> Result<(), CategoryMappingServiceError> {
-            Err(CategoryMappingServiceError::new(
-                CategoryMappingServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn tracker_category_mapping_delete(
-            &self,
-            _params: crate::app::indexers::TrackerCategoryMappingDeleteParams<'_>,
-        ) -> Result<(), CategoryMappingServiceError> {
-            Err(CategoryMappingServiceError::new(
-                CategoryMappingServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn media_domain_mapping_upsert(
-            &self,
-            _actor_user_public_id: Uuid,
-            _media_domain_key: &str,
-            _torznab_cat_id: i32,
-            _is_primary: Option<bool>,
-        ) -> Result<(), CategoryMappingServiceError> {
-            Err(CategoryMappingServiceError::new(
-                CategoryMappingServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn media_domain_mapping_delete(
-            &self,
-            _actor_user_public_id: Uuid,
-            _media_domain_key: &str,
-            _torznab_cat_id: i32,
-        ) -> Result<(), CategoryMappingServiceError> {
-            Err(CategoryMappingServiceError::new(
-                CategoryMappingServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn torznab_instance_create(
-            &self,
-            _actor_user_public_id: Uuid,
-            _search_profile_public_id: Uuid,
-            _display_name: &str,
-        ) -> Result<TorznabInstanceCredentials, TorznabInstanceServiceError> {
-            Err(TorznabInstanceServiceError::new(
-                TorznabInstanceServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn torznab_instance_rotate_key(
-            &self,
-            _actor_user_public_id: Uuid,
-            _torznab_instance_public_id: Uuid,
-        ) -> Result<TorznabInstanceCredentials, TorznabInstanceServiceError> {
-            Err(TorznabInstanceServiceError::new(
-                TorznabInstanceServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn torznab_instance_enable_disable(
-            &self,
-            _actor_user_public_id: Uuid,
-            _torznab_instance_public_id: Uuid,
-            _is_enabled: bool,
-        ) -> Result<(), TorznabInstanceServiceError> {
-            Err(TorznabInstanceServiceError::new(
-                TorznabInstanceServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn torznab_instance_soft_delete(
-            &self,
-            _actor_user_public_id: Uuid,
-            _torznab_instance_public_id: Uuid,
-        ) -> Result<(), TorznabInstanceServiceError> {
-            Err(TorznabInstanceServiceError::new(
-                TorznabInstanceServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn indexer_instance_create(
-            &self,
-            _actor_user_public_id: Uuid,
-            _indexer_definition_upstream_slug: &str,
-            _display_name: &str,
-            _priority: Option<i32>,
-            _trust_tier_key: Option<&str>,
-            _routing_policy_public_id: Option<Uuid>,
-        ) -> Result<Uuid, IndexerInstanceServiceError> {
-            Err(IndexerInstanceServiceError::new(
-                IndexerInstanceServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn indexer_instance_update(
-            &self,
-            _params: IndexerInstanceUpdateParams<'_>,
-        ) -> Result<Uuid, IndexerInstanceServiceError> {
-            Err(IndexerInstanceServiceError::new(
-                IndexerInstanceServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn indexer_instance_set_media_domains(
-            &self,
-            _actor_user_public_id: Uuid,
-            _indexer_instance_public_id: Uuid,
-            _media_domain_keys: &[String],
-        ) -> Result<(), IndexerInstanceServiceError> {
-            Err(IndexerInstanceServiceError::new(
-                IndexerInstanceServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn indexer_instance_set_tags(
-            &self,
-            _actor_user_public_id: Uuid,
-            _indexer_instance_public_id: Uuid,
-            _tag_public_ids: Option<&[Uuid]>,
-            _tag_keys: Option<&[String]>,
-        ) -> Result<(), IndexerInstanceServiceError> {
-            Err(IndexerInstanceServiceError::new(
-                IndexerInstanceServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn indexer_instance_field_set_value(
-            &self,
-            _params: IndexerInstanceFieldValueParams<'_>,
-        ) -> Result<(), IndexerInstanceFieldError> {
-            Err(IndexerInstanceFieldError::new(
-                IndexerInstanceFieldErrorKind::Storage,
-            ))
-        }
-
-        async fn indexer_instance_field_bind_secret(
-            &self,
-            _actor_user_public_id: Uuid,
-            _indexer_instance_public_id: Uuid,
-            _field_name: &str,
-            _secret_public_id: Uuid,
-        ) -> Result<(), IndexerInstanceFieldError> {
-            Err(IndexerInstanceFieldError::new(
-                IndexerInstanceFieldErrorKind::Storage,
-            ))
-        }
-
-        async fn indexer_cf_state_reset(
-            &self,
-            _params: IndexerCfStateResetParams<'_>,
-        ) -> Result<(), IndexerInstanceServiceError> {
-            Err(IndexerInstanceServiceError::new(
-                IndexerInstanceServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn indexer_cf_state_get(
-            &self,
-            _actor_user_public_id: Uuid,
-            _indexer_instance_public_id: Uuid,
-        ) -> Result<IndexerCfStateResponse, IndexerInstanceServiceError> {
-            Err(IndexerInstanceServiceError::new(
-                IndexerInstanceServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn indexer_instance_test_prepare(
-            &self,
-            _actor_user_public_id: Uuid,
-            _indexer_instance_public_id: Uuid,
-        ) -> Result<IndexerInstanceTestPrepareResponse, IndexerInstanceServiceError> {
-            Err(IndexerInstanceServiceError::new(
-                IndexerInstanceServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn indexer_instance_test_finalize(
-            &self,
-            _params: IndexerInstanceTestFinalizeParams<'_>,
-        ) -> Result<IndexerInstanceTestFinalizeResponse, IndexerInstanceServiceError> {
-            Err(IndexerInstanceServiceError::new(
-                IndexerInstanceServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn secret_create(
-            &self,
-            _actor_user_public_id: Uuid,
-            _secret_type: &str,
-            _secret_value: &str,
-        ) -> Result<Uuid, SecretServiceError> {
-            Err(SecretServiceError::new(SecretServiceErrorKind::Storage))
-        }
-
-        async fn secret_rotate(
-            &self,
-            _actor_user_public_id: Uuid,
-            _secret_public_id: Uuid,
-            _secret_value: &str,
-        ) -> Result<Uuid, SecretServiceError> {
-            Err(SecretServiceError::new(SecretServiceErrorKind::Storage))
-        }
-
-        async fn secret_revoke(
-            &self,
-            _actor_user_public_id: Uuid,
-            _secret_public_id: Uuid,
-        ) -> Result<(), SecretServiceError> {
-            Err(SecretServiceError::new(SecretServiceErrorKind::Storage))
-        }
-    }
-
-    struct ErrorIndexers {
-        error: PolicyServiceError,
-    }
-
-    #[async_trait]
-    impl IndexerFacade for ErrorIndexers {
-        async fn indexer_definition_list(
-            &self,
-            _actor_user_public_id: Uuid,
-        ) -> Result<Vec<IndexerDefinitionResponse>, IndexerDefinitionServiceError> {
-            Err(IndexerDefinitionServiceError::new(
-                IndexerDefinitionServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn indexer_instance_test_prepare(
-            &self,
-            _actor_user_public_id: Uuid,
-            _indexer_instance_public_id: Uuid,
-        ) -> Result<IndexerInstanceTestPrepareResponse, IndexerInstanceServiceError> {
-            Err(IndexerInstanceServiceError::new(
-                IndexerInstanceServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn indexer_instance_test_finalize(
-            &self,
-            _params: IndexerInstanceTestFinalizeParams<'_>,
-        ) -> Result<IndexerInstanceTestFinalizeResponse, IndexerInstanceServiceError> {
-            Err(IndexerInstanceServiceError::new(
-                IndexerInstanceServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn tag_create(
-            &self,
-            _actor_user_public_id: Uuid,
-            _tag_key: &str,
-            _display_name: &str,
-        ) -> Result<Uuid, TagServiceError> {
-            Err(TagServiceError::new(TagServiceErrorKind::Storage))
-        }
-
-        async fn tag_update(
-            &self,
-            _actor_user_public_id: Uuid,
-            _tag_public_id: Option<Uuid>,
-            _tag_key: Option<&str>,
-            _display_name: &str,
-        ) -> Result<Uuid, TagServiceError> {
-            Err(TagServiceError::new(TagServiceErrorKind::Storage))
-        }
-
-        async fn tag_delete(
-            &self,
-            _actor_user_public_id: Uuid,
-            _tag_public_id: Option<Uuid>,
-            _tag_key: Option<&str>,
-        ) -> Result<(), TagServiceError> {
-            Err(TagServiceError::new(TagServiceErrorKind::Storage))
-        }
-
-        async fn routing_policy_create(
-            &self,
-            _actor_user_public_id: Uuid,
-            _display_name: &str,
-            _mode: &str,
-        ) -> Result<Uuid, RoutingPolicyServiceError> {
-            Err(RoutingPolicyServiceError::new(
-                RoutingPolicyServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn routing_policy_set_param(
-            &self,
-            _actor_user_public_id: Uuid,
-            _routing_policy_public_id: Uuid,
-            _param_key: &str,
-            _value_plain: Option<&str>,
-            _value_int: Option<i32>,
-            _value_bool: Option<bool>,
-        ) -> Result<(), RoutingPolicyServiceError> {
-            Err(RoutingPolicyServiceError::new(
-                RoutingPolicyServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn routing_policy_bind_secret(
-            &self,
-            _actor_user_public_id: Uuid,
-            _routing_policy_public_id: Uuid,
-            _param_key: &str,
-            _secret_public_id: Uuid,
-        ) -> Result<(), RoutingPolicyServiceError> {
-            Err(RoutingPolicyServiceError::new(
-                RoutingPolicyServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn rate_limit_policy_create(
-            &self,
-            _actor_user_public_id: Uuid,
-            _display_name: &str,
-            _rpm: i32,
-            _burst: i32,
-            _concurrent: i32,
-        ) -> Result<Uuid, RateLimitPolicyServiceError> {
-            Err(RateLimitPolicyServiceError::new(
-                RateLimitPolicyServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn rate_limit_policy_update(
-            &self,
-            _actor_user_public_id: Uuid,
-            _rate_limit_policy_public_id: Uuid,
-            _display_name: Option<&str>,
-            _rpm: Option<i32>,
-            _burst: Option<i32>,
-            _concurrent: Option<i32>,
-        ) -> Result<(), RateLimitPolicyServiceError> {
-            Err(RateLimitPolicyServiceError::new(
-                RateLimitPolicyServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn rate_limit_policy_soft_delete(
-            &self,
-            _actor_user_public_id: Uuid,
-            _rate_limit_policy_public_id: Uuid,
-        ) -> Result<(), RateLimitPolicyServiceError> {
-            Err(RateLimitPolicyServiceError::new(
-                RateLimitPolicyServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn indexer_instance_set_rate_limit_policy(
-            &self,
-            _actor_user_public_id: Uuid,
-            _indexer_instance_public_id: Uuid,
-            _rate_limit_policy_public_id: Option<Uuid>,
-        ) -> Result<(), RateLimitPolicyServiceError> {
-            Err(RateLimitPolicyServiceError::new(
-                RateLimitPolicyServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn routing_policy_set_rate_limit_policy(
-            &self,
-            _actor_user_public_id: Uuid,
-            _routing_policy_public_id: Uuid,
-            _rate_limit_policy_public_id: Option<Uuid>,
-        ) -> Result<(), RateLimitPolicyServiceError> {
-            Err(RateLimitPolicyServiceError::new(
-                RateLimitPolicyServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn search_profile_create(
-            &self,
-            _actor_user_public_id: Uuid,
-            _display_name: &str,
-            _is_default: Option<bool>,
-            _page_size: Option<i32>,
-            _default_media_domain_key: Option<&str>,
-            _user_public_id: Option<Uuid>,
-        ) -> Result<Uuid, SearchProfileServiceError> {
-            Err(SearchProfileServiceError::new(
-                SearchProfileServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn search_profile_update(
-            &self,
-            _actor_user_public_id: Uuid,
-            _search_profile_public_id: Uuid,
-            _display_name: Option<&str>,
-            _page_size: Option<i32>,
-        ) -> Result<Uuid, SearchProfileServiceError> {
-            Err(SearchProfileServiceError::new(
-                SearchProfileServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn search_profile_set_default(
-            &self,
-            _actor_user_public_id: Uuid,
-            _search_profile_public_id: Uuid,
-            _page_size: Option<i32>,
-        ) -> Result<(), SearchProfileServiceError> {
-            Err(SearchProfileServiceError::new(
-                SearchProfileServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn search_profile_set_default_domain(
-            &self,
-            _actor_user_public_id: Uuid,
-            _search_profile_public_id: Uuid,
-            _default_media_domain_key: Option<&str>,
-        ) -> Result<(), SearchProfileServiceError> {
-            Err(SearchProfileServiceError::new(
-                SearchProfileServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn search_profile_set_domain_allowlist(
-            &self,
-            _actor_user_public_id: Uuid,
-            _search_profile_public_id: Uuid,
-            _media_domain_keys: &[String],
-        ) -> Result<(), SearchProfileServiceError> {
-            Err(SearchProfileServiceError::new(
-                SearchProfileServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn search_profile_add_policy_set(
-            &self,
-            _actor_user_public_id: Uuid,
-            _search_profile_public_id: Uuid,
-            _policy_set_public_id: Uuid,
-        ) -> Result<(), SearchProfileServiceError> {
-            Err(SearchProfileServiceError::new(
-                SearchProfileServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn search_profile_remove_policy_set(
-            &self,
-            _actor_user_public_id: Uuid,
-            _search_profile_public_id: Uuid,
-            _policy_set_public_id: Uuid,
-        ) -> Result<(), SearchProfileServiceError> {
-            Err(SearchProfileServiceError::new(
-                SearchProfileServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn search_profile_indexer_allow(
-            &self,
-            _actor_user_public_id: Uuid,
-            _search_profile_public_id: Uuid,
-            _indexer_instance_public_ids: &[Uuid],
-        ) -> Result<(), SearchProfileServiceError> {
-            Err(SearchProfileServiceError::new(
-                SearchProfileServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn search_profile_indexer_block(
-            &self,
-            _actor_user_public_id: Uuid,
-            _search_profile_public_id: Uuid,
-            _indexer_instance_public_ids: &[Uuid],
-        ) -> Result<(), SearchProfileServiceError> {
-            Err(SearchProfileServiceError::new(
-                SearchProfileServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn search_profile_tag_allow(
-            &self,
-            _actor_user_public_id: Uuid,
-            _search_profile_public_id: Uuid,
-            _tag_public_ids: Option<&[Uuid]>,
-            _tag_keys: Option<&[String]>,
-        ) -> Result<(), SearchProfileServiceError> {
-            Err(SearchProfileServiceError::new(
-                SearchProfileServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn search_profile_tag_block(
-            &self,
-            _actor_user_public_id: Uuid,
-            _search_profile_public_id: Uuid,
-            _tag_public_ids: Option<&[Uuid]>,
-            _tag_keys: Option<&[String]>,
-        ) -> Result<(), SearchProfileServiceError> {
-            Err(SearchProfileServiceError::new(
-                SearchProfileServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn search_profile_tag_prefer(
-            &self,
-            _actor_user_public_id: Uuid,
-            _search_profile_public_id: Uuid,
-            _tag_public_ids: Option<&[Uuid]>,
-            _tag_keys: Option<&[String]>,
-        ) -> Result<(), SearchProfileServiceError> {
-            Err(SearchProfileServiceError::new(
-                SearchProfileServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn policy_set_create(
-            &self,
-            _actor_user_public_id: Uuid,
-            _display_name: &str,
-            _scope: &str,
-            _enabled: Option<bool>,
-        ) -> Result<Uuid, PolicyServiceError> {
-            Err(self.error.clone())
-        }
-
-        async fn policy_set_enable(
-            &self,
-            _actor_user_public_id: Uuid,
-            _policy_set_public_id: Uuid,
-        ) -> Result<(), PolicyServiceError> {
-            Err(self.error.clone())
-        }
-
-        async fn policy_rule_enable(
-            &self,
-            _actor_user_public_id: Uuid,
-            _policy_rule_public_id: Uuid,
-        ) -> Result<(), PolicyServiceError> {
-            Err(self.error.clone())
-        }
-
-        async fn policy_rule_disable(
-            &self,
-            _actor_user_public_id: Uuid,
-            _policy_rule_public_id: Uuid,
-        ) -> Result<(), PolicyServiceError> {
-            Err(self.error.clone())
-        }
-
-        async fn policy_rule_reorder(
-            &self,
-            _actor_user_public_id: Uuid,
-            _policy_set_public_id: Uuid,
-            _ordered_policy_rule_public_ids: &[Uuid],
-        ) -> Result<(), PolicyServiceError> {
-            Err(self.error.clone())
-        }
-
-        async fn policy_rule_create(
-            &self,
-            _params: PolicyRuleCreateParams,
-        ) -> Result<Uuid, PolicyServiceError> {
-            Err(self.error.clone())
-        }
-
-        async fn tracker_category_mapping_upsert(
-            &self,
-            _params: crate::app::indexers::TrackerCategoryMappingUpsertParams<'_>,
-        ) -> Result<(), CategoryMappingServiceError> {
-            Err(CategoryMappingServiceError::new(
-                CategoryMappingServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn tracker_category_mapping_delete(
-            &self,
-            _params: crate::app::indexers::TrackerCategoryMappingDeleteParams<'_>,
-        ) -> Result<(), CategoryMappingServiceError> {
-            Err(CategoryMappingServiceError::new(
-                CategoryMappingServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn media_domain_mapping_upsert(
-            &self,
-            _actor_user_public_id: Uuid,
-            _media_domain_key: &str,
-            _torznab_cat_id: i32,
-            _is_primary: Option<bool>,
-        ) -> Result<(), CategoryMappingServiceError> {
-            Err(CategoryMappingServiceError::new(
-                CategoryMappingServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn media_domain_mapping_delete(
-            &self,
-            _actor_user_public_id: Uuid,
-            _media_domain_key: &str,
-            _torznab_cat_id: i32,
-        ) -> Result<(), CategoryMappingServiceError> {
-            Err(CategoryMappingServiceError::new(
-                CategoryMappingServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn torznab_instance_create(
-            &self,
-            _actor_user_public_id: Uuid,
-            _search_profile_public_id: Uuid,
-            _display_name: &str,
-        ) -> Result<TorznabInstanceCredentials, TorznabInstanceServiceError> {
-            Err(TorznabInstanceServiceError::new(
-                TorznabInstanceServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn torznab_instance_rotate_key(
-            &self,
-            _actor_user_public_id: Uuid,
-            _torznab_instance_public_id: Uuid,
-        ) -> Result<TorznabInstanceCredentials, TorznabInstanceServiceError> {
-            Err(TorznabInstanceServiceError::new(
-                TorznabInstanceServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn torznab_instance_enable_disable(
-            &self,
-            _actor_user_public_id: Uuid,
-            _torznab_instance_public_id: Uuid,
-            _is_enabled: bool,
-        ) -> Result<(), TorznabInstanceServiceError> {
-            Err(TorznabInstanceServiceError::new(
-                TorznabInstanceServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn torznab_instance_soft_delete(
-            &self,
-            _actor_user_public_id: Uuid,
-            _torznab_instance_public_id: Uuid,
-        ) -> Result<(), TorznabInstanceServiceError> {
-            Err(TorznabInstanceServiceError::new(
-                TorznabInstanceServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn indexer_instance_create(
-            &self,
-            _actor_user_public_id: Uuid,
-            _indexer_definition_upstream_slug: &str,
-            _display_name: &str,
-            _priority: Option<i32>,
-            _trust_tier_key: Option<&str>,
-            _routing_policy_public_id: Option<Uuid>,
-        ) -> Result<Uuid, IndexerInstanceServiceError> {
-            Err(IndexerInstanceServiceError::new(
-                IndexerInstanceServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn indexer_instance_update(
-            &self,
-            _params: IndexerInstanceUpdateParams<'_>,
-        ) -> Result<Uuid, IndexerInstanceServiceError> {
-            Err(IndexerInstanceServiceError::new(
-                IndexerInstanceServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn indexer_instance_set_media_domains(
-            &self,
-            _actor_user_public_id: Uuid,
-            _indexer_instance_public_id: Uuid,
-            _media_domain_keys: &[String],
-        ) -> Result<(), IndexerInstanceServiceError> {
-            Err(IndexerInstanceServiceError::new(
-                IndexerInstanceServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn indexer_instance_set_tags(
-            &self,
-            _actor_user_public_id: Uuid,
-            _indexer_instance_public_id: Uuid,
-            _tag_public_ids: Option<&[Uuid]>,
-            _tag_keys: Option<&[String]>,
-        ) -> Result<(), IndexerInstanceServiceError> {
-            Err(IndexerInstanceServiceError::new(
-                IndexerInstanceServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn indexer_instance_field_set_value(
-            &self,
-            _params: IndexerInstanceFieldValueParams<'_>,
-        ) -> Result<(), IndexerInstanceFieldError> {
-            Err(IndexerInstanceFieldError::new(
-                IndexerInstanceFieldErrorKind::Storage,
-            ))
-        }
-
-        async fn indexer_instance_field_bind_secret(
-            &self,
-            _actor_user_public_id: Uuid,
-            _indexer_instance_public_id: Uuid,
-            _field_name: &str,
-            _secret_public_id: Uuid,
-        ) -> Result<(), IndexerInstanceFieldError> {
-            Err(IndexerInstanceFieldError::new(
-                IndexerInstanceFieldErrorKind::Storage,
-            ))
-        }
-
-        async fn indexer_cf_state_reset(
-            &self,
-            _params: IndexerCfStateResetParams<'_>,
-        ) -> Result<(), IndexerInstanceServiceError> {
-            Err(IndexerInstanceServiceError::new(
-                IndexerInstanceServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn indexer_cf_state_get(
-            &self,
-            _actor_user_public_id: Uuid,
-            _indexer_instance_public_id: Uuid,
-        ) -> Result<IndexerCfStateResponse, IndexerInstanceServiceError> {
-            Err(IndexerInstanceServiceError::new(
-                IndexerInstanceServiceErrorKind::Storage,
-            ))
-        }
-
-        async fn secret_create(
-            &self,
-            _actor_user_public_id: Uuid,
-            _secret_type: &str,
-            _secret_value: &str,
-        ) -> Result<Uuid, SecretServiceError> {
-            Err(SecretServiceError::new(SecretServiceErrorKind::Storage))
-        }
-
-        async fn secret_rotate(
-            &self,
-            _actor_user_public_id: Uuid,
-            _secret_public_id: Uuid,
-            _secret_value: &str,
-        ) -> Result<Uuid, SecretServiceError> {
-            Err(SecretServiceError::new(SecretServiceErrorKind::Storage))
-        }
-
-        async fn secret_revoke(
-            &self,
-            _actor_user_public_id: Uuid,
-            _secret_public_id: Uuid,
-        ) -> Result<(), SecretServiceError> {
-            Err(SecretServiceError::new(SecretServiceErrorKind::Storage))
-        }
-    }
-
-    fn api_state(indexers: Arc<dyn IndexerFacade>) -> Result<Arc<ApiState>, ApiError> {
-        let telemetry = Metrics::new().map_err(|_| ApiError::internal("metrics init failed"))?;
-        Ok(Arc::new(ApiState::new(
-            Arc::new(StubConfig),
-            indexers,
-            telemetry,
-            Arc::new(json!({})),
-            EventBus::with_capacity(4),
-            None,
-        )))
-    }
-
-    async fn parse_problem(response: axum::response::Response) -> ProblemDetails {
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-            .await
-            .unwrap_or_default();
-        serde_json::from_slice(&body).unwrap_or_else(|_| ProblemDetails {
-            kind: "invalid".to_string(),
-            title: "invalid".to_string(),
-            status: 0,
-            detail: None,
-            invalid_params: None,
-            context: None,
-        })
-    }
 
     #[tokio::test]
     async fn create_policy_set_trims_and_returns_payload() -> Result<(), ApiError> {
         let indexers = Arc::new(RecordingIndexers::default());
-        let state = api_state(indexers.clone())?;
+        let state = indexer_test_state(indexers.clone())?;
         let request = PolicySetCreateRequest {
             display_name: " Policies ".to_string(),
             scope: " global ".to_string(),
@@ -1622,7 +416,10 @@ mod tests {
         assert_eq!(status, StatusCode::CREATED);
         assert_ne!(response.policy_set_public_id, Uuid::nil());
 
-        let calls = indexers.policy_calls.lock().expect("lock poisoned");
+        let calls = indexers
+            .policy_set_create_calls
+            .lock()
+            .expect("lock poisoned");
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].0, SYSTEM_ACTOR_PUBLIC_ID);
         assert_eq!(calls[0].1, "Policies");
@@ -1633,9 +430,155 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn list_policy_sets_returns_payload() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let policy_set_public_id = Uuid::new_v4();
+        let policy_rule_public_id = Uuid::new_v4();
+        indexers
+            .policy_set_list_items
+            .lock()
+            .expect("lock poisoned")
+            .push(PolicySetListItemResponse {
+                policy_set_public_id,
+                display_name: "Default".to_string(),
+                scope: "global".to_string(),
+                is_enabled: true,
+                user_public_id: None,
+                rules: vec![PolicyRuleListItemResponse {
+                    policy_rule_public_id,
+                    rule_type: "block_release_group".to_string(),
+                    match_field: "release_group".to_string(),
+                    match_operator: "equals".to_string(),
+                    sort_order: 1,
+                    match_value_text: Some("group".to_string()),
+                    match_value_int: None,
+                    match_value_uuid: None,
+                    action: "drop".to_string(),
+                    severity: "hard".to_string(),
+                    is_case_insensitive: false,
+                    rationale: Some("operator".to_string()),
+                    expires_at: None,
+                    is_disabled: false,
+                }],
+            });
+        let state = indexer_test_state(indexers.clone())?;
+
+        let Json(response) = list_policy_sets(State(state)).await?;
+        assert_eq!(response.policy_sets.len(), 1);
+        assert_eq!(
+            response.policy_sets[0].policy_set_public_id,
+            policy_set_public_id
+        );
+        assert_eq!(
+            response.policy_sets[0].rules[0].policy_rule_public_id,
+            policy_rule_public_id
+        );
+
+        let calls = indexers
+            .policy_set_list_calls
+            .lock()
+            .expect("lock poisoned")
+            .clone();
+        assert_eq!(calls.as_slice(), &[SYSTEM_ACTOR_PUBLIC_ID]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn update_policy_set_trims_optional_display_name() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+        let policy_set_public_id = Uuid::new_v4();
+        let request = PolicySetUpdateRequest {
+            display_name: Some("  Movies  ".to_string()),
+        };
+
+        let Json(response) =
+            update_policy_set(Path(policy_set_public_id), State(state), Json(request)).await?;
+        assert_eq!(response.policy_set_public_id, policy_set_public_id);
+
+        let calls = indexers
+            .policy_set_update_calls
+            .lock()
+            .expect("lock poisoned")
+            .clone();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].0, SYSTEM_ACTOR_PUBLIC_ID);
+        assert_eq!(calls[0].1, policy_set_public_id);
+        assert_eq!(calls[0].2.as_deref(), Some("Movies"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn enable_policy_set_records_identifier() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+        let policy_set_public_id = Uuid::new_v4();
+
+        let status = enable_policy_set(Path(policy_set_public_id), State(state)).await?;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let calls = indexers
+            .policy_set_enable_calls
+            .lock()
+            .expect("lock poisoned")
+            .clone();
+        assert_eq!(
+            calls.as_slice(),
+            &[(SYSTEM_ACTOR_PUBLIC_ID, policy_set_public_id)]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn disable_policy_set_records_identifier() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+        let policy_set_public_id = Uuid::new_v4();
+
+        let status = disable_policy_set(Path(policy_set_public_id), State(state)).await?;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let calls = indexers
+            .policy_set_disable_calls
+            .lock()
+            .expect("lock poisoned")
+            .clone();
+        assert_eq!(
+            calls.as_slice(),
+            &[(SYSTEM_ACTOR_PUBLIC_ID, policy_set_public_id)]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn reorder_policy_sets_records_order() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+        let first = Uuid::new_v4();
+        let second = Uuid::new_v4();
+        let request = PolicySetReorderRequest {
+            ordered_policy_set_public_ids: vec![first, second],
+        };
+
+        let status = reorder_policy_sets(State(state), Json(request)).await?;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let calls = indexers
+            .policy_set_reorder_calls
+            .lock()
+            .expect("lock poisoned")
+            .clone();
+        assert_eq!(
+            calls.as_slice(),
+            &[(SYSTEM_ACTOR_PUBLIC_ID, vec![first, second])]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn create_policy_rule_parses_expiry() -> Result<(), ApiError> {
         let indexers = Arc::new(RecordingIndexers::default());
-        let state = api_state(indexers.clone())?;
+        let state = indexer_test_state(indexers.clone())?;
         let request = PolicyRuleCreateRequest {
             rule_type: " block_title_regex ".to_string(),
             match_field: " title ".to_string(),
@@ -1662,7 +605,10 @@ mod tests {
         assert_eq!(status, StatusCode::CREATED);
         assert_ne!(response.policy_rule_public_id, Uuid::nil());
 
-        let calls = indexers.policy_rule_calls.lock().expect("lock poisoned");
+        let calls = indexers
+            .policy_rule_create_calls
+            .lock()
+            .expect("lock poisoned");
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].policy_set_public_id, policy_set_public_id);
         assert_eq!(calls[0].rule_type, "block_title_regex");
@@ -1679,7 +625,7 @@ mod tests {
     #[tokio::test]
     async fn create_policy_rule_invalid_expiry_returns_bad_request() -> Result<(), ApiError> {
         let indexers = Arc::new(RecordingIndexers::default());
-        let state = api_state(indexers)?;
+        let state = indexer_test_state(indexers)?;
         let request = PolicyRuleCreateRequest {
             rule_type: "block_title_regex".to_string(),
             match_field: "title".to_string(),
@@ -1711,12 +657,89 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn enable_policy_rule_records_identifier() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+        let policy_rule_public_id = Uuid::new_v4();
+
+        let status = enable_policy_rule(Path(policy_rule_public_id), State(state)).await?;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let calls = indexers
+            .policy_rule_enable_calls
+            .lock()
+            .expect("lock poisoned")
+            .clone();
+        assert_eq!(
+            calls.as_slice(),
+            &[(SYSTEM_ACTOR_PUBLIC_ID, policy_rule_public_id)]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn disable_policy_rule_records_identifier() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+        let policy_rule_public_id = Uuid::new_v4();
+
+        let status = disable_policy_rule(Path(policy_rule_public_id), State(state)).await?;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let calls = indexers
+            .policy_rule_disable_calls
+            .lock()
+            .expect("lock poisoned")
+            .clone();
+        assert_eq!(
+            calls.as_slice(),
+            &[(SYSTEM_ACTOR_PUBLIC_ID, policy_rule_public_id)]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn reorder_policy_rules_records_scope_and_order() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+        let policy_set_public_id = Uuid::new_v4();
+        let first = Uuid::new_v4();
+        let second = Uuid::new_v4();
+        let request = PolicyRuleReorderRequest {
+            ordered_policy_rule_public_ids: vec![first, second],
+        };
+
+        let status =
+            reorder_policy_rules(Path(policy_set_public_id), State(state), Json(request)).await?;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let calls = indexers
+            .policy_rule_reorder_calls
+            .lock()
+            .expect("lock poisoned")
+            .clone();
+        assert_eq!(
+            calls.as_slice(),
+            &[(
+                SYSTEM_ACTOR_PUBLIC_ID,
+                policy_set_public_id,
+                vec![first, second]
+            )]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn policy_set_conflict_maps_conflict() -> Result<(), ApiError> {
-        let indexers = Arc::new(ErrorIndexers {
-            error: PolicyServiceError::new(PolicyServiceErrorKind::Conflict)
-                .with_code("global_policy_set_exists"),
-        });
-        let state = api_state(indexers)?;
+        let indexers = Arc::new(RecordingIndexers::default());
+        *indexers
+            .policy_set_create_result
+            .lock()
+            .expect("lock poisoned") = Some(Err(PolicyServiceError::new(
+            PolicyServiceErrorKind::Conflict,
+        )
+        .with_code("global_policy_set_exists")));
+        let state = indexer_test_state(indexers)?;
         let request = PolicySetCreateRequest {
             display_name: "Policies".to_string(),
             scope: "global".to_string(),

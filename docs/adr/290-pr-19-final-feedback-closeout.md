@@ -1,0 +1,55 @@
+# PR 19 final feedback closeout
+
+- Status: Accepted
+- Date: 2026-04-12
+- Context:
+  - PR 19 still had three unresolved review threads after the earlier policy and test updates landed.
+  - The remaining feedback covered composite-action input parsing, Sonar instruction scoping, and discoverability of the ADR-backed RustSec ignore.
+- Decision:
+  - Tokenize `apt-packages` on general whitespace so YAML multiline input works the same as single-line input.
+  - Narrow the Sonar MCP instruction `applyTo` scope to Sonar-related files instead of the whole repository.
+  - Add an inline `.secignore` comment that points readers to ADR 286 and states the removal trigger for `RUSTSEC-2026-0097`.
+- Consequences:
+  - Positive outcomes:
+    - Composite-action package input is more robust and matches common workflow YAML formatting.
+    - Sonar-specific guidance no longer bleeds into unrelated file edits.
+    - The temporary advisory ignore is easier to audit from the file that carries it.
+  - Risks or trade-offs:
+    - The apt-package tokenizer still uses shell word splitting semantics after whitespace normalization, so package values must remain plain package tokens rather than arbitrary quoted strings.
+- Follow-up:
+  - Implementation tasks:
+    - Keep `setup-revaer` input descriptions aligned with the actual accepted formatting.
+  - Review checkpoints:
+    - Re-run the required repo validation gates and update the PR threads.
+
+## Task Record
+
+- Motivation:
+  - The user asked to address the remaining PR feedback on PR 19, and all three unresolved threads were small, actionable fixes.
+- Design notes:
+  - The `apt-packages` change preserves the existing whitelist and `apt-get install -y --` hardening while making multiline YAML input behave predictably.
+  - Scoping `sonarqube_mcp.instructions.md` to `.github/workflows/sonar.yml` and `sonar-project.properties` keeps the instruction targeted to the files it governs.
+  - The `.secignore` note references the existing ADR instead of duplicating the remediation plan in another document.
+- Test coverage summary:
+  - `just ci`
+  - `just ui-e2e`
+- Observability updates:
+  - None. No runtime logging, tracing, or metrics changed.
+- Status-doc validation:
+  - No README or operator-facing docs needed updates because the change is limited to repo policy/docs and CI setup behavior.
+- Risk & rollback plan:
+  - Risk is low and limited to CI/workflow behavior and documentation scope.
+  - Rollback is a straightforward revert of this commit if a workflow consumer depends on the prior single-line package parsing.
+- Dependency rationale:
+  - No new dependencies were added.
+- Stale-policy check:
+  - Reviewed:
+    - `AGENTS.md`
+    - `.github/instructions/devops.instructions.md`
+    - `.github/instructions/sonarqube_mcp.instructions.md`
+    - `docs/adr/template.md`
+  - Drift found:
+    - `sonarqube_mcp.instructions.md` was scoped too broadly for the guidance it contains.
+    - `.github/actions/setup-revaer/action.yml` described and implemented `apt-packages` as a single-line input even though multiline YAML is a common caller pattern.
+  - Contradictions removed:
+    - None.

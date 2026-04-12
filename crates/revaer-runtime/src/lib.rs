@@ -8,16 +8,13 @@
     unreachable_pub,
     clippy::all,
     clippy::pedantic,
-    clippy::cargo,
-    clippy::nursery,
     rustdoc::broken_intra_doc_links,
     rustdoc::bare_urls,
     missing_docs
 )]
-#![allow(clippy::multiple_crate_versions)]
 
 //! Runtime persistence facade for torrent and filesystem job tracking.
-//! Layout: `runtime.rs` (re-exports of the data-layer runtime store).
+//! Layout: `runtime.rs` (facade wrapper over the data-layer runtime store).
 
 pub mod runtime;
 

@@ -211,4 +211,118 @@ mod tests {
         assert_eq!(problem.detail.as_deref(), Some(MEDIA_DOMAIN_KEY_REQUIRED));
         Ok(())
     }
+
+    #[tokio::test]
+    async fn upsert_tracker_category_mapping_trims_optional_values() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+
+        let status = upsert_tracker_category_mapping(
+            State(state),
+            Json(TrackerCategoryMappingUpsertRequest {
+                torznab_instance_public_id: Some(uuid::Uuid::new_v4()),
+                indexer_definition_upstream_slug: Some("  prowlarr ".into()),
+                indexer_instance_public_id: Some(uuid::Uuid::new_v4()),
+                tracker_category: 5000,
+                tracker_subcategory: Some(42),
+                torznab_cat_id: 5030,
+                media_domain_key: Some("  tv ".into()),
+            }),
+        )
+        .await?;
+
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        let calls = indexers
+            .tracker_category_mapping_upsert_calls
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].1.as_deref(), Some("prowlarr"));
+        assert_eq!(calls[0].6.as_deref(), Some("tv"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn delete_tracker_category_mapping_trims_optional_slug() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+
+        let status = delete_tracker_category_mapping(
+            State(state),
+            Json(TrackerCategoryMappingDeleteRequest {
+                torznab_instance_public_id: None,
+                indexer_definition_upstream_slug: Some("  cardigann ".into()),
+                indexer_instance_public_id: None,
+                tracker_category: 1000,
+                tracker_subcategory: None,
+            }),
+        )
+        .await?;
+
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        let calls = indexers
+            .tracker_category_mapping_delete_calls
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].1.as_deref(), Some("cardigann"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn upsert_media_domain_mapping_trims_key_and_records_primary() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+
+        let status = upsert_media_domain_mapping(
+            State(state),
+            Json(MediaDomainMappingUpsertRequest {
+                media_domain_key: "  movies ".into(),
+                torznab_cat_id: 2000,
+                is_primary: Some(true),
+            }),
+        )
+        .await?;
+
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        let calls = indexers
+            .media_domain_mapping_upsert_calls
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        assert_eq!(
+            calls.as_slice(),
+            &[(SYSTEM_ACTOR_PUBLIC_ID, "movies".into(), 2000, Some(true))]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn delete_media_domain_mapping_trims_key_and_records_category() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+
+        let status = delete_media_domain_mapping(
+            State(state),
+            Json(MediaDomainMappingDeleteRequest {
+                media_domain_key: "  books ".into(),
+                torznab_cat_id: 7000,
+            }),
+        )
+        .await?;
+
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        let calls = indexers
+            .media_domain_mapping_delete_calls
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        assert_eq!(
+            calls.as_slice(),
+            &[(SYSTEM_ACTOR_PUBLIC_ID, "books".into(), 7000)]
+        );
+        Ok(())
+    }
 }

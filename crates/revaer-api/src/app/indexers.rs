@@ -3004,3 +3004,6 @@ impl IndexerFacade for NoopIndexers {
 pub(crate) fn test_indexers() -> std::sync::Arc<dyn IndexerFacade> {
     std::sync::Arc::new(NoopIndexers)
 }
+
+#[cfg(test)]
+mod tests;

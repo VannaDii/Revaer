@@ -9,7 +9,7 @@ inputs:
     required: false
     default: ""
   apt-packages:
-    description: Apt packages to install (space-separated).
+    description: Apt packages to install (whitespace-separated; spaces, tabs, and newlines allowed).
     required: false
     default: ""
   apt-profile:
@@ -24,7 +24,7 @@ runs:
   using: composite
   steps:
     - name: Cache Rust artifacts
-      uses: actions/cache@v4
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
       with:
         path: |
           ~/.cargo/registry
@@ -36,17 +36,19 @@ runs:
           ${{ runner.os }}-cargo-${{ inputs.toolchain }}-
 
     - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@master
+      uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
       with:
         toolchain: ${{ inputs.toolchain }}
         components: ${{ inputs.components }}
 
     - name: Install just
-      uses: taiki-e/install-action@just
+      uses: taiki-e/install-action@cf39a74df4a72510be4e5b63348d61067f11e64a # v2.75.0
+      with:
+        tool: just
 
     - name: Install Node.js
       if: ${{ inputs.node-version != '' }}
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
       with:
         node-version: ${{ inputs.node-version }}
         cache: npm
@@ -54,32 +56,52 @@ runs:
 
     - name: Install apt packages
       shell: bash
+      env:
+        INPUT_APT_PACKAGES: ${{ inputs.apt-packages }}
+        INPUT_APT_PROFILE: ${{ inputs.apt-profile }}
       run: |
         set -euo pipefail
 
-        packages="${{ inputs.apt-packages }}"
-        if [ -z "${packages}" ]; then
-          case "${{ inputs.apt-profile }}" in
+        declare -a packages=()
+
+        if [ -n "${INPUT_APT_PACKAGES}" ]; then
+          # Accept YAML multiline strings and CRLF input by tokenizing on shell whitespace.
+          read -r -a packages <<<"$(printf '%s\n' "${INPUT_APT_PACKAGES}" | tr -d '\r' | tr '\n\t' '  ')"
+        else
+          case "${INPUT_APT_PROFILE}" in
             base)
-              packages="libtorrent-rasterbar-dev pkg-config sccache"
+              packages=(libtorrent-rasterbar-dev pkg-config sccache)
               ;;
             db)
-              packages="libtorrent-rasterbar-dev pkg-config libpq-dev postgresql-client sccache"
+              packages=(libtorrent-rasterbar-dev pkg-config libpq-dev postgresql-client sccache)
               ;;
             "")
-              packages=""
+              packages=()
               ;;
             *)
-              echo "Unknown apt profile: ${{ inputs.apt-profile }}" >&2
+              echo "Unknown apt profile: ${INPUT_APT_PROFILE}" >&2
               exit 1
               ;;
           esac
         fi
 
-        if [ -n "${packages}" ]; then
-          sudo apt-get update
-          sudo apt-get install -y ${packages}
+        if [ "${#packages[@]}" -eq 0 ]; then
+          exit 0
         fi
+
+        for package in "${packages[@]}"; do
+          case "${package}" in
+            [A-Za-z0-9][A-Za-z0-9.+:=~-]*)
+              ;;
+            *)
+              echo "Invalid apt package token: ${package}" >&2
+              exit 1
+              ;;
+          esac
+        done
+
+        sudo apt-get update
+        sudo apt-get install -y -- "${packages[@]}"
 
     - name: Configure sccache
       shell: bash

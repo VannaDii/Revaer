@@ -704,6 +704,59 @@ fn empty_status(status: StatusCode) -> Result<Response, ApiError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::indexers::{
+        SearchRequestServiceError, SearchRequestServiceErrorKind, TorznabCategory,
+        TorznabInstanceAuth,
+    };
+    use crate::http::handlers::indexers::test_support::{RecordingIndexers, indexer_test_state};
+    use crate::models::{
+        SearchPageListResponse, SearchPageResponse, SearchRequestExplainabilityResponse,
+    };
+    use chrono::{TimeZone, Utc};
+    use std::sync::Arc;
+
+    fn torznab_query() -> TorznabQuery {
+        TorznabQuery {
+            t: None,
+            apikey: None,
+            q: None,
+            cat: None,
+            imdbid: None,
+            tmdbid: None,
+            tvdbid: None,
+            season: None,
+            ep: None,
+            offset: None,
+            limit: None,
+        }
+    }
+
+    fn auth(display_name: &str) -> TorznabInstanceAuth {
+        TorznabInstanceAuth {
+            torznab_instance_id: 1,
+            search_profile_id: 2,
+            display_name: display_name.to_string(),
+        }
+    }
+
+    fn explainability() -> SearchRequestExplainabilityResponse {
+        SearchRequestExplainabilityResponse {
+            zero_runnable_indexers: false,
+            skipped_canceled_indexers: 0,
+            skipped_failed_indexers: 0,
+            blocked_results: 0,
+            blocked_rule_public_ids: Vec::new(),
+            rate_limited_indexers: 0,
+            retrying_indexers: 0,
+        }
+    }
+
+    async fn response_body(response: Response) -> String {
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("response body");
+        String::from_utf8(body.to_vec()).expect("utf8 response body")
+    }
 
     #[test]
     fn torznab_query_parses_optional_values() {
@@ -725,6 +778,13 @@ mod tests {
     }
 
     #[test]
+    fn empty_status_preserves_status_code() {
+        let response = empty_status(StatusCode::UNAUTHORIZED).expect("response should build");
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert!(response.headers().get(CONTENT_TYPE).is_none());
+    }
+
+    #[test]
     fn xml_response_sets_content_type() {
         let response =
             xml_response(StatusCode::OK, "<caps/>".to_string()).expect("response should build");
@@ -735,6 +795,24 @@ mod tests {
                 .and_then(|h| h.to_str().ok()),
             Some("application/xml; charset=utf-8")
         );
+    }
+
+    #[test]
+    fn parse_non_negative_i32_handles_blank_valid_and_invalid_inputs() {
+        assert_eq!(parse_non_negative_i32(None), Ok(None));
+        assert_eq!(parse_non_negative_i32(Some("   ")), Ok(None));
+        assert_eq!(parse_non_negative_i32(Some(" 42 ")), Ok(Some(42)));
+        assert_eq!(parse_non_negative_i32(Some("0")), Ok(Some(0)));
+        assert_eq!(parse_non_negative_i32(Some("-1")), Err(()));
+        assert_eq!(parse_non_negative_i32(Some("abc")), Err(()));
+    }
+
+    #[test]
+    fn parse_category_tokens_trims_and_discards_empty_entries() {
+        let tokens = parse_category_tokens(Some(" 2000, 2040 ,, 500 "));
+        assert_eq!(tokens, vec!["2000", "2040", "500"]);
+        assert!(parse_category_tokens(Some("   ")).is_empty());
+        assert!(parse_category_tokens(None).is_empty());
     }
 
     #[test]
@@ -750,6 +828,85 @@ mod tests {
             Some(TorznabSearchMode::Movie)
         );
         assert_eq!(parse_search_mode("caps"), None);
+    }
+
+    #[test]
+    fn normalize_imdb_accepts_prefixed_and_unprefixed_values() {
+        assert_eq!(
+            normalize_imdb(Some("tt1234567")),
+            Some("tt1234567".to_string())
+        );
+        assert_eq!(
+            normalize_imdb(Some("12345678")),
+            Some("tt12345678".to_string())
+        );
+        assert_eq!(normalize_imdb(Some("tt12")), None);
+        assert_eq!(normalize_imdb(Some("tt1234abc")), None);
+        assert_eq!(normalize_imdb(Some("   ")), None);
+    }
+
+    #[test]
+    fn normalize_positive_number_accepts_only_positive_integers() {
+        assert_eq!(
+            normalize_positive_number(Some(" 15 ")),
+            Some("15".to_string())
+        );
+        assert_eq!(normalize_positive_number(Some("0")), None);
+        assert_eq!(normalize_positive_number(Some("-3")), None);
+        assert_eq!(normalize_positive_number(Some("abc")), None);
+        assert_eq!(normalize_positive_number(Some("   ")), None);
+    }
+
+    #[test]
+    fn parse_identifier_input_prefers_explicit_identifiers_and_rejects_conflicts() {
+        let imdb_query = TorznabQuery {
+            t: None,
+            apikey: None,
+            q: Some("ignored".to_string()),
+            cat: None,
+            imdbid: Some("1234567".to_string()),
+            tmdbid: None,
+            tvdbid: None,
+            season: None,
+            ep: None,
+            offset: None,
+            limit: None,
+        };
+        assert_eq!(
+            parse_identifier_input(&imdb_query),
+            Ok(Some(("imdb", "tt1234567".to_string())))
+        );
+
+        let conflicting_query = TorznabQuery {
+            tmdbid: Some("42".to_string()),
+            tvdbid: Some("9".to_string()),
+            ..imdb_query
+        };
+        assert_eq!(
+            parse_identifier_input(&conflicting_query),
+            Err("invalid_identifier_combo")
+        );
+    }
+
+    #[test]
+    fn parse_identifier_input_falls_back_to_query_text() {
+        let query = TorznabQuery {
+            t: None,
+            apikey: None,
+            q: Some("tmdb:42".to_string()),
+            cat: None,
+            imdbid: None,
+            tmdbid: None,
+            tvdbid: None,
+            season: None,
+            ep: None,
+            offset: None,
+            limit: None,
+        };
+        assert_eq!(
+            parse_identifier_input(&query),
+            Ok(Some(("tmdb", "42".to_string())))
+        );
     }
 
     #[test]
@@ -771,9 +928,50 @@ mod tests {
     }
 
     #[test]
+    fn parse_identifier_from_query_parses_prefixed_numeric_identifiers() {
+        assert_eq!(
+            parse_identifier_from_query(Some("tmdb:42")),
+            Ok(Some(("tmdb", "42".to_string())))
+        );
+        assert_eq!(
+            parse_identifier_from_query(Some("tvdb:77")),
+            Ok(Some(("tvdb", "77".to_string())))
+        );
+        assert_eq!(
+            parse_identifier_from_query(Some("tmdb:42 tmdb:43")),
+            Ok(None)
+        );
+    }
+
+    #[test]
     fn invalid_combo_flags_tv_without_anchor() {
         let invalid = is_invalid_combo(TorznabSearchMode::Tv, "", Some(1), None, None);
         assert!(invalid);
+    }
+
+    #[test]
+    fn invalid_combo_rejects_generic_or_movie_with_tv_only_inputs() {
+        assert!(is_invalid_combo(
+            TorznabSearchMode::Generic,
+            "query",
+            Some(1),
+            None,
+            None,
+        ));
+        assert!(is_invalid_combo(
+            TorznabSearchMode::Movie,
+            "query",
+            None,
+            None,
+            Some(&("tvdb", "55".to_string())),
+        ));
+        assert!(!is_invalid_combo(
+            TorznabSearchMode::Tv,
+            "query",
+            Some(1),
+            Some(2),
+            None,
+        ));
     }
 
     #[test]
@@ -801,12 +999,36 @@ mod tests {
     }
 
     #[test]
+    fn expand_torznab_categories_ignores_non_positive_values() {
+        let categories = expand_torznab_categories(&[0, -1, 5040]);
+        assert_eq!(categories, vec![5000, 5040]);
+    }
+
+    #[test]
     fn build_download_link_url_encodes_api_key() {
         let link = build_download_link(Uuid::from_u128(1), Uuid::from_u128(2), "a&b=1+2%");
         assert_eq!(
             link,
             "/torznab/00000000-0000-0000-0000-000000000001/download/00000000-0000-0000-0000-000000000002?apikey=a%26b%3D1%2B2%25"
         );
+    }
+
+    #[test]
+    fn search_result_total_sums_page_counts() {
+        let pages = vec![
+            SearchPageSummaryResponse {
+                page_number: 1,
+                item_count: 50,
+                sealed_at: None,
+            },
+            SearchPageSummaryResponse {
+                page_number: 2,
+                item_count: 10,
+                sealed_at: None,
+            },
+        ];
+
+        assert_eq!(search_result_total(&pages), 60);
     }
 
     #[test]
@@ -831,5 +1053,265 @@ mod tests {
 
         let selected = page_numbers_for_window(&pages, 55, 20);
         assert_eq!(selected, vec![2]);
+    }
+
+    #[test]
+    fn page_numbers_for_window_handles_empty_and_cross_page_ranges() {
+        let pages = vec![
+            SearchPageSummaryResponse {
+                page_number: 1,
+                item_count: 10,
+                sealed_at: None,
+            },
+            SearchPageSummaryResponse {
+                page_number: 2,
+                item_count: 10,
+                sealed_at: None,
+            },
+            SearchPageSummaryResponse {
+                page_number: 3,
+                item_count: 10,
+                sealed_at: None,
+            },
+        ];
+
+        assert!(page_numbers_for_window(&pages, 0, 0).is_empty());
+        assert!(page_numbers_for_window(&[], 0, 10).is_empty());
+        assert_eq!(page_numbers_for_window(&pages, 8, 10), vec![1, 2]);
+    }
+
+    #[test]
+    fn map_search_request_failure_maps_invalid_and_storage_cases() {
+        assert!(matches!(
+            map_search_request_failure(SearchRequestServiceErrorKind::Invalid),
+            TorznabSearchFailure::Invalid("invalid_query")
+        ));
+        assert!(matches!(
+            map_search_request_failure(SearchRequestServiceErrorKind::NotFound),
+            TorznabSearchFailure::Invalid("invalid_query")
+        ));
+        assert!(matches!(
+            map_search_request_failure(SearchRequestServiceErrorKind::Unauthorized),
+            TorznabSearchFailure::Invalid("invalid_query")
+        ));
+        assert!(matches!(
+            map_search_request_failure(SearchRequestServiceErrorKind::Storage),
+            TorznabSearchFailure::Internal
+        ));
+    }
+
+    #[tokio::test]
+    async fn torznab_api_returns_unauthorized_when_apikey_is_missing() {
+        let indexers = RecordingIndexers::default();
+        let state =
+            indexer_test_state(Arc::new(indexers)).expect("torznab test state should initialize");
+
+        let response = torznab_api(
+            State(state),
+            Path(Uuid::new_v4()),
+            Query(TorznabQuery {
+                t: Some("search".to_string()),
+                ..torznab_query()
+            }),
+        )
+        .await
+        .expect("missing apikey response");
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert!(response_body(response).await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn torznab_api_returns_caps_xml_for_authenticated_instance() {
+        let indexers = RecordingIndexers::default();
+        indexers.set_torznab_auth_result(Ok(auth("Library")));
+        indexers.set_torznab_category_list_result(Ok(vec![
+            TorznabCategory {
+                torznab_cat_id: 2000,
+                name: "Movies".to_string(),
+            },
+            TorznabCategory {
+                torznab_cat_id: 5000,
+                name: "TV".to_string(),
+            },
+        ]));
+        let state =
+            indexer_test_state(Arc::new(indexers)).expect("torznab test state should initialize");
+
+        let response = torznab_api(
+            State(state),
+            Path(Uuid::new_v4()),
+            Query(TorznabQuery {
+                t: Some("caps".to_string()),
+                apikey: Some("secret".to_string()),
+                ..torznab_query()
+            }),
+        )
+        .await
+        .expect("caps response");
+
+        let body = response_body(response).await;
+        assert!(body.contains("Library"));
+        assert!(body.contains("Movies"));
+        assert!(body.contains("5000"));
+    }
+
+    #[tokio::test]
+    async fn torznab_api_returns_empty_search_for_invalid_category_filter() {
+        let indexers = RecordingIndexers::default();
+        indexers.set_torznab_auth_result(Ok(auth("Library")));
+        indexers.set_torznab_category_list_result(Ok(vec![TorznabCategory {
+            torznab_cat_id: 2000,
+            name: "Movies".to_string(),
+        }]));
+        let state = indexer_test_state(Arc::new(indexers.clone()))
+            .expect("torznab test state should initialize");
+
+        let response = torznab_api(
+            State(state),
+            Path(Uuid::new_v4()),
+            Query(TorznabQuery {
+                t: Some("search".to_string()),
+                apikey: Some("secret".to_string()),
+                q: Some("dune".to_string()),
+                cat: Some("9999".to_string()),
+                ..torznab_query()
+            }),
+        )
+        .await
+        .expect("invalid category response");
+
+        let body = response_body(response).await;
+        assert!(body.contains("total=\"0\""));
+        assert!(indexers.search_request_snapshots().is_empty());
+    }
+
+    #[tokio::test]
+    async fn torznab_api_executes_tv_search_and_renders_feed_items() {
+        let indexers = RecordingIndexers::default();
+        let torznab_instance_public_id = Uuid::from_u128(1);
+        let source_public_id = Uuid::from_u128(2);
+        let indexer_instance_public_id = Uuid::from_u128(3);
+
+        indexers.set_torznab_auth_result(Ok(auth("Library")));
+        indexers.set_torznab_category_list_result(Ok(vec![TorznabCategory {
+            torznab_cat_id: 2040,
+            name: "TV HD".to_string(),
+        }]));
+        indexers.set_search_page_list_response(SearchPageListResponse {
+            pages: vec![SearchPageSummaryResponse {
+                page_number: 1,
+                item_count: 1,
+                sealed_at: None,
+            }],
+            explainability: explainability(),
+        });
+        indexers.set_search_page_fetch_response(SearchPageResponse {
+            page_number: 1,
+            sealed_at: None,
+            item_count: 1,
+            items: vec![SearchPageItemResponse {
+                position: 1,
+                canonical_torrent_public_id: Uuid::from_u128(4),
+                title_display: "Example Episode".to_string(),
+                size_bytes: Some(1234),
+                infohash_v1: Some("a".repeat(40)),
+                infohash_v2: None,
+                magnet_hash: None,
+                canonical_torrent_source_public_id: Some(source_public_id),
+                indexer_instance_public_id: Some(indexer_instance_public_id),
+                indexer_display_name: Some("Indexer".to_string()),
+                seeders: Some(12),
+                leechers: Some(3),
+                published_at: Some(Utc.with_ymd_and_hms(2026, 4, 1, 0, 0, 0).unwrap()),
+                download_url: None,
+                magnet_uri: None,
+                details_url: None,
+                tracker_name: Some("Example".to_string()),
+                tracker_category: Some(2),
+                tracker_subcategory: Some(40),
+            }],
+        });
+        indexers.set_torznab_feed_category_result(Ok(vec![2040]));
+        let state = indexer_test_state(Arc::new(indexers.clone()))
+            .expect("torznab test state should initialize");
+
+        let response = torznab_api(
+            State(state),
+            Path(torznab_instance_public_id),
+            Query(TorznabQuery {
+                t: Some("tvsearch".to_string()),
+                apikey: Some("secret".to_string()),
+                q: Some("  Example  ".to_string()),
+                cat: Some("2040".to_string()),
+                tvdbid: Some("42".to_string()),
+                season: Some("1".to_string()),
+                ep: Some("2".to_string()),
+                offset: Some("0".to_string()),
+                limit: Some("5".to_string()),
+                ..torznab_query()
+            }),
+        )
+        .await
+        .expect("search response");
+
+        let body = response_body(response).await;
+        assert!(body.contains("Example Episode"));
+        assert!(body.contains("download/00000000-0000-0000-0000-000000000002"));
+        assert!(body.contains("<category>2000</category>"));
+        assert!(body.contains("<category>2040</category>"));
+
+        let calls = indexers.search_request_snapshots();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].query_text, "Example");
+        assert_eq!(calls[0].query_type, "tvdb");
+        assert_eq!(calls[0].torznab_mode.as_deref(), Some("tv"));
+        assert_eq!(calls[0].page_size, Some(10));
+        assert_eq!(calls[0].season_number, Some(1));
+        assert_eq!(calls[0].episode_number, Some(2));
+        assert_eq!(
+            calls[0].identifier_types.as_deref(),
+            Some(&["tvdb".to_string()][..])
+        );
+        assert_eq!(
+            calls[0].identifier_values.as_deref(),
+            Some(&["42".to_string()][..])
+        );
+        assert_eq!(calls[0].torznab_cat_ids.as_deref(), Some(&[2040][..]));
+    }
+
+    #[tokio::test]
+    async fn torznab_api_returns_server_error_when_search_page_fetch_fails() {
+        let indexers = RecordingIndexers::default();
+        indexers.set_torznab_auth_result(Ok(auth("Library")));
+        indexers.set_search_page_list_response(SearchPageListResponse {
+            pages: vec![SearchPageSummaryResponse {
+                page_number: 1,
+                item_count: 1,
+                sealed_at: None,
+            }],
+            explainability: explainability(),
+        });
+        indexers.set_search_page_fetch_error(SearchRequestServiceError::new(
+            SearchRequestServiceErrorKind::Storage,
+        ));
+        let state =
+            indexer_test_state(Arc::new(indexers)).expect("torznab test state should initialize");
+
+        let response = torznab_api(
+            State(state),
+            Path(Uuid::new_v4()),
+            Query(TorznabQuery {
+                t: Some("search".to_string()),
+                apikey: Some("secret".to_string()),
+                q: Some("dune".to_string()),
+                ..torznab_query()
+            }),
+        )
+        .await
+        .expect("storage error response");
+
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert!(response_body(response).await.is_empty());
     }
 }

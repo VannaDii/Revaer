@@ -1,0 +1,54 @@
+# PR 19 native settings snapshot test stability
+
+- Status: Accepted
+- Date: 2026-04-12
+- Context:
+  - PR 19 CI failed in `revaer-torrent-libt` on `adapter::tests::inspect_settings_returns_snapshot_from_worker`.
+  - The failing assertions expected `share_ratio_limit` and `seed_time_limit` to be `None`, but the native GitHub Actions environment returned a ratio limit of `Some(200)`.
+  - Those values come from libtorrent-native defaults rather than a Revaer-owned configuration invariant.
+- Decision:
+  - Keep the test focused on stable wrapper behavior: retrieving a settings snapshot and preserving the listener/proxy fields that Revaer meaningfully constrains in this setup.
+  - Remove assertions on native default ratio/time limits because they are backend/environment dependent and not part of the contract this test needs to enforce.
+- Consequences:
+  - Positive outcomes:
+    - The test remains useful without pinning unstable native defaults.
+    - PR CI no longer fails on environment-specific libtorrent snapshot values.
+  - Risks or trade-offs:
+    - The test no longer guards specific native defaults for share ratio and seed time limits.
+    - If Revaer later needs those fields to be deterministic, that behavior should be enforced through explicit configuration and a dedicated test.
+- Follow-up:
+  - Implementation tasks:
+    - Keep native wrapper tests centered on repo-owned invariants or explicit applied settings.
+  - Review checkpoints:
+    - Re-run the affected crate test, `just ci`, and `just ui-e2e`.
+
+## Task Record
+
+- Motivation:
+  - The current PR is blocked by a failing GitHub Actions `Run Tests` job caused by an environment-sensitive assertion in a native backend test.
+- Design notes:
+  - The revised test still verifies that the worker returns a snapshot and that proxy/listener fields are mapped as expected for the default setup.
+  - It intentionally stops treating native ratio/time defaults as stable contract values.
+- Test coverage summary:
+  - `cargo --config 'build.rustflags=["-Dwarnings"]' test -p revaer-torrent-libt inspect_settings_returns_snapshot_from_worker`
+  - `just ci`
+  - `just ui-e2e`
+- Observability updates:
+  - None. No logging, tracing, metrics, or health surfaces changed.
+- Status-doc validation:
+  - No README or operator docs needed updates because this is a test-stability fix only.
+- Risk & rollback plan:
+  - Risk is limited to reduced strictness in one native test.
+  - Rollback is a single-commit revert if a stronger deterministic contract is later introduced.
+- Dependency rationale:
+  - No new dependencies were added.
+- Stale-policy check:
+  - Reviewed:
+    - `AGENTS.md`
+    - `.github/instructions/rust.instructions.md`
+    - `.github/instructions/ffi.instructions.md`
+    - `docs/adr/template.md`
+  - Drift found:
+    - None.
+  - Contradictions removed:
+    - None.

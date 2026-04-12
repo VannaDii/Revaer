@@ -1,421 +1,100 @@
-//! Helpers for launching disposable Postgres instances for integration tests without Docker.
+//! Helpers for creating disposable databases on an externally managed Postgres instance.
 
-use std::fs;
-use std::net::TcpListener;
-use std::path::PathBuf;
-use std::process::{Child, Command, Stdio};
-use std::str::FromStr;
-use std::thread;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::{
+    str::FromStr,
+    sync::atomic::{AtomicU64, Ordering},
+    thread,
+};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use postgres::NoTls;
 use url::Url;
 
-/// Handle to a disposable Postgres instance used in tests.
-pub struct TestDatabase {
-    connection_string: String,
-    process: Option<Child>,
-    data_dir: Option<PathBuf>,
-    cleanup: Option<DbCleanup>,
-}
+const TEST_DATABASE_URL_IS_REQUIRED: &str = "test database url is required";
+
+#[doc = "Handle to a disposable Postgres database used in tests."]
+#[derive(Debug)]
+#[rustfmt::skip]
+pub struct TestDatabase { connection_string: String, admin_url: String, database: String }
 
 impl TestDatabase {
-    /// Connection string that can be passed to `sqlx` or other Postgres clients.
+    #[doc = "Connection string that can be passed to `sqlx` or other Postgres clients."]
     #[must_use]
-    pub fn connection_string(&self) -> &str {
-        &self.connection_string
-    }
+    #[rustfmt::skip]
+    pub fn connection_string(&self) -> &str { &self.connection_string }
 }
 
-impl Drop for TestDatabase {
-    fn drop(&mut self) {
-        if let Some(cleanup) = &self.cleanup {
-            let _ = drop_database(cleanup);
-        }
-        if let Some(process) = &mut self.process {
-            let _ = process.kill();
-            let _ = process.wait();
-        }
-        if let Some(dir) = &self.data_dir {
-            let _ = fs::remove_dir_all(dir);
-        }
-    }
-}
+#[rustfmt::skip]
+impl Drop for TestDatabase { fn drop(&mut self) { let _ = run_admin_operation(&self.admin_url, &format!("DROP DATABASE IF EXISTS \"{}\"", self.database), "failed to drop test database"); } }
 
-struct DbCleanup {
-    admin_url: String,
-    database: String,
-}
+#[doc = "Start a disposable test database on an externally managed Postgres instance."]
+#[doc = ""]
+#[doc = "# Errors"]
+#[doc = "Returns an error when no test database URL is configured or provisioning fails."]
+#[rustfmt::skip]
+pub fn start_postgres() -> Result<TestDatabase> { std::env::var("REVAER_TEST_DATABASE_URL").ok().or_else(|| std::env::var("DATABASE_URL").ok()).context(TEST_DATABASE_URL_IS_REQUIRED).and_then(|url| start_postgres_at(&url)) }
 
-/// Start a disposable Postgres instance.
-///
-/// This prefers an externally supplied connection string via
-/// `REVAER_TEST_DATABASE_URL`. When unset, it will attempt to use locally
-/// available Postgres binaries (`initdb`, `postgres`, `pg_isready`) to spawn a
-/// temporary instance. Tests can decide whether to skip when this helper
-/// returns an error.
-///
-/// # Errors
-///
-/// Returns an error if no external URL is provided and Postgres binaries are
-/// unavailable or fail to start.
-pub fn start_postgres() -> Result<TestDatabase> {
-    start_postgres_with_url(std::env::var("REVAER_TEST_DATABASE_URL").ok())
-}
+#[doc = "Start a disposable test database using an explicit Postgres base URL."]
+#[doc = ""]
+#[doc = "# Errors"]
+#[doc = "Returns an error when the URL is invalid or the database cannot be created and probed."]
+#[rustfmt::skip]
+pub fn start_postgres_at(base_url: &str) -> Result<TestDatabase> { let parsed = Url::parse(base_url).context("invalid postgres connection url")?; let database = unique_database_name(); let connection_string = database_connection_string(&parsed, &database); let create_sql = format!("CREATE DATABASE \"{database}\""); let mut last_error = anyhow::Error::msg("failed to create database"); for admin_url in admin_urls(&parsed) { if let Err(err) = run_admin_operation(&admin_url, &create_sql, "failed to issue CREATE DATABASE") { last_error = err; continue; } run_admin_operation(&connection_string, "SELECT 1", "failed to probe test database")?; return Ok(TestDatabase { connection_string, admin_url, database }); } Err(last_error.context("failed to create database")) }
 
-fn start_postgres_with_url(database_url: Option<String>) -> Result<TestDatabase> {
-    if let Some(url) = database_url {
-        let created = create_unique_database(&url)?;
-        return Ok(TestDatabase {
-            connection_string: created.connection_string,
-            process: None,
-            data_dir: None,
-            cleanup: Some(DbCleanup {
-                admin_url: created.admin_url,
-                database: created.database,
-            }),
-        });
-    }
+#[must_use]
+#[rustfmt::skip]
+fn unique_database_name() -> String { static NEXT_DATABASE_ID: AtomicU64 = AtomicU64::new(1); format!("revaer_test_{}_{}", std::process::id(), NEXT_DATABASE_ID.fetch_add(1, Ordering::Relaxed)) }
 
-    start_local_postgres()
-}
+#[rustfmt::skip]
+fn database_connection_string(base_url: &Url, database: &str) -> String { let mut database_url = base_url.clone(); database_url.set_path(&format!("/{database}")); database_url.to_string() }
 
-fn start_local_postgres() -> Result<TestDatabase> {
-    let binaries = ensure_binaries()?;
+#[rustfmt::skip]
+fn admin_urls(base_url: &Url) -> Vec<String> { let mut admin_url = base_url.clone(); admin_url.set_path("/postgres"); if admin_url.path() == base_url.path() { vec![admin_url.to_string()] } else { vec![admin_url.to_string(), base_url.to_string()] } }
 
-    let port = reserve_port()?;
-    let data_dir = create_data_dir()?;
-
-    let initdb_status = Command::new(&binaries.initdb)
-        .args([
-            "-D",
-            data_dir
-                .to_str()
-                .context("data dir contains non-utf8 characters")?,
-            "--username=postgres",
-            "--auth=trust",
-        ])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .context("failed to run initdb")?;
-    if !initdb_status.success() {
-        bail!("initdb exited with failure status");
-    }
-
-    let process = Command::new(&binaries.postgres)
-        .args([
-            "-D",
-            data_dir
-                .to_str()
-                .context("data dir contains non-utf8 characters")?,
-            "-p",
-            &port.to_string(),
-            "-h",
-            "127.0.0.1",
-        ])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .context("failed to start postgres process")?;
-
-    wait_for_ready(&binaries.pg_isready, port)?;
-
-    let base_url = format!("postgres://postgres@127.0.0.1:{port}/postgres");
-    let created = create_unique_database(&base_url)?;
-
-    Ok(TestDatabase {
-        connection_string: created.connection_string,
-        process: Some(process),
-        data_dir: Some(data_dir),
-        cleanup: Some(DbCleanup {
-            admin_url: created.admin_url,
-            database: created.database,
-        }),
-    })
-}
-
-struct PostgresBinaries {
-    initdb: PathBuf,
-    postgres: PathBuf,
-    pg_isready: PathBuf,
-}
-
-fn ensure_binaries() -> Result<PostgresBinaries> {
-    let search_paths = resolve_search_paths();
-    ensure_binaries_in_paths(&search_paths)
-}
-
-fn ensure_binaries_in_paths(search_paths: &[PathBuf]) -> Result<PostgresBinaries> {
-    let initdb = resolve_binary_in_paths("initdb", search_paths)?;
-    let postgres = resolve_binary_in_paths("postgres", search_paths)?;
-    let pg_isready = resolve_binary_in_paths("pg_isready", search_paths)?;
-    Ok(PostgresBinaries {
-        initdb,
-        postgres,
-        pg_isready,
-    })
-}
-
-fn resolve_search_paths() -> Vec<PathBuf> {
-    let mut search_paths = Vec::new();
-    // Prefer full Postgres server installations so `initdb` has the required assets.
-    search_paths.extend([
-        PathBuf::from("/opt/homebrew/opt/postgresql@16/bin"),
-        PathBuf::from("/usr/local/opt/postgresql@16/bin"),
-    ]);
-    search_paths.extend(
-        std::env::var_os("PATH")
-            .map_or_else(Vec::new, |paths| std::env::split_paths(&paths).collect()),
-    );
-    search_paths.extend([
-        PathBuf::from("/usr/local/bin"),
-        PathBuf::from("/opt/homebrew/bin"),
-    ]);
-    search_paths
-}
-
-fn resolve_binary_in_paths(name: &str, search_paths: &[PathBuf]) -> Result<PathBuf> {
-    for dir in search_paths {
-        let candidate = dir.join(name);
-        if candidate.exists() {
-            return Ok(candidate);
-        }
-    }
-
-    bail!("{name} binary is required for Postgres tests");
-}
-
-fn reserve_port() -> Result<u16> {
-    let listener = TcpListener::bind("127.0.0.1:0").context("failed to reserve port")?;
-    let port = listener
-        .local_addr()
-        .context("failed to read listener address")?
-        .port();
-    drop(listener);
-    Ok(port)
-}
-
-fn create_data_dir() -> Result<PathBuf> {
-    let base = PathBuf::from(".server_root/postgres");
-    fs::create_dir_all(&base)
-        .with_context(|| format!("failed to create base dir {}", base.display()))?;
-    for attempt in 0..5 {
-        let suffix = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos();
-        let candidate = base.join(format!("revaer-pg-{suffix}-{attempt}"));
-        if !candidate.exists() {
-            fs::create_dir_all(&candidate)
-                .with_context(|| format!("failed to create data dir {}", candidate.display()))?;
-            return Ok(candidate);
-        }
-    }
-    bail!("failed to allocate temporary data directory for postgres");
-}
-
-fn wait_for_ready(pg_isready: &PathBuf, port: u16) -> Result<()> {
-    for _ in 0..30 {
-        let status = Command::new(pg_isready)
-            .args(["-h", "127.0.0.1", "-p", &port.to_string(), "-U", "postgres"])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
-        if matches!(status, Ok(ref s) if s.success()) {
-            return Ok(());
-        }
-        thread::sleep(Duration::from_millis(200));
-    }
-
-    bail!("postgres process did not become ready in time")
-}
-
-struct CreatedDatabase {
-    connection_string: String,
-    admin_url: String,
-    database: String,
-}
-
-fn create_unique_database(base_url: &str) -> Result<CreatedDatabase> {
-    let parsed = Url::parse(base_url).context("invalid postgres connection url")?;
-    let db_name = unique_database_name();
-
-    let mut database_url = parsed.clone();
-    database_url.set_path(&format!("/{db_name}"));
-
-    let admin_candidates = admin_urls(&parsed);
-    let mut last_error: Option<anyhow::Error> = None;
-    for admin_url in admin_candidates {
-        match create_database(&admin_url, &db_name) {
-            Ok(()) => {
-                return Ok(CreatedDatabase {
-                    connection_string: database_url.to_string(),
-                    admin_url,
-                    database: db_name,
-                });
-            }
-            Err(err) => last_error = Some(err),
-        }
-    }
-
-    Err(last_error.unwrap_or_else(|| anyhow::anyhow!("failed to create database")))
-}
-
-fn admin_urls(base: &Url) -> Vec<String> {
-    let mut urls = Vec::new();
-    let mut admin = base.clone();
-    admin.set_path("/postgres");
-    urls.push(admin.to_string());
-    // Try the provided database as a fallback if connecting to `postgres` fails.
-    if admin.path() != base.path() {
-        urls.push(base.to_string());
-    }
-    urls
-}
-
-fn create_database(admin_url: &str, db_name: &str) -> Result<()> {
-    let admin = admin_url.to_string();
-    let name = db_name.to_string();
-    std::thread::spawn(move || -> Result<()> {
-        let config = postgres::Config::from_str(&admin)?;
-        let mut client = config.connect(NoTls)?;
-        client
-            .simple_query(&format!("CREATE DATABASE \"{name}\""))
-            .map(|_| ())
-            .context("failed to issue CREATE DATABASE")
-    })
-    .join()
-    .unwrap_or_else(|_| Err(anyhow::anyhow!("create database thread panicked")))?;
-    Ok(())
-}
-
-fn drop_database(cleanup: &DbCleanup) -> Result<()> {
-    let admin = cleanup.admin_url.clone();
-    let name = cleanup.database.clone();
-    std::thread::spawn(move || -> Result<()> {
-        let config = postgres::Config::from_str(&admin)?;
-        let mut client = config.connect(NoTls)?;
-        client
-            .simple_query(&format!("DROP DATABASE IF EXISTS \"{name}\""))
-            .map(|_| ())
-            .context("failed to drop test database")
-    })
-    .join()
-    .unwrap_or_else(|_| Err(anyhow::anyhow!("drop database thread panicked")))?;
-    Ok(())
-}
-
-fn unique_database_name() -> String {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    let pid = std::process::id();
-    format!("revaer_test_{pid}_{nanos}")
-}
+#[rustfmt::skip]
+fn run_admin_operation(connection_string: &str, sql: &str, error_context: &'static str) -> Result<()> { let connection_string = connection_string.to_owned(); let sql = sql.to_owned(); thread::spawn(move || { let config = postgres::Config::from_str(&connection_string)?; let mut client = config.connect(NoTls)?; client.simple_query(&sql).map(|_| ()).context(error_context) }).join().map_err(|_| anyhow::Error::msg("postgres admin worker panicked"))? }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn temp_dir(label: &str) -> PathBuf {
-        let mut path = std::env::temp_dir();
-        let unique = format!("{label}-{}", unique_database_name());
-        path.push(unique);
-        path
+    #[test]
+    fn database_connection_string_replaces_database_name() {
+        let base_url =
+            Url::parse("postgres://localhost:5432/postgres").expect("valid postgres url");
+
+        let connection_string = database_connection_string(&base_url, "revaer_test_fixture");
+
+        assert_eq!(
+            connection_string,
+            "postgres://localhost:5432/revaer_test_fixture"
+        );
     }
 
     #[test]
-    fn admin_urls_includes_postgres_and_fallback() -> Result<(), Box<dyn std::error::Error>> {
-        let base = Url::parse("postgres://user@localhost:5432/revaer")?;
-        let urls = admin_urls(&base);
-        assert_eq!(urls.len(), 2);
-        assert!(urls[0].ends_with("/postgres"));
-        assert!(urls[1].ends_with("/revaer"));
-        Ok(())
+    fn admin_urls_include_base_when_database_is_not_postgres() {
+        let base_url = Url::parse("postgres://localhost:5432/revaer").expect("valid url");
+
+        let admin_urls = admin_urls(&base_url);
+
+        assert_eq!(
+            admin_urls,
+            vec![
+                "postgres://localhost:5432/postgres".to_string(),
+                "postgres://localhost:5432/revaer".to_string()
+            ]
+        );
     }
 
     #[test]
-    fn admin_urls_skips_duplicate_when_already_postgres() -> Result<(), Box<dyn std::error::Error>>
-    {
-        let base = Url::parse("postgres://user@localhost:5432/postgres")?;
-        let urls = admin_urls(&base);
-        assert_eq!(urls.len(), 1);
-        assert!(urls[0].ends_with("/postgres"));
-        Ok(())
-    }
+    fn admin_urls_deduplicate_postgres_database() {
+        let base_url = Url::parse("postgres://localhost:5432/postgres").expect("valid url");
 
-    #[test]
-    fn unique_database_name_prefixes_with_pid() {
-        let name = unique_database_name();
-        let pid = std::process::id();
-        assert!(name.starts_with(&format!("revaer_test_{pid}_")));
-    }
+        let admin_urls = admin_urls(&base_url);
 
-    #[test]
-    fn reserve_port_returns_bindable_port() -> Result<(), Box<dyn std::error::Error>> {
-        let port = reserve_port()?;
-        assert!(port > 0);
-        let listener = TcpListener::bind(("127.0.0.1", port))?;
-        drop(listener);
-        Ok(())
-    }
-
-    #[test]
-    fn create_data_dir_builds_unique_directory() -> Result<(), Box<dyn std::error::Error>> {
-        let path = create_data_dir()?;
-        assert!(path.exists());
-        assert!(path.ends_with("postgres") || path.to_string_lossy().contains("postgres"));
-        fs::remove_dir_all(&path)?;
-        Ok(())
-    }
-
-    #[test]
-    fn resolve_binary_returns_error_for_missing_binary() {
-        let result = resolve_binary_in_paths("definitely-missing-binary", &[]);
-        assert!(result.is_err(), "expected error for missing binary");
-    }
-
-    #[test]
-    fn ensure_binaries_uses_path_entries() -> Result<(), Box<dyn std::error::Error>> {
-        let temp = temp_dir("pg-binaries");
-        fs::create_dir_all(&temp)?;
-        for name in ["initdb", "postgres", "pg_isready"] {
-            fs::write(temp.join(name), "")?;
-        }
-        let binaries = ensure_binaries_in_paths(std::slice::from_ref(&temp))?;
-        fs::remove_dir_all(&temp)?;
-        assert!(binaries.initdb.ends_with("initdb"));
-        assert!(binaries.postgres.ends_with("postgres"));
-        assert!(binaries.pg_isready.ends_with("pg_isready"));
-        Ok(())
-    }
-
-    #[test]
-    fn create_unique_database_rejects_invalid_url() {
-        let result = create_unique_database("not-a-url");
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn create_and_drop_database_report_connection_errors() {
-        let admin_url = "postgres://127.0.0.1:0/postgres";
-        let create_result = create_database(admin_url, "missing_db");
-        assert!(create_result.is_err());
-
-        let cleanup = DbCleanup {
-            admin_url: admin_url.to_string(),
-            database: "missing_db".to_string(),
-        };
-        let drop_result = drop_database(&cleanup);
-        assert!(drop_result.is_err());
-    }
-
-    #[test]
-    fn start_postgres_rejects_invalid_env_url() {
-        let result = start_postgres_with_url(Some("not-a-url".into()));
-        assert!(result.is_err());
+        assert_eq!(
+            admin_urls,
+            vec!["postgres://localhost:5432/postgres".to_string()]
+        );
     }
 }

@@ -315,6 +315,82 @@ mod tests {
         assert!(metadata.selection.priorities.is_empty());
         Ok(())
     }
+
+    #[test]
+    fn metadata_can_be_set_and_removed() -> Result<()> {
+        let id = Uuid::new_v4();
+        let state = ApiState::new(
+            Arc::new(NoopConfig),
+            test_indexers(),
+            Metrics::new()?,
+            Arc::new(json!({})),
+            EventBus::with_capacity(4),
+            None,
+        );
+
+        let mut metadata = TorrentMetadata::default();
+        metadata.tags.push("alpha".to_string());
+        state.set_metadata(id, metadata);
+        assert_eq!(state.get_metadata(&id).tags, vec!["alpha".to_string()]);
+
+        state.remove_metadata(&id);
+        assert!(state.get_metadata(&id).tags.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn rate_limit_guard_tracks_missing_limit_and_active_limit() -> Result<()> {
+        let state = ApiState::new(
+            Arc::new(NoopConfig),
+            test_indexers(),
+            Metrics::new()?,
+            Arc::new(json!({})),
+            EventBus::with_capacity(4),
+            None,
+        );
+
+        let missing = state.enforce_rate_limit("demo", None)?;
+        assert!(missing.is_none());
+        assert_eq!(
+            state.current_health_degraded(),
+            vec!["api_rate_limit_guard".to_string()]
+        );
+
+        let limit = ApiKeyRateLimit {
+            burst: 2,
+            replenish_period: Duration::from_secs(60),
+        };
+        let snapshot = state
+            .enforce_rate_limit("demo", Some(&limit))?
+            .ok_or_else(|| anyhow::anyhow!("expected snapshot"))?;
+        assert_eq!(snapshot.limit, 2);
+        assert!(snapshot.remaining <= 1);
+        assert!(state.current_health_degraded().is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn rate_limit_enforcement_rejects_when_burst_exhausted() -> Result<()> {
+        let state = ApiState::new(
+            Arc::new(NoopConfig),
+            test_indexers(),
+            Metrics::new()?,
+            Arc::new(json!({})),
+            EventBus::with_capacity(4),
+            None,
+        );
+        let limit = ApiKeyRateLimit {
+            burst: 1,
+            replenish_period: Duration::from_secs(60),
+        };
+        assert!(state.enforce_rate_limit("demo", Some(&limit))?.is_some());
+        let Err(err) = state.enforce_rate_limit("demo", Some(&limit)) else {
+            return Err(anyhow::anyhow!("second request should be rate limited"));
+        };
+        assert_eq!(err.limit, 1);
+        assert!(err.retry_after.as_secs() <= 60);
+        Ok(())
+    }
 }
 
 pub(crate) struct ApiState {

@@ -26,6 +26,8 @@ pub mod policy_match;
 pub mod rate_limits;
 pub mod routing;
 pub mod rss;
+#[cfg(test)]
+mod schema_tests;
 pub mod search_pages;
 pub mod search_profiles;
 pub mod search_requests;

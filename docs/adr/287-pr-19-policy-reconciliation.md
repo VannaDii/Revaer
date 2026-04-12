@@ -1,0 +1,56 @@
+# PR 19 Policy Reconciliation
+
+- Status: Accepted
+- Date: 2026-04-11
+- Context:
+  - PR 19 accumulated new review feedback because the Sonar-specific instruction file required full SHA action pins while the shared devops instruction required stable release tags.
+  - The conflicting rules created enforcement ambiguity for `.github/workflows/sonar.yml` and for `scripts/workflow-guardrails.sh`, which already validates the stable-tag policy.
+- Decision:
+  - Keep one repo-wide workflow action versioning rule in `.github/instructions/devops.instructions.md` and make `.github/instructions/sonarqube_mcp.instructions.md` reference that shared rule instead of restating a different one.
+  - Update the PR description to match the actual stable-tag policy and current validation status instead of claiming SHA pinning or a still-blocked `just ci`.
+- Consequences:
+  - Positive outcomes:
+    - Reviewers, workflow guardrails, and Sonar guidance now point at the same action-versioning policy.
+    - PR 19 no longer describes stale validation status or a policy the branch does not implement.
+  - Risks or trade-offs:
+    - The repository continues to prefer stable release tags over full SHAs for external action references.
+    - If Revaer later adopts SHA pinning, the devops rule, guardrail script, and workflow refs will need one coordinated update.
+- Follow-up:
+  - Keep Sonar-specific guidance focused on Sonar behavior and scope rather than duplicating global workflow policy.
+  - Revisit the action versioning policy only as a single repo-wide change spanning instructions, guardrails, and workflow refs.
+
+## Task Record
+
+- Motivation:
+  - Three unresolved PR review threads were blocked on contradictory instruction text and a stale PR description.
+- Design notes:
+  - The fix preserves the existing stable-tag enforcement implemented by `scripts/workflow-guardrails.sh` instead of switching one workflow to a different policy.
+  - The Sonar-specific instruction now references the devops rule so there is one canonical statement for external action versioning.
+- Test coverage summary:
+  - `just lint`
+  - `just instruction-drift`
+  - Existing green validation on this branch remained:
+    - `just ci`
+    - `just ui-e2e`
+- Observability updates:
+  - None. This change only affects repository policy documentation and PR metadata.
+- Status-doc validation:
+  - `docs/adr/index.md` and `docs/SUMMARY.md` were updated for this ADR.
+  - The PR description was updated to match repository truth for action versioning and validation status.
+- Risk & rollback plan:
+  - Risk: reviewers who prefer SHA pinning may still disagree with the stable-tag policy, but the repo rules are now internally consistent.
+  - Rollback: revert this ADR and the Sonar instruction update, then perform one coordinated repo-wide action-versioning migration if policy changes.
+- Dependency rationale:
+  - No new dependencies were added.
+- Stale-policy check:
+  - Reviewed files:
+    - `AGENTS.md`
+    - `.github/instructions/devops.instructions.md`
+    - `.github/instructions/sonarqube_mcp.instructions.md`
+    - `scripts/workflow-guardrails.sh`
+    - `.github/workflows/sonar.yml`
+  - Drift found:
+    - The Sonar-specific instruction contradicted the shared devops action-versioning rule.
+    - The PR description still claimed SHA pinning and a blocked `just ci` state after the branch had moved to stable tags and green CI.
+  - Contradictions removed:
+    - Removed the Sonar-only full-SHA instruction in favor of the shared devops rule.

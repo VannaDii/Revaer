@@ -291,23 +291,23 @@ enum BuildError {
 impl fmt::Display for BuildError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BuildError::MissingManifestDir => write!(f, "cargo manifest directory missing"),
-            BuildError::MissingWorkspaceRoot => write!(f, "workspace root unavailable"),
-            BuildError::MissingIncludeDir => write!(f, "libtorrent include directory missing"),
-            BuildError::PkgConfig(_) => write!(f, "libtorrent pkg-config probe failed"),
-            BuildError::ReadHeader { .. } => write!(f, "libtorrent version header read failed"),
-            BuildError::ResolveCompileCommandsPath { .. } => {
+            Self::MissingManifestDir => write!(f, "cargo manifest directory missing"),
+            Self::MissingWorkspaceRoot => write!(f, "workspace root unavailable"),
+            Self::MissingIncludeDir => write!(f, "libtorrent include directory missing"),
+            Self::PkgConfig(_) => write!(f, "libtorrent pkg-config probe failed"),
+            Self::ReadHeader { .. } => write!(f, "libtorrent version header read failed"),
+            Self::ResolveCompileCommandsPath { .. } => {
                 write!(f, "compile commands path resolution failed")
             }
-            BuildError::CreateCompileCommandsDir { .. } => {
+            Self::CreateCompileCommandsDir { .. } => {
                 write!(f, "compile commands directory creation failed")
             }
-            BuildError::WriteCompileCommands { .. } => {
+            Self::WriteCompileCommands { .. } => {
                 write!(f, "compile commands write failed")
             }
-            BuildError::MissingDefine => write!(f, "libtorrent version header missing field"),
-            BuildError::InvalidMinVersion => write!(f, "invalid libtorrent minimum version"),
-            BuildError::VersionTooOld => write!(f, "libtorrent version is too old"),
+            Self::MissingDefine => write!(f, "libtorrent version header missing field"),
+            Self::InvalidMinVersion => write!(f, "invalid libtorrent minimum version"),
+            Self::VersionTooOld => write!(f, "libtorrent version is too old"),
         }
     }
 }
@@ -315,11 +315,11 @@ impl fmt::Display for BuildError {
 impl Error for BuildError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            BuildError::PkgConfig(err) => Some(err),
-            BuildError::ReadHeader { source, .. } => Some(source),
-            BuildError::ResolveCompileCommandsPath { source, .. } => Some(source),
-            BuildError::CreateCompileCommandsDir { source, .. } => Some(source),
-            BuildError::WriteCompileCommands { source, .. } => Some(source),
+            Self::PkgConfig(err) => Some(err),
+            Self::ReadHeader { source, .. } => Some(source),
+            Self::ResolveCompileCommandsPath { source, .. } => Some(source),
+            Self::CreateCompileCommandsDir { source, .. } => Some(source),
+            Self::WriteCompileCommands { source, .. } => Some(source),
             _ => None,
         }
     }

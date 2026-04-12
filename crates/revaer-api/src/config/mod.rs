@@ -325,6 +325,11 @@ mod tests {
         let _ = shared.consume_setup_token("token").await;
         let _ = shared.authenticate_api_key("id", "secret").await?;
         let _ = shared.has_api_keys().await?;
+        let apply_err = shared
+            .apply_changeset("actor", "reason", SettingsChangeset::default())
+            .await
+            .expect_err("apply_changeset should use stub failure");
+        assert!(matches!(apply_err, ConfigError::InvalidField { .. }));
         shared.factory_reset().await?;
 
         let calls = config.pop_calls().await;
@@ -338,6 +343,7 @@ mod tests {
                 "consume_setup_token",
                 "authenticate_api_key",
                 "has_api_keys",
+                "apply_changeset",
                 "factory_reset"
             ]
         );

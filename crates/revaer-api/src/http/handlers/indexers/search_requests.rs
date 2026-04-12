@@ -196,6 +196,12 @@ mod tests {
                 query_type: "free_text".to_string(),
                 torznab_mode: Some("tv".to_string()),
                 requested_media_domain_key: Some("movies".to_string()),
+                page_size: None,
+                season_number: None,
+                episode_number: None,
+                identifier_types: None,
+                identifier_values: None,
+                torznab_cat_ids: None,
             }
         );
     }

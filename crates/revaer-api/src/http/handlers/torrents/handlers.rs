@@ -1036,11 +1036,11 @@ mod tests {
     use revaer_telemetry::Metrics;
     use revaer_torrent_core::{
         AddTorrent, FilePriority, FileSelectionUpdate, PeerChoke, PeerInterest, PeerSnapshot,
-        RemoveTorrent, TorrentCleanupPolicy, TorrentFile, TorrentLabelPolicy, TorrentRateLimit,
-        TorrentResult, TorrentStatus,
+        RemoveTorrent, TorrentCleanupPolicy, TorrentError, TorrentFile, TorrentLabelPolicy,
+        TorrentRateLimit, TorrentResult, TorrentStatus,
         model::{
             PieceDeadline, TorrentAuthorFile, TorrentAuthorResult, TorrentOptionsUpdate,
-            TorrentTrackersUpdate,
+            TorrentTrackersUpdate, TorrentWebSeedsUpdate,
         },
     };
     use serde_json::json;
@@ -1279,9 +1279,14 @@ mod tests {
         }
     }
 
+    fn sample_magnet() -> String {
+        "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567".to_string()
+    }
+
     #[derive(Default)]
     struct AuthoringWorkflow {
         created: AsyncMutex<Vec<revaer_torrent_core::model::TorrentAuthorRequest>>,
+        fail_create: bool,
     }
 
     #[async_trait::async_trait]
@@ -1294,6 +1299,11 @@ mod tests {
             &self,
             request: revaer_torrent_core::model::TorrentAuthorRequest,
         ) -> TorrentResult<TorrentAuthorResult> {
+            if self.fail_create {
+                return Err(TorrentError::Unsupported {
+                    operation: "create_torrent",
+                });
+            }
             self.created.lock().await.push(request);
             Ok(sample_author_result())
         }
@@ -1401,6 +1411,228 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn create_torrent_dispatches_add_and_records_metadata() -> Result<()> {
+        let workflow = Arc::new(RecordingWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
+        let state = api_state_with(Some(handles))?;
+        let torrent_id = Uuid::new_v4();
+
+        let request = TorrentCreateRequest {
+            id: torrent_id,
+            magnet: Some(sample_magnet()),
+            name: Some("demo".to_string()),
+            download_dir: Some(".server_root/downloads/demo".to_string()),
+            tags: vec!["movies".to_string(), String::new()],
+            category: Some("feature".to_string()),
+            trackers: vec![
+                "https://tracker.example/announce".to_string(),
+                "https://tracker.example/announce".to_string(),
+            ],
+            include: vec!["*.mkv".to_string()],
+            exclude: vec!["*.txt".to_string()],
+            skip_fluff: true,
+            max_download_bps: Some(1_000),
+            max_upload_bps: Some(2_000),
+            max_connections: Some(25),
+            auto_managed: Some(false),
+            queue_position: Some(3),
+            pex_enabled: Some(true),
+            web_seeds: vec![
+                "https://seed.example/a".to_string(),
+                "https://seed.example/a".to_string(),
+            ],
+            ..TorrentCreateRequest::default()
+        };
+
+        let response = create_torrent(
+            State(state.clone()),
+            Extension(crate::http::auth::AuthContext::ApiKey {
+                key_id: "key".into(),
+            }),
+            Json(request),
+        )
+        .await?;
+
+        assert_eq!(response, StatusCode::ACCEPTED);
+        let adds = workflow.take_adds().await;
+        assert_eq!(adds.len(), 1);
+        assert_eq!(adds[0].id, torrent_id);
+        assert_eq!(
+            adds[0].options.trackers,
+            vec!["https://tracker.example/announce".to_string()]
+        );
+        assert_eq!(
+            adds[0].options.web_seeds,
+            vec!["https://seed.example/a".to_string()]
+        );
+        assert_eq!(adds[0].options.queue_position, Some(3));
+        assert_eq!(adds[0].options.pex_enabled, Some(true));
+
+        let metadata = state.get_metadata(&torrent_id);
+        assert_eq!(metadata.tags, vec!["movies".to_string()]);
+        assert_eq!(metadata.category.as_deref(), Some("feature"));
+        assert_eq!(
+            metadata.trackers,
+            vec!["https://tracker.example/announce".to_string()]
+        );
+        assert_eq!(
+            metadata.web_seeds,
+            vec!["https://seed.example/a".to_string()]
+        );
+        assert_eq!(metadata.connections_limit, Some(25));
+        assert_eq!(
+            metadata.download_dir.as_deref(),
+            Some(".server_root/downloads/demo")
+        );
+        assert_eq!(metadata.auto_managed, Some(false));
+        assert_eq!(metadata.queue_position, Some(3));
+        assert_eq!(metadata.pex_enabled, Some(true));
+        assert_eq!(metadata.selection.include, vec!["*.mkv".to_string()]);
+        assert_eq!(metadata.selection.exclude, vec!["*.txt".to_string()]);
+        assert!(metadata.selection.skip_fluff);
+        assert_eq!(
+            metadata.rate_limit,
+            Some(TorrentRateLimit {
+                download_bps: Some(1_000),
+                upload_bps: Some(2_000),
+            })
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn create_torrent_rejects_setup_authentication_context() -> Result<()> {
+        let workflow = Arc::new(RecordingWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow);
+        let state = api_state_with(Some(handles))?;
+
+        let err = create_torrent(
+            State(state),
+            Extension(crate::http::auth::AuthContext::SetupToken(
+                "setup-token".to_string(),
+            )),
+            Json(TorrentCreateRequest {
+                id: Uuid::new_v4(),
+                magnet: Some(sample_magnet()),
+                ..TorrentCreateRequest::default()
+            }),
+        )
+        .await
+        .err()
+        .ok_or_else(|| anyhow!("expected unauthorized create torrent error"))?;
+
+        assert_eq!(err.status(), StatusCode::UNAUTHORIZED);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn create_torrent_authoring_requires_root_path() -> Result<()> {
+        let workflow = Arc::new(AuthoringWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow);
+        let state = api_state_with(Some(handles))?;
+
+        let err = create_torrent_authoring(
+            State(state),
+            Extension(crate::http::auth::AuthContext::ApiKey {
+                key_id: "key".into(),
+            }),
+            Json(TorrentAuthorRequest {
+                root_path: "   ".to_string(),
+                ..TorrentAuthorRequest::default()
+            }),
+        )
+        .await
+        .err()
+        .ok_or_else(|| anyhow!("expected root_path validation error"))?;
+
+        assert_eq!(err.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(err.detail(), Some("root_path is required"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn create_torrent_authoring_requires_trackers_for_private_torrents() -> Result<()> {
+        let workflow = Arc::new(AuthoringWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow);
+        let state = api_state_with(Some(handles))?;
+
+        let err = create_torrent_authoring(
+            State(state),
+            Extension(crate::http::auth::AuthContext::ApiKey {
+                key_id: "key".into(),
+            }),
+            Json(TorrentAuthorRequest {
+                root_path: ".server_root/demo".to_string(),
+                private: true,
+                ..TorrentAuthorRequest::default()
+            }),
+        )
+        .await
+        .err()
+        .ok_or_else(|| anyhow!("expected private tracker validation error"))?;
+
+        assert_eq!(err.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            err.detail(),
+            Some("private torrents require at least one tracker")
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn create_torrent_authoring_maps_workflow_errors_to_bad_request() -> Result<()> {
+        let workflow = Arc::new(AuthoringWorkflow {
+            created: AsyncMutex::new(Vec::new()),
+            fail_create: true,
+        });
+        let handles = TorrentHandles::new(workflow.clone(), workflow);
+        let state = api_state_with(Some(handles))?;
+
+        let err = create_torrent_authoring(
+            State(state),
+            Extension(crate::http::auth::AuthContext::ApiKey {
+                key_id: "key".into(),
+            }),
+            Json(TorrentAuthorRequest {
+                root_path: ".server_root/demo".to_string(),
+                trackers: vec!["https://tracker.example/announce".to_string()],
+                ..TorrentAuthorRequest::default()
+            }),
+        )
+        .await
+        .err()
+        .ok_or_else(|| anyhow!("expected authoring workflow error"))?;
+
+        assert_eq!(err.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(err.detail(), Some("torrent authoring rejected"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn create_torrent_authoring_rejects_setup_authentication_context() -> Result<()> {
+        let workflow = Arc::new(AuthoringWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow);
+        let state = api_state_with(Some(handles))?;
+
+        let err = create_torrent_authoring(
+            State(state),
+            Extension(crate::http::auth::AuthContext::SetupToken(
+                "setup-token".to_string(),
+            )),
+            Json(TorrentAuthorRequest {
+                root_path: ".server_root/demo".to_string(),
+                ..TorrentAuthorRequest::default()
+            }),
+        )
+        .await
+        .err()
+        .ok_or_else(|| anyhow!("expected setup auth rejection"))?;
+
+        assert_eq!(err.status(), StatusCode::UNAUTHORIZED);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn get_torrent_exposes_comment_source_private() -> Result<()> {
         let torrent_id = Uuid::new_v4();
         let status = TorrentStatus {
@@ -1422,6 +1654,156 @@ mod tests {
         assert_eq!(settings.comment.as_deref(), Some("note"));
         assert_eq!(settings.source.as_deref(), Some("source"));
         assert_eq!(settings.private, Some(true));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn list_torrents_applies_filters_and_returns_matching_entries() -> Result<()> {
+        let workflow = Arc::new(RecordingWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
+        let state = api_state_with(Some(handles))?;
+        let torrent_id = Uuid::new_v4();
+        workflow
+            .set_statuses(vec![
+                TorrentStatus {
+                    id: torrent_id,
+                    name: Some("My Movie".to_string()),
+                    state: TorrentState::Downloading,
+                    files: Some(vec![TorrentFile {
+                        index: 0,
+                        path: "movie.mkv".to_string(),
+                        size_bytes: 100,
+                        bytes_completed: 50,
+                        priority: FilePriority::Normal,
+                        selected: true,
+                    }]),
+                    last_updated: Utc::now(),
+                    ..TorrentStatus::default()
+                },
+                TorrentStatus {
+                    id: Uuid::new_v4(),
+                    name: Some("Other".to_string()),
+                    state: TorrentState::Queued,
+                    last_updated: Utc::now() - chrono::Duration::seconds(10),
+                    ..TorrentStatus::default()
+                },
+            ])
+            .await;
+        state.set_metadata(
+            torrent_id,
+            TorrentMetadata {
+                tags: vec!["Action".to_string()],
+                trackers: vec!["https://tracker.example/announce".to_string()],
+                ..TorrentMetadata::default()
+            },
+        );
+
+        let Json(response) = list_torrents(
+            State(state),
+            Query(TorrentListQuery {
+                state: Some("downloading".to_string()),
+                tags: Some("Action".to_string()),
+                tracker: Some("tracker.example".to_string()),
+                extension: Some(".mkv".to_string()),
+                name: Some("movie".to_string()),
+                ..TorrentListQuery::default()
+            }),
+        )
+        .await?;
+
+        assert_eq!(response.torrents.len(), 1);
+        assert_eq!(response.torrents[0].id, torrent_id);
+        assert!(response.next.is_none());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn delete_torrent_clears_metadata_and_dispatches_removal() -> Result<()> {
+        let workflow = Arc::new(RecordingWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
+        let state = api_state_with(Some(handles))?;
+        let torrent_id = Uuid::new_v4();
+        state.set_metadata(
+            torrent_id,
+            TorrentMetadata {
+                trackers: vec!["https://tracker.example/announce".to_string()],
+                ..TorrentMetadata::default()
+            },
+        );
+
+        let response = delete_torrent(
+            State(state.clone()),
+            Extension(crate::http::auth::AuthContext::ApiKey {
+                key_id: "key".into(),
+            }),
+            AxumPath(torrent_id),
+        )
+        .await?;
+
+        assert_eq!(response, StatusCode::NO_CONTENT);
+        let removes = workflow.take_removes().await;
+        assert_eq!(removes.len(), 1);
+        assert_eq!(removes[0].0, torrent_id);
+        assert!(!removes[0].1.with_data);
+        assert!(state.get_metadata(&torrent_id).trackers.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn delete_torrent_rejects_setup_authentication_context() -> Result<()> {
+        let workflow = Arc::new(RecordingWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow);
+        let state = api_state_with(Some(handles))?;
+
+        let err = delete_torrent(
+            State(state),
+            Extension(crate::http::auth::AuthContext::SetupToken(
+                "setup-token".to_string(),
+            )),
+            AxumPath(Uuid::new_v4()),
+        )
+        .await
+        .err()
+        .ok_or_else(|| anyhow!("expected setup auth rejection"))?;
+
+        assert_eq!(err.status(), StatusCode::UNAUTHORIZED);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn select_torrent_updates_metadata_and_dispatches_selection() -> Result<()> {
+        let workflow = Arc::new(RecordingWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
+        let state = api_state_with(Some(handles))?;
+        let torrent_id = Uuid::new_v4();
+
+        let response = select_torrent(
+            State(state.clone()),
+            Extension(crate::http::auth::AuthContext::ApiKey {
+                key_id: "key".into(),
+            }),
+            AxumPath(torrent_id),
+            Json(TorrentSelectionRequest {
+                include: vec!["*.mkv".to_string()],
+                exclude: vec!["sample/*".to_string()],
+                skip_fluff: Some(true),
+                priorities: Vec::new(),
+            }),
+        )
+        .await?;
+
+        assert_eq!(response, StatusCode::ACCEPTED);
+        let selections = workflow.take_selections().await;
+        assert_eq!(selections.len(), 1);
+        assert_eq!(selections[0].0, torrent_id);
+        assert_eq!(selections[0].1.include, vec!["*.mkv".to_string()]);
+        assert_eq!(selections[0].1.exclude, vec!["sample/*".to_string()]);
+        assert!(selections[0].1.skip_fluff);
+        assert!(selections[0].1.priorities.is_empty());
+        let metadata = state.get_metadata(&torrent_id);
+        assert_eq!(metadata.selection.include, vec!["*.mkv".to_string()]);
+        assert_eq!(metadata.selection.exclude, vec!["sample/*".to_string()]);
+        assert!(metadata.selection.skip_fluff);
         Ok(())
     }
 
@@ -1481,6 +1863,61 @@ mod tests {
         assert_eq!(peers[0].endpoint, "192.0.2.1:6881");
         assert!(peers[0].interest.local);
         assert!(peers[0].interest.remote);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn list_torrent_peers_requires_configured_workflow() -> Result<()> {
+        let state = api_state_with(None)?;
+
+        let err = list_torrent_peers(State(state), AxumPath(Uuid::new_v4()))
+            .await
+            .err()
+            .ok_or_else(|| anyhow!("expected missing workflow error"))?;
+
+        assert_eq!(err.status(), StatusCode::SERVICE_UNAVAILABLE);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn update_torrent_options_updates_metadata_and_dispatches() -> Result<()> {
+        let workflow = Arc::new(RecordingWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
+        let state = api_state_with(Some(handles))?;
+        let torrent_id = Uuid::new_v4();
+
+        let response = update_torrent_options(
+            State(state.clone()),
+            Extension(crate::http::auth::AuthContext::ApiKey {
+                key_id: "key".into(),
+            }),
+            AxumPath(torrent_id),
+            Json(TorrentOptionsRequest {
+                connections_limit: Some(30),
+                pex_enabled: Some(true),
+                super_seeding: Some(true),
+                auto_managed: Some(false),
+                queue_position: Some(5),
+                ..TorrentOptionsRequest::default()
+            }),
+        )
+        .await?;
+
+        assert_eq!(response, StatusCode::ACCEPTED);
+        let updates = workflow.take_options_updates().await;
+        assert_eq!(updates.len(), 1);
+        assert_eq!(updates[0].connections_limit, Some(30));
+        assert_eq!(updates[0].pex_enabled, Some(true));
+        assert_eq!(updates[0].super_seeding, Some(true));
+        assert_eq!(updates[0].auto_managed, Some(false));
+        assert_eq!(updates[0].queue_position, Some(5));
+
+        let metadata = state.get_metadata(&torrent_id);
+        assert_eq!(metadata.connections_limit, Some(30));
+        assert_eq!(metadata.pex_enabled, Some(true));
+        assert_eq!(metadata.super_seeding, Some(true));
+        assert_eq!(metadata.auto_managed, Some(false));
+        assert_eq!(metadata.queue_position, Some(5));
         Ok(())
     }
 
@@ -1687,6 +2124,110 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn update_torrent_trackers_rejects_empty_request() -> Result<()> {
+        let workflow = Arc::new(RecordingWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow);
+        let state = api_state_with(Some(handles))?;
+
+        let err = update_torrent_trackers(
+            State(state),
+            Extension(crate::http::auth::AuthContext::ApiKey {
+                key_id: "key".into(),
+            }),
+            AxumPath(Uuid::new_v4()),
+            Json(TorrentTrackersRequest::default()),
+        )
+        .await
+        .err()
+        .ok_or_else(|| anyhow!("expected empty tracker request error"))?;
+
+        assert_eq!(err.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(err.detail(), Some("no trackers supplied"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn update_torrent_web_seeds_merges_and_replaces_metadata() -> Result<()> {
+        let workflow = Arc::new(RecordingWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
+        let state = api_state_with(Some(handles))?;
+        let torrent_id = Uuid::new_v4();
+        state.set_metadata(
+            torrent_id,
+            TorrentMetadata {
+                web_seeds: vec![
+                    "https://seed.example/original".to_string(),
+                    "https://seed.example/shared".to_string(),
+                ],
+                ..TorrentMetadata::default()
+            },
+        );
+
+        let response = update_torrent_web_seeds(
+            State(state.clone()),
+            Extension(crate::http::auth::AuthContext::ApiKey {
+                key_id: "key".into(),
+            }),
+            AxumPath(torrent_id),
+            Json(TorrentWebSeedsRequest {
+                web_seeds: vec![
+                    "https://seed.example/shared".to_string(),
+                    "https://seed.example/new".to_string(),
+                ],
+                replace: false,
+            }),
+        )
+        .await?;
+
+        assert_eq!(response, StatusCode::ACCEPTED);
+        let updates = workflow.take_web_seed_updates().await;
+        assert_eq!(updates.len(), 1);
+        assert_eq!(updates[0].0, torrent_id);
+        assert_eq!(
+            updates[0].1.web_seeds,
+            vec![
+                "https://seed.example/shared".to_string(),
+                "https://seed.example/new".to_string(),
+            ]
+        );
+        assert!(!updates[0].1.replace);
+        let metadata = state.get_metadata(&torrent_id);
+        assert_eq!(
+            metadata.web_seeds,
+            vec![
+                "https://seed.example/original".to_string(),
+                "https://seed.example/shared".to_string(),
+                "https://seed.example/new".to_string(),
+            ]
+        );
+        assert!(!metadata.replace_web_seeds);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn update_torrent_web_seeds_rejects_empty_request() -> Result<()> {
+        let workflow = Arc::new(RecordingWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow);
+        let state = api_state_with(Some(handles))?;
+
+        let err = update_torrent_web_seeds(
+            State(state),
+            Extension(crate::http::auth::AuthContext::ApiKey {
+                key_id: "key".into(),
+            }),
+            AxumPath(Uuid::new_v4()),
+            Json(TorrentWebSeedsRequest::default()),
+        )
+        .await
+        .err()
+        .ok_or_else(|| anyhow!("expected empty web seed request error"))?;
+
+        assert_eq!(err.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(err.detail(), Some("no web seeds supplied"));
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn move_action_updates_metadata_and_dispatches() -> Result<()> {
         let workflow = Arc::new(RecordingWorkflow::default());
         let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
@@ -1722,6 +2263,123 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn rate_action_updates_metadata_and_dispatches() -> Result<()> {
+        let workflow = Arc::new(RecordingWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
+        let state = api_state_with(Some(handles))?;
+        let torrent_id = Uuid::new_v4();
+
+        let response = action_torrent(
+            State(state.clone()),
+            Extension(crate::http::auth::AuthContext::ApiKey {
+                key_id: "key".into(),
+            }),
+            AxumPath(torrent_id),
+            Json(TorrentAction::Rate {
+                download_bps: Some(4_000),
+                upload_bps: Some(2_000),
+            }),
+        )
+        .await?;
+
+        assert_eq!(response, StatusCode::ACCEPTED);
+        assert_eq!(
+            workflow.take_limit_updates().await,
+            vec![(
+                Some(torrent_id),
+                TorrentRateLimit {
+                    download_bps: Some(4_000),
+                    upload_bps: Some(2_000),
+                },
+            )]
+        );
+        assert_eq!(
+            state.get_metadata(&torrent_id).rate_limit,
+            Some(TorrentRateLimit {
+                download_bps: Some(4_000),
+                upload_bps: Some(2_000),
+            })
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn remove_action_clears_metadata_and_dispatches() -> Result<()> {
+        let workflow = Arc::new(RecordingWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
+        let state = api_state_with(Some(handles))?;
+        let torrent_id = Uuid::new_v4();
+        state.set_metadata(
+            torrent_id,
+            TorrentMetadata {
+                download_dir: Some(".server_root/downloads/demo".to_string()),
+                ..TorrentMetadata::default()
+            },
+        );
+
+        let response = action_torrent(
+            State(state.clone()),
+            Extension(crate::http::auth::AuthContext::ApiKey {
+                key_id: "key".into(),
+            }),
+            AxumPath(torrent_id),
+            Json(TorrentAction::Remove { delete_data: true }),
+        )
+        .await?;
+
+        assert_eq!(response, StatusCode::ACCEPTED);
+        let removes = workflow.take_removes().await;
+        assert_eq!(removes.len(), 1);
+        assert_eq!(removes[0].0, torrent_id);
+        assert!(removes[0].1.with_data);
+        assert_eq!(state.get_metadata(&torrent_id).download_dir, None);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn move_action_rejects_blank_download_dir() -> Result<()> {
+        let workflow = Arc::new(RecordingWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
+        let state = api_state_with(Some(handles))?;
+        let torrent_id = Uuid::new_v4();
+
+        let err = action_torrent(
+            State(state),
+            Extension(crate::http::auth::AuthContext::ApiKey {
+                key_id: "key".into(),
+            }),
+            AxumPath(torrent_id),
+            Json(TorrentAction::Move {
+                download_dir: "   ".to_string(),
+            }),
+        )
+        .await
+        .err()
+        .ok_or_else(|| anyhow!("expected blank move dir error"))?;
+
+        assert_eq!(err.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            err.detail(),
+            Some("download_dir must be provided for move action")
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn fetch_torrent_status_returns_not_found_for_missing_entry() -> Result<()> {
+        let workflow = Arc::new(RecordingWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow);
+
+        let err = fetch_torrent_status(&handles, Uuid::new_v4())
+            .await
+            .err()
+            .ok_or_else(|| anyhow!("expected missing torrent status error"))?;
+
+        assert_eq!(err.status(), StatusCode::NOT_FOUND);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn piece_deadline_action_dispatches() -> Result<()> {
         let workflow = Arc::new(RecordingWorkflow::default());
         let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
@@ -1752,20 +2410,28 @@ mod tests {
 
     #[derive(Default)]
     struct RecordingWorkflow {
+        adds: AsyncMutex<Vec<AddTorrent>>,
+        removes: AsyncMutex<Vec<(Uuid, RemoveTorrent)>>,
+        selections: AsyncMutex<Vec<(Uuid, FileSelectionUpdate)>>,
         tracker_updates: AsyncMutex<Vec<TorrentTrackersUpdate>>,
+        web_seed_updates: AsyncMutex<Vec<(Uuid, TorrentWebSeedsUpdate)>>,
         options_updates: AsyncMutex<Vec<TorrentOptionsUpdate>>,
+        limit_updates: AsyncMutex<Vec<(Option<Uuid>, TorrentRateLimit)>>,
         moves: AsyncMutex<Vec<(Uuid, String)>>,
         peers: AsyncMutex<HashMap<Uuid, Vec<PeerSnapshot>>>,
+        statuses: AsyncMutex<Vec<TorrentStatus>>,
         deadlines: AsyncMutex<Vec<(Uuid, PieceDeadline)>>,
     }
 
     #[async_trait::async_trait]
     impl revaer_torrent_core::TorrentWorkflow for RecordingWorkflow {
-        async fn add_torrent(&self, _: AddTorrent) -> TorrentResult<()> {
+        async fn add_torrent(&self, request: AddTorrent) -> TorrentResult<()> {
+            self.adds.lock().await.push(request);
             Ok(())
         }
 
-        async fn remove_torrent(&self, _: Uuid, _: RemoveTorrent) -> TorrentResult<()> {
+        async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> TorrentResult<()> {
+            self.removes.lock().await.push((id, options));
             Ok(())
         }
 
@@ -1781,11 +2447,21 @@ mod tests {
             Ok(())
         }
 
-        async fn update_limits(&self, _: Option<Uuid>, _: TorrentRateLimit) -> TorrentResult<()> {
+        async fn update_limits(
+            &self,
+            id: Option<Uuid>,
+            limits: TorrentRateLimit,
+        ) -> TorrentResult<()> {
+            self.limit_updates.lock().await.push((id, limits));
             Ok(())
         }
 
-        async fn update_selection(&self, _: Uuid, _: FileSelectionUpdate) -> TorrentResult<()> {
+        async fn update_selection(
+            &self,
+            id: Uuid,
+            update: FileSelectionUpdate,
+        ) -> TorrentResult<()> {
+            self.selections.lock().await.push((id, update));
             Ok(())
         }
 
@@ -1809,9 +2485,10 @@ mod tests {
 
         async fn update_web_seeds(
             &self,
-            _: Uuid,
-            _: revaer_torrent_core::model::TorrentWebSeedsUpdate,
+            id: Uuid,
+            update: revaer_torrent_core::model::TorrentWebSeedsUpdate,
         ) -> TorrentResult<()> {
+            self.web_seed_updates.lock().await.push((id, update));
             Ok(())
         }
 
@@ -1837,11 +2514,17 @@ mod tests {
     #[async_trait::async_trait]
     impl revaer_torrent_core::TorrentInspector for RecordingWorkflow {
         async fn list(&self) -> TorrentResult<Vec<TorrentStatus>> {
-            Ok(Vec::new())
+            Ok(self.statuses.lock().await.clone())
         }
 
-        async fn get(&self, _: Uuid) -> TorrentResult<Option<TorrentStatus>> {
-            Ok(None)
+        async fn get(&self, id: Uuid) -> TorrentResult<Option<TorrentStatus>> {
+            Ok(self
+                .statuses
+                .lock()
+                .await
+                .iter()
+                .find(|status| status.id == id)
+                .cloned())
         }
 
         async fn peers(&self, id: Uuid) -> TorrentResult<Vec<PeerSnapshot>> {
@@ -1856,8 +2539,36 @@ mod tests {
     }
 
     impl RecordingWorkflow {
+        async fn take_adds(&self) -> Vec<AddTorrent> {
+            let mut guard = self.adds.lock().await;
+            let adds = guard.clone();
+            guard.clear();
+            adds
+        }
+
+        async fn take_removes(&self) -> Vec<(Uuid, RemoveTorrent)> {
+            let mut guard = self.removes.lock().await;
+            let removes = guard.clone();
+            guard.clear();
+            removes
+        }
+
+        async fn take_selections(&self) -> Vec<(Uuid, FileSelectionUpdate)> {
+            let mut guard = self.selections.lock().await;
+            let selections = guard.clone();
+            guard.clear();
+            selections
+        }
+
         async fn take_tracker_updates(&self) -> Vec<TorrentTrackersUpdate> {
             let mut guard = self.tracker_updates.lock().await;
+            let updates = guard.clone();
+            guard.clear();
+            updates
+        }
+
+        async fn take_web_seed_updates(&self) -> Vec<(Uuid, TorrentWebSeedsUpdate)> {
+            let mut guard = self.web_seed_updates.lock().await;
             let updates = guard.clone();
             guard.clear();
             updates
@@ -1877,6 +2588,13 @@ mod tests {
             updates
         }
 
+        async fn take_limit_updates(&self) -> Vec<(Option<Uuid>, TorrentRateLimit)> {
+            let mut guard = self.limit_updates.lock().await;
+            let updates = guard.clone();
+            guard.clear();
+            updates
+        }
+
         async fn take_deadlines(&self) -> Vec<(Uuid, PieceDeadline)> {
             let mut guard = self.deadlines.lock().await;
             let updates = guard.clone();
@@ -1886,6 +2604,10 @@ mod tests {
 
         async fn set_peers(&self, id: Uuid, peers: Vec<PeerSnapshot>) {
             self.peers.lock().await.insert(id, peers);
+        }
+
+        async fn set_statuses(&self, statuses: Vec<TorrentStatus>) {
+            *self.statuses.lock().await = statuses;
         }
     }
 

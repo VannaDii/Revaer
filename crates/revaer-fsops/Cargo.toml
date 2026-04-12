@@ -33,3 +33,6 @@ zip = { version = "0.6", default-features = false, features = ["deflate"] }
 [dev-dependencies]
 anyhow.workspace = true
 tempfile = "3.10"
+revaer-test-support = { path = "../revaer-test-support" }
+revaer-torrent-core = { path = "../revaer-torrent-core" }
+sqlx.workspace = true

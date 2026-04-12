@@ -8,8 +8,6 @@
     unreachable_pub,
     clippy::all,
     clippy::pedantic,
-    clippy::cargo,
-    clippy::nursery,
     rustdoc::broken_intra_doc_links,
     rustdoc::bare_urls,
     missing_docs
@@ -36,69 +34,21 @@ fn map_query_err(operation: &'static str) -> impl FnOnce(sqlx::Error) -> DataErr
     move |source| DataError::QueryFailed { operation, source }
 }
 
-const UPSERT_TORRENT_CALL: &str = r"
-    SELECT revaer_runtime.upsert_torrent(
-        _torrent_id => $1,
-        _name => $2,
-        _state => $3,
-        _state_message => $4,
-        _progress_bytes_downloaded => $5,
-        _progress_bytes_total => $6,
-        _progress_eta_seconds => $7,
-        _download_bps => $8,
-        _upload_bps => $9,
-        _ratio => $10,
-        _sequential => $11,
-        _library_path => $12,
-        _download_dir => $13,
-        _comment => $14,
-        _source => $15,
-        _private => $16,
-        _file_indexes => $17,
-        _file_paths => $18,
-        _file_sizes => $19,
-        _file_bytes_completed => $20,
-        _file_priorities => $21,
-        _file_selected => $22,
-        _added_at => $23,
-        _completed_at => $24,
-        _updated_at => $25
-    )
-";
+const UPSERT_TORRENT_CALL: &str = "SELECT revaer_runtime.upsert_torrent(_torrent_id => $1, _name => $2, _state => $3, _state_message => $4, _progress_bytes_downloaded => $5, _progress_bytes_total => $6, _progress_eta_seconds => $7, _download_bps => $8, _upload_bps => $9, _ratio => $10, _sequential => $11, _library_path => $12, _download_dir => $13, _comment => $14, _source => $15, _private => $16, _file_indexes => $17, _file_paths => $18, _file_sizes => $19, _file_bytes_completed => $20, _file_priorities => $21, _file_selected => $22, _added_at => $23, _completed_at => $24, _updated_at => $25)";
 
-const DELETE_TORRENT_CALL: &str = r"
-    SELECT revaer_runtime.delete_torrent(_torrent_id => $1)
-";
+const DELETE_TORRENT_CALL: &str = "SELECT revaer_runtime.delete_torrent(_torrent_id => $1)";
 
 const SELECT_TORRENTS_CALL: &str = r"SELECT * FROM revaer_runtime.list_torrents()";
 
-const FS_JOB_STARTED_CALL: &str = r"
-    SELECT revaer_runtime.mark_fs_job_started(_torrent_id => $1, _src_path => $2)
-";
+const FS_JOB_STARTED_CALL: &str =
+    "SELECT revaer_runtime.mark_fs_job_started(_torrent_id => $1, _src_path => $2)";
 
-const FS_JOB_COMPLETED_CALL: &str = r"
-    SELECT revaer_runtime.mark_fs_job_completed(
-        _torrent_id => $1,
-        _src_path => $2,
-        _dst_path => $3,
-        _transfer_mode => $4
-    )
-";
+const FS_JOB_COMPLETED_CALL: &str = "SELECT revaer_runtime.mark_fs_job_completed(_torrent_id => $1, _src_path => $2, _dst_path => $3, _transfer_mode => $4)";
 
-const FS_JOB_FAILED_CALL: &str = r"
-    SELECT revaer_runtime.mark_fs_job_failed(_torrent_id => $1, _error => $2)
-";
+const FS_JOB_FAILED_CALL: &str =
+    "SELECT revaer_runtime.mark_fs_job_failed(_torrent_id => $1, _error => $2)";
 
-const SELECT_FS_JOB_STATE_CALL: &str = r"
-    SELECT status,
-           attempt,
-           src_path,
-           dst_path,
-           transfer_mode,
-           last_error,
-           updated_at
-    FROM revaer_runtime.fs_job_state(_torrent_id => $1)
-";
+const SELECT_FS_JOB_STATE_CALL: &str = "SELECT status, attempt, src_path, dst_path, transfer_mode, last_error, updated_at FROM revaer_runtime.fs_job_state(_torrent_id => $1)";
 
 impl RuntimeStore {
     /// Initialise the runtime store, applying pending migrations.
@@ -457,61 +407,8 @@ fn clamp_i64(value: u64) -> i64 {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn round_trip_state_serialisation() {
-        let variants = [
-            TorrentState::Queued,
-            TorrentState::FetchingMetadata,
-            TorrentState::Downloading,
-            TorrentState::Seeding,
-            TorrentState::Completed,
-            TorrentState::Stopped,
-            TorrentState::Failed {
-                message: "failure".to_string(),
-            },
-        ];
-
-        for state in variants {
-            let (label, message) = serialize_state(&state);
-            let restored = deserialize_state(label, message);
-            match (&state, &restored) {
-                (
-                    TorrentState::Failed { message: original },
-                    TorrentState::Failed { message: round },
-                ) => assert_eq!(original, round),
-                _ => assert_eq!(format!("{state:?}"), format!("{restored:?}")),
-            }
-        }
-    }
-
-    #[test]
-    fn clamp_handles_large_values() {
-        assert_eq!(clamp_i64(42), 42);
-        assert_eq!(clamp_i64(i64::MAX as u64), i64::MAX);
-        assert_eq!(clamp_i64(u64::MAX), i64::MAX);
-    }
-
-    #[test]
-    fn file_priority_labels_round_trip() {
-        use revaer_torrent_core::FilePriority;
-
-        let priorities = [
-            FilePriority::Skip,
-            FilePriority::Low,
-            FilePriority::Normal,
-            FilePriority::High,
-        ];
-        for priority in priorities {
-            let label = file_priority_label(priority);
-            let parsed = parse_file_priority(label);
-            assert_eq!(parsed, priority);
-        }
-        assert_eq!(parse_file_priority("unknown"), FilePriority::Normal);
-    }
-}
+#[path = "../tests/unit/runtime_src_tests.rs"]
+mod tests;
 /// Snapshot of filesystem processing state for a torrent.
 #[derive(Debug, Clone)]
 pub struct FsJobState {
