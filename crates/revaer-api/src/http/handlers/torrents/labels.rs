@@ -685,7 +685,7 @@ mod tests {
         assert_eq!(stored[0].name, "movies");
         assert_eq!(stored[0].rate_limit_download_bps, Some(1_000));
 
-        let envelope = timeout(Duration::from_secs(1), stream.next())
+        let envelope = timeout(Duration::from_secs(5), stream.next())
             .await?
             .ok_or_else(|| anyhow!("expected event payload"))?
             .map_err(|err| anyhow!(err))?;

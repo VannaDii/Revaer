@@ -321,3 +321,4 @@
     -   [289: PR 19 native settings snapshot test stability](adr/289-pr-19-native-settings-snapshot-test-stability.md)
     -   [290: PR 19 final feedback closeout](adr/290-pr-19-final-feedback-closeout.md)
     -   [291: PR 19 Sonar quality gate restoration](adr/291-pr-19-sonar-quality-gate-restoration.md)
+    -   [292: PR 19 review timeout stability](adr/292-pr-19-review-timeout-stability.md)

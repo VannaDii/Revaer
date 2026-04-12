@@ -1,0 +1,51 @@
+# PR 19 review timeout stability
+
+- Status: Accepted
+- Date: 2026-04-12
+- Context:
+  - PR 19 still had unresolved review feedback on a torrent-label test that waited only one second for an emitted settings event.
+  - That timeout is short enough to become flaky on contended CI runners even when the event bus behavior is correct.
+- Decision:
+  - Increase the async event wait in `crates/revaer-api/src/http/handlers/torrents/labels.rs` from one second to five seconds.
+  - Keep the test structure otherwise unchanged because the event subscription contract is still the behavior under test.
+- Consequences:
+  - Positive outcomes:
+    - The test is less sensitive to scheduler jitter and runner contention.
+    - The fix is narrowly scoped to the flaky wait boundary instead of changing production event behavior.
+  - Risks or trade-offs:
+    - A genuine regression in event delivery could take a few seconds longer to fail.
+- Follow-up:
+  - Implementation tasks:
+    - Keep similar async event-listener tests on this branch reviewed for overly aggressive wall-clock assumptions.
+  - Review checkpoints:
+    - Re-run the repo validation gates and reply on the outstanding PR review threads.
+
+## Task Record
+
+- Motivation:
+  - The user asked to address all remaining PR feedback, and the only still-actionable comment requested a more CI-stable event timeout.
+- Design notes:
+  - The change follows the reviewer’s recommendation directly and preserves the current event-stream assertion.
+  - The already-open `openapi.rs` thread was also rechecked locally; the branch already uses `std::env::temp_dir().join(OPENAPI_FILENAME)`, so that thread only needed a fresh reply.
+- Test coverage summary:
+  - `cargo test -p revaer-api update_label_catalog_persists_changes_and_emits_event`
+  - `just ci`
+  - `just ui-e2e`
+- Observability updates:
+  - None. No runtime logging, tracing, or metrics changed.
+- Status-doc validation:
+  - No README or operator-facing docs needed updates because the change is limited to test stability and ADR/task tracking.
+- Risk & rollback plan:
+  - Risk is low and limited to test-runtime duration.
+  - Rollback is a straightforward revert if the longer timeout proves unnecessary.
+- Dependency rationale:
+  - No new dependencies were added.
+- Stale-policy check:
+  - Reviewed:
+    - `AGENTS.md`
+    - `.github/instructions/rust.instructions.md`
+    - `docs/adr/template.md`
+  - Drift found:
+    - None in policy text; the remaining issue was test timing sensitivity in an existing async assertion.
+  - Contradictions removed:
+    - None.
