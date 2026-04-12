@@ -324,3 +324,4 @@
     -   [292: PR 19 review timeout stability](adr/292-pr-19-review-timeout-stability.md)
     -   [293: PR 19 GitHub Action SHA pinning](adr/293-pr-19-github-action-sha-pinning.md)
     -   [294: PR 19 review feedback closeout](adr/294-pr-19-review-feedback-closeout.md)
+    -   [295: Dependency bump rollup](adr/295-dependency-bump-rollup.md)
