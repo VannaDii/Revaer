@@ -304,3 +304,4 @@
 -   [290](290-pr-19-final-feedback-closeout.md) – PR 19 final feedback closeout
 -   [291](291-pr-19-sonar-quality-gate-restoration.md) – PR 19 Sonar quality gate restoration
 -   [292](292-pr-19-review-timeout-stability.md) – PR 19 review timeout stability
+-   [293](293-pr-19-github-action-sha-pinning.md) – PR 19 GitHub Action SHA pinning

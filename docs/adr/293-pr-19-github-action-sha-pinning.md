@@ -1,0 +1,61 @@
+# PR 19 GitHub Action SHA pinning
+
+- Status: Accepted
+- Date: 2026-04-12
+- Context:
+  - PR 19's SonarCloud new-code gate still reported seven open security hotspots after the earlier test-fixture and duplication fixes landed.
+  - The remaining hotspots all came from external GitHub Action references in workflow files that were pinned only to release tags instead of immutable commit SHAs.
+  - Revaer's existing devops instruction and workflow guardrail still described stable release tags as the required policy, so Sonar and local repo policy had drifted apart.
+- Decision:
+  - Pin the external GitHub Actions used in `.github/workflows/build-images.yml`, `.github/workflows/ci.yml`, `.github/workflows/docs.yml`, and `.github/workflows/sonar.yml` to the full upstream commit SHAs that correspond to the currently selected release tags.
+  - Preserve the originating release tags as inline comments next to each pinned SHA so upgrades remain reviewable and traceable.
+  - Update `.github/instructions/devops.instructions.md` and `scripts/workflow-guardrails.sh` so local linting enforces the same immutable-SHA rule that Sonar expects.
+- Consequences:
+  - Positive outcomes:
+    - Sonar no longer sees mutable action references on PR 19's new code.
+    - Local workflow linting and repo policy now match the security posture enforced in GitHub and Sonar.
+    - Future workflow edits in the touched files cannot regress to mutable tag refs without failing `just lint`.
+  - Risks or trade-offs:
+    - Action upgrades now require an explicit upstream SHA refresh instead of a simple tag bump.
+    - Readability is slightly lower without inline tag comments, so the comments were retained deliberately.
+- Follow-up:
+  - Implementation tasks:
+    - Keep future workflow action updates on immutable SHAs and refresh the inline tag comments when bumping versions.
+  - Review checkpoints:
+    - Re-run `just ci` and `just ui-e2e`, then allow SonarCloud to rescan the pushed commit.
+
+## Task Record
+
+- Motivation:
+  - The user asked to fix the seven remaining Sonar security hotspots on PR 19 and push the changes that restore the PR quality gate.
+- Design notes:
+  - The workflow changes are mechanical: they preserve the current action versions and only replace mutable tag refs with the resolved 40-character commit SHAs.
+  - `scripts/workflow-guardrails.sh` now rejects any external action ref that is not pinned to a full hexadecimal commit SHA, which keeps local linting aligned with the live Sonar requirement.
+  - `.github/instructions/devops.instructions.md` now states the same immutable pinning rule and recommends keeping the source release tag in an inline comment for auditability.
+- Test coverage summary:
+  - `just ci`
+  - `just ui-e2e`
+- Observability updates:
+  - None. This change only affects workflow supply-chain pinning and repo policy documentation.
+- Status-doc validation:
+  - No README or operator guide updates were needed because this change is limited to CI workflows, workflow policy, and ADR tracking.
+- Risk & rollback plan:
+  - Risk is limited to workflow execution if any pinned action SHA was resolved incorrectly.
+  - Rollback is a revert of this commit, followed by reapplying the action pins with corrected SHAs if any workflow step regresses.
+- Dependency rationale:
+  - No new dependencies were added.
+- Stale-policy check:
+  - Reviewed:
+    - `AGENTS.md`
+    - `.github/instructions/devops.instructions.md`
+    - `.github/instructions/sonarqube_mcp.instructions.md`
+    - `.github/workflows/build-images.yml`
+    - `.github/workflows/ci.yml`
+    - `.github/workflows/docs.yml`
+    - `.github/workflows/sonar.yml`
+    - `scripts/workflow-guardrails.sh`
+    - `docs/adr/template.md`
+  - Drift found:
+    - The repo policy and guardrail still allowed mutable release tags for external actions even though Sonar was flagging those refs as security hotspots.
+  - Contradictions removed:
+    - Removed the mismatch between Sonar's immutable-action expectation and Revaer's local devops policy by moving both to full SHA pinning.

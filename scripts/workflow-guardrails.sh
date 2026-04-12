@@ -55,14 +55,13 @@ uses_matches="$(
       version = ref;
       sub(/^.*@/, "", version);
 
-      if (version !~ /^v[0-9]+([.][0-9]+)*([.-][A-Za-z0-9]+)*$/ &&
-          version !~ /^codeql-bundle-v[0-9]+([.][0-9]+)*$/) {
+      if (length(version) != 40 || version !~ /^[0-9a-f]+$/) {
         printf "%s:%d:%s\n", FILENAME, FNR, $0;
       }
     }
   ' "${files[@]}"
 )"
-report_matches "external GitHub actions must use explicit stable release tags instead of floating refs" "${uses_matches}"
+report_matches "external GitHub actions must pin full commit SHAs instead of mutable refs or release tags" "${uses_matches}"
 
 run_matches="$(
   awk '

@@ -24,7 +24,7 @@ runs:
   using: composite
   steps:
     - name: Cache Rust artifacts
-      uses: actions/cache@v5.0.4
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
       with:
         path: |
           ~/.cargo/registry
@@ -36,19 +36,19 @@ runs:
           ${{ runner.os }}-cargo-${{ inputs.toolchain }}-
 
     - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@v1
+      uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
       with:
         toolchain: ${{ inputs.toolchain }}
         components: ${{ inputs.components }}
 
     - name: Install just
-      uses: taiki-e/install-action@v2.75.0
+      uses: taiki-e/install-action@cf39a74df4a72510be4e5b63348d61067f11e64a # v2.75.0
       with:
         tool: just
 
     - name: Install Node.js
       if: ${{ inputs.node-version != '' }}
-      uses: actions/setup-node@v6.3.0
+      uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
       with:
         node-version: ${{ inputs.node-version }}
         cache: npm
