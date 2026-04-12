@@ -9,7 +9,7 @@ inputs:
     required: false
     default: ""
   apt-packages:
-    description: Apt packages to install (space-separated).
+    description: Apt packages to install (whitespace-separated; spaces, tabs, and newlines allowed).
     required: false
     default: ""
   apt-profile:
@@ -65,7 +65,8 @@ runs:
         declare -a packages=()
 
         if [ -n "${INPUT_APT_PACKAGES}" ]; then
-          read -r -a packages <<<"${INPUT_APT_PACKAGES}"
+          # Accept YAML multiline strings by tokenizing on any shell whitespace.
+          read -r -a packages <<<"$(printf '%s\n' "${INPUT_APT_PACKAGES}" | tr '\n\t' '  ')"
         else
           case "${INPUT_APT_PROFILE}" in
             base)

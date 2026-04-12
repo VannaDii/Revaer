@@ -24,6 +24,7 @@ applyTo:
 - Never interpolate untrusted `${{ inputs.* }}` or comparable expression values directly into `run:` blocks.
 - Map user-controlled inputs into environment variables first, validate or whitelist them, then consume them in shell.
 - Prefer arrays and quoted expansions over word-splitting command strings.
+- Setup-action package-list inputs may accept general shell whitespace when that improves YAML readability, but the resulting tokens must still be normalized into a validated array before invocation.
 
 # Credentials And Test Infrastructure
 

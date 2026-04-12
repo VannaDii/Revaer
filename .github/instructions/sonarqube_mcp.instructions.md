@@ -1,5 +1,7 @@
 ---
-applyTo: "**/*"
+applyTo:
+  - ".github/workflows/sonar.yml"
+  - "sonar-project.properties"
 ---
 
 These are the repo-specific guidelines for using the SonarQube MCP server with Revaer.
