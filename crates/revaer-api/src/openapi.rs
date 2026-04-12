@@ -138,7 +138,7 @@ mod tests {
 
     #[test]
     fn embedded_at_uses_requested_path() {
-        let path = PathBuf::from("/tmp/openapi.json");
+        let path = std::env::temp_dir().join(OPENAPI_FILENAME);
         let deps = OpenApiDependencies::embedded_at(&path);
         assert_eq!(deps.path, path);
         assert!(deps.document.is_object());

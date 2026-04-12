@@ -299,3 +299,4 @@
 -   [285](285-pr-19-review-and-lint-closeout.md) – PR 19 review and lint closeout
 -   [286](286-advisory-rustsec-2026-0097.md) – Advisory RUSTSEC-2026-0097 temporary ignore
 -   [287](287-pr-19-policy-reconciliation.md) – PR 19 policy reconciliation
+-   [288](288-pr-19-openapi-test-portability.md) – PR 19 OpenAPI test portability
