@@ -1,0 +1,60 @@
+# PR 19 review feedback closeout
+
+- Status: Accepted
+- Date: 2026-04-12
+- Context:
+  - PR 19 still had open review feedback after the workflow SHA pinning fix landed.
+  - The remaining comments asked for one structural cleanup in `crates/revaer-api/src/app/indexers.rs`, one docs-workflow toolchain alignment fix, one setup-action CRLF hardening fix, and an updated PR description that better reflects the current branch scope.
+- Decision:
+  - Move the large `#[cfg(test)]` block out of `crates/revaer-api/src/app/indexers.rs` into `crates/revaer-api/src/app/indexers/tests.rs` and keep the production module to a small `#[cfg(test)] mod tests;` declaration.
+  - Align `.github/workflows/docs.yml` with the repository toolchain source of truth by using `${{ vars.RUST_TOOLCHAIN_VERSION }}` instead of a hard-coded `stable`.
+  - Strip carriage returns during `apt-packages` normalization in `.github/actions/setup-revaer/action.yml` so multiline CRLF input is tokenized consistently before validation.
+  - Refresh the PR description so it calls out the broader runtime/API behavior coverage work that is already part of the branch.
+- Consequences:
+  - Positive outcomes:
+    - The production indexer facade file is easier to navigate and review.
+    - The docs workflow now follows the same Rust toolchain source of truth as the rest of CI.
+    - The setup action is more robust against pasted or Windows-originated multiline package input.
+    - The PR description better matches the actual diff and review surface.
+  - Risks or trade-offs:
+    - Moving tests into a sibling file adds one more source file to the module tree, though it improves local readability overall.
+- Follow-up:
+  - Implementation tasks:
+    - Keep other large test-only blocks in production files on a short leash and move them out when they start obscuring runtime code.
+  - Review checkpoints:
+    - Re-run `just ci` and `just ui-e2e`, then reply to and resolve the remaining PR threads.
+
+## Task Record
+
+- Motivation:
+  - The user asked to address and resolve all remaining PR feedback on PR 19.
+- Design notes:
+  - The `indexers.rs` change is intentionally structural only: the moved tests still use `use super::*;` from a dedicated child module file, so behavior and visibility stay unchanged.
+  - The docs workflow now consumes the same configured Rust toolchain variable already used elsewhere in CI, which removes an unnecessary source of drift.
+  - The setup action keeps the existing general-whitespace tokenization behavior and simply normalizes `\r` away before validation so CRLF input cannot leak carriage returns into package names.
+- Test coverage summary:
+  - `just ci`
+  - `just ui-e2e`
+- Observability updates:
+  - None. No runtime logging, tracing, metrics, or health behavior changed.
+- Status-doc validation:
+  - Updated the PR description to reflect the branch’s broader API/runtime behavior coverage additions alongside the instruction and workflow work.
+- Risk & rollback plan:
+  - Risk is low and limited to module wiring and workflow consistency.
+  - Rollback is a straightforward revert of this change set if any of the review-driven cleanups regress.
+- Dependency rationale:
+  - No new dependencies were added.
+- Stale-policy check:
+  - Reviewed:
+    - `AGENTS.md`
+    - `.github/instructions/devops.instructions.md`
+    - `.github/workflows/docs.yml`
+    - `.github/actions/setup-revaer/action.yml`
+    - `crates/revaer-api/src/app/indexers.rs`
+    - `docs/adr/template.md`
+  - Drift found:
+    - The docs workflow used a hard-coded Rust channel instead of the repo toolchain source of truth.
+    - The setup action normalized tabs and newlines but not carriage returns in multiline package input.
+    - `crates/revaer-api/src/app/indexers.rs` had accumulated a large test block that made the production module harder to scan.
+  - Contradictions removed:
+    - Removed the docs-workflow toolchain drift by pointing it back at the shared repo variable.

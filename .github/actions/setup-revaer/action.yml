@@ -65,8 +65,8 @@ runs:
         declare -a packages=()
 
         if [ -n "${INPUT_APT_PACKAGES}" ]; then
-          # Accept YAML multiline strings by tokenizing on any shell whitespace.
-          read -r -a packages <<<"$(printf '%s\n' "${INPUT_APT_PACKAGES}" | tr '\n\t' '  ')"
+          # Accept YAML multiline strings and CRLF input by tokenizing on shell whitespace.
+          read -r -a packages <<<"$(printf '%s\n' "${INPUT_APT_PACKAGES}" | tr -d '\r' | tr '\n\t' '  ')"
         else
           case "${INPUT_APT_PROFILE}" in
             base)

@@ -15,6 +15,7 @@ applyTo:
 - External GitHub actions in modified files must pin the exact upstream commit SHA. Do not use floating branch refs such as `main`, `master`, or `trunk`, and do not rely on mutable release tags alone.
 - When updating an external action reference, resolve the chosen stable upstream release tag to its full 40-character commit SHA at the time of the change. Keep the originating tag in an inline comment when practical so upgrades stay auditable.
 - Verify action usage against the action's current official documentation when changing its major or minor release line. Preserve documented step ordering and supported inputs.
+- Workflows that install Rust toolchains must use the repository's configured toolchain source of truth rather than hard-coded ad hoc channels unless a documented exception is required.
 - Workflow build, lint, test, coverage, and release gates must call `just` recipes. Do not reintroduce raw `cargo` pipelines into CI jobs.
 - `just lint` runs `scripts/workflow-guardrails.sh`, which rejects unpinned external action refs and direct `${{ inputs.* }}` interpolation inside `run:` blocks.
 - Treat `sonar-project.properties` as the versioned source of truth for Sonar analysis scope and exclusions.
@@ -24,7 +25,7 @@ applyTo:
 - Never interpolate untrusted `${{ inputs.* }}` or comparable expression values directly into `run:` blocks.
 - Map user-controlled inputs into environment variables first, validate or whitelist them, then consume them in shell.
 - Prefer arrays and quoted expansions over word-splitting command strings.
-- Setup-action package-list inputs may accept general shell whitespace when that improves YAML readability, but the resulting tokens must still be normalized into a validated array before invocation.
+- Setup-action package-list inputs may accept general shell whitespace, including CRLF-pasted multiline input, when that improves YAML readability, but the resulting tokens must still be normalized into a validated array before invocation.
 
 # Credentials And Test Infrastructure
 
