@@ -1,6 +1,5 @@
 'use strict';
 
-const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -19,15 +18,3 @@ const payload = {
 };
 
 fs.writeFileSync(outputPath, `${JSON.stringify(payload, null, 2)}\n`);
-
-if (process.env.REVAER_ENABLE_HELM_RELEASE_ASSETS === '1') {
-  const packageResult = spawnSync('just', ['helm-package', version, gitTag], {
-    cwd: path.resolve(__dirname, '..', '..'),
-    stdio: 'inherit',
-    env: process.env,
-  });
-
-  if (packageResult.status !== 0) {
-    process.exit(packageResult.status ?? 1);
-  }
-}

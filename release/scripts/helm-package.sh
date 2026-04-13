@@ -35,6 +35,17 @@ cleanup() {
 }
 trap cleanup EXIT
 
+yaml_quote() {
+    case "$1" in
+        *$'\n'*|*$'\r'*)
+            echo "Artifact Hub owner metadata must not contain newlines" >&2
+            exit 1
+            ;;
+    esac
+
+    printf "'%s'" "$(printf '%s' "$1" | sed "s/'/''/g")"
+}
+
 cp -R "${chart_root}" "${chart_copy_dir}/revaer"
 chart_yaml="${chart_copy_dir}/revaer/Chart.yaml"
 metadata_output="${dist_dir}/artifacthub-repo.yml"
@@ -97,8 +108,8 @@ EOF
     if [ -n "${owner_name}" ] && [ -n "${owner_email}" ]; then
         cat >> "${metadata_output}" <<EOF
 owners:
-  - name: ${owner_name}
-    email: ${owner_email}
+  - name: $(yaml_quote "${owner_name}")
+    email: $(yaml_quote "${owner_email}")
 EOF
     fi
 

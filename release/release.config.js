@@ -48,7 +48,7 @@ module.exports = {
       '@semantic-release/exec',
       {
         prepareCmd:
-          'node release/scripts/write-release-info.js "${nextRelease.version}" "${nextRelease.gitTag}"',
+          'node release/scripts/write-release-info.js "${nextRelease.version}" "${nextRelease.gitTag}" && if [ "${REVAER_ENABLE_HELM_RELEASE_ASSETS:-0}" = "1" ]; then bash release/scripts/helm-package.sh "${nextRelease.version}" "${nextRelease.gitTag}"; fi',
       },
     ],
     [
