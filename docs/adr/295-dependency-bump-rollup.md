@@ -1,0 +1,54 @@
+# Dependency bump rollup
+
+- Status: Accepted
+- Date: 2026-04-12
+- Context:
+  - The repository had three open dependency PRs against `main` for `release/package-lock.json`: `#16` (`handlebars`), `#18` (`lodash-es`), and `#20` (`picomatch`).
+  - The user requested a single `chore/deps` branch and PR that folds those dependency updates together.
+  - The repo requires every task to record an ADR and to complete the standard `just` quality gates before hand-off.
+- Decision:
+  - Roll the three open dependency PRs into one branch by applying the union of their lockfile changes to `release/package-lock.json`.
+  - Use the `#20` lockfile as the base because it already carried the shared lockfile cleanup plus the `picomatch` upgrades, then layer in the `handlebars` and `lodash-es` version updates from `#16` and `#18`.
+  - Leave `release/package.json` unchanged because the requested work is a lockfile-only transitive dependency refresh, not a manifest dependency policy change.
+- Consequences:
+  - Positive outcomes:
+    - The repo gets one dependency-refresh PR instead of three overlapping lockfile PRs.
+    - The combined branch captures the requested `handlebars`, `lodash-es`, and `picomatch` bumps without introducing new runtime or build dependencies.
+  - Risks or trade-offs:
+    - The branch depends on a manually composed lockfile union rather than a single-package-manager regeneration path because the current manifest does not expose these transitive bumps directly.
+- Follow-up:
+  - Implementation tasks:
+    - Keep future release-tooling dependency bumps consolidated when they overlap on the same lockfile.
+  - Review checkpoints:
+    - Re-run `just ci` and `just ui-e2e`, then publish `chore/deps` and open the requested PR.
+
+## Task Record
+
+- Motivation:
+  - The user asked for a new `chore/deps` branch that upgrades all dependency changes represented by the current GitHub pull request queue and opens a PR titled `chore: bumps deps`.
+- Design notes:
+  - `release/package-lock.json` is the only file touched by the upstream dependency PRs, so the rollup keeps the diff scoped to the existing release-tooling lockfile.
+  - The final lockfile updates `handlebars` from `4.7.8` to `4.7.9`, `lodash-es` from `4.17.23` to `4.18.1`, and `picomatch` from `2.3.1` to `2.3.2`, plus the nested `tinyglobby` `picomatch` resolution from `4.0.3` to `4.0.4`.
+  - No source code, workflows, or runtime manifests changed.
+- Test coverage summary:
+  - `just ci`
+  - `just ui-e2e`
+- Observability updates:
+  - None. No runtime logging, tracing, metrics, or health behavior changed.
+- Status-doc validation:
+  - No user-facing product or operator docs required updates beyond the mandatory ADR catalogue and summary entries for this task record.
+- Risk & rollback plan:
+  - Risk is low and isolated to release-tooling dependency resolution.
+  - Rollback is a revert of the lockfile rollup commit and PR if the dependency updates regress release automation.
+- Dependency rationale:
+  - No new dependencies were added.
+  - The change only updates already-resolved transitive packages captured by the existing `release/package-lock.json`.
+- Stale-policy check:
+  - Reviewed:
+    - `AGENTS.md`
+    - `.github/instructions/devops.instructions.md`
+    - `docs/adr/template.md`
+  - Drift found:
+    - `release/package-lock.json` is covered by `.github/instructions/devops.instructions.md`, so the release-instruction file needed an explicit lockfile policy note in the same change to satisfy the repo's instruction-drift rule.
+  - Contradictions removed:
+    - Removed the release-instruction drift by documenting the expectation for lockfile-only dependency updates under `release/**`.
