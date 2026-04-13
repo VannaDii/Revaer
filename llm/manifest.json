@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "generated": "2026-04-12T21:16:04.984273135+00:00",
+  "generated": "2026-04-13T00:08:10.633582422+00:00",
   "entries": [
     {
       "id": "adr/001-configuration-revisioning",
@@ -2746,6 +2746,15 @@
         "task-record"
       ],
       "href": "/adr/294-pr-19-review-feedback-closeout/"
+    },
+    {
+      "id": "adr/295-dependency-bump-rollup",
+      "title": "Dependency bump rollup",
+      "summary": "Status: Accepted Date: 2026-04-12 Context: The repository had three open dependency PRs against main for release/package-lock.json: #16 (handlebars), #18 (lodash-es), and #20 (picomatch). The user requested a single chore/deps branch and PR that folds those dependency updates together. The repo requires every task to record an ADR and to complete the standard just quality gates before hand-off. Decision: Roll the three open dependency PRs into one branch by applying the union of their lockfile changes to release/package-lock.json. Use the #20 lockfile as the base because it already carried the shared lockfile cleanup plus the picomatch upgrades, then layer in the",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/295-dependency-bump-rollup/"
     },
     {
       "id": "adr/index",

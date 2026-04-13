@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>216: Torznab search query mapping and append-order pagination - Revaer Documentation</title>
+        <title>295: Dependency bump rollup - Revaer Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -177,60 +177,115 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="torznab-search-query-mapping-and-pagination"><a class="header" href="#torznab-search-query-mapping-and-pagination">Torznab Search Query Mapping and Pagination</a></h1>
+                        <h1 id="dependency-bump-rollup"><a class="header" href="#dependency-bump-rollup">Dependency bump rollup</a></h1>
 <ul>
 <li>Status: Accepted</li>
-<li>Date: 2026-02-25</li>
+<li>Date: 2026-04-12</li>
 <li>Context:
 <ul>
-<li>Torznab <code>/api</code> had auth and caps coverage, but search requests returned only empty feeds and did not map query semantics from <code>ERD_INDEXERS.md</code>.</li>
-<li>ERD acceptance requires handler-level validation/short-circuiting for invalid Torznab combinations, request mapping to search requests, and append-order pagination behavior.</li>
-<li>Existing search orchestration already exposed <code>search_request_create</code>, <code>search_page_list</code>, and <code>search_page_fetch</code> APIs, so the missing layer was Torznab query translation and XML rendering.</li>
+<li>The repository had three open dependency PRs against <code>main</code> for <code>release/package-lock.json</code>: <code>#16</code> (<code>handlebars</code>), <code>#18</code> (<code>lodash-es</code>), and <code>#20</code> (<code>picomatch</code>).</li>
+<li>The user requested a single <code>chore/deps</code> branch and PR that folds those dependency updates together.</li>
+<li>The repo requires every task to record an ADR and to complete the standard <code>just</code> quality gates before hand-off.</li>
 </ul>
 </li>
 <li>Decision:
 <ul>
-<li>Implemented Torznab request parsing and mapping in <code>crates/revaer-api/src/http/handlers/torznab/api.rs</code> for:
-<ul>
-<li><code>t=search|tvsearch|movie|moviesearch</code> mode handling.</li>
-<li><code>q</code>, <code>imdbid</code>, <code>tmdbid</code>, <code>tvdbid</code>, <code>season</code>, <code>ep</code>, <code>cat</code>, <code>offset</code>, and <code>limit</code> parsing.</li>
-<li>invalid-combination short-circuiting to empty XML with invalid-request metrics.</li>
-<li>request creation via <code>search_request_create</code> and append-order flattening via <code>search_page_list</code> + <code>search_page_fetch</code> with offset/limit slicing.</li>
-</ul>
-</li>
-<li>Expanded XML rendering in <code>crates/revaer-api/src/http/handlers/torznab/xml.rs</code> to produce itemized RSS output with Torznab attrs and response metadata (<code>offset</code>, <code>total</code>).</li>
-<li>Added API E2E coverage in <code>tests/specs/api/indexers-torznab-instances.spec.ts</code> for generic search paging offset behavior, invalid TV combo handling, and invalid category short-circuit responses.</li>
-<li>Added focused unit tests for Torznab parse and XML helpers.</li>
-<li>Dependency rationale: no new dependencies were added; implementation reused existing crates (<code>chrono</code>, <code>uuid</code>) already in the dependency graph.</li>
-<li>Alternatives considered:
-<ul>
-<li>Add a dedicated Torznab orchestration service with its own paging/storage tables now: rejected for this step to keep scope aligned with existing search-request/page model.</li>
-<li>Keep Torznab handler as caps/auth only and defer search mapping entirely: rejected because it blocks ERD parity acceptance items.</li>
-</ul>
-</li>
+<li>Roll the three open dependency PRs into one branch by applying the union of their lockfile changes to <code>release/package-lock.json</code>.</li>
+<li>Use the <code>#20</code> lockfile as the base because it already carried the shared lockfile cleanup plus the <code>picomatch</code> upgrades, then layer in the <code>handlebars</code> and <code>lodash-es</code> version updates from <code>#16</code> and <code>#18</code>.</li>
+<li>Leave <code>release/package.json</code> unchanged because the requested work is a lockfile-only transitive dependency refresh, not a manifest dependency policy change.</li>
 </ul>
 </li>
 <li>Consequences:
 <ul>
 <li>Positive outcomes:
 <ul>
-<li>Torznab <code>/api</code> now maps request semantics into existing search orchestration and returns structured RSS responses with deterministic offset slicing.</li>
-<li>Invalid Torznab query combinations are handled with empty responses instead of API errors.</li>
-<li>Test coverage now exercises Torznab query-path behavior in both unit and API E2E suites.</li>
+<li>The repo gets one dependency-refresh PR instead of three overlapping lockfile PRs.</li>
+<li>The combined branch captures the requested <code>handlebars</code>, <code>lodash-es</code>, and <code>picomatch</code> bumps without introducing new runtime or build dependencies.</li>
 </ul>
 </li>
 <li>Risks or trade-offs:
 <ul>
-<li>Category output currently follows available page item category data; deeper tracker-category remapping parity remains coupled to ingestion metadata completeness.</li>
-<li>Pagination works on currently materialized pages; runtime behavior still depends on upstream run scheduling/ingestion progress.</li>
+<li>The branch depends on a manually composed lockfile union rather than a single-package-manager regeneration path because the current manifest does not expose these transitive bumps directly.</li>
 </ul>
 </li>
 </ul>
 </li>
 <li>Follow-up:
 <ul>
-<li>Verify category-to-domain fallback behavior (especially explicit <code>8000</code> handling) against broader fixture matrices.</li>
-<li>Extend E2E coverage once richer seeded search-page fixtures are available for multi-page and mixed-category result sets.</li>
+<li>Implementation tasks:
+<ul>
+<li>Keep future release-tooling dependency bumps consolidated when they overlap on the same lockfile.</li>
+</ul>
+</li>
+<li>Review checkpoints:
+<ul>
+<li>Re-run <code>just ci</code> and <code>just ui-e2e</code>, then publish <code>chore/deps</code> and open the requested PR.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record"><a class="header" href="#task-record">Task Record</a></h2>
+<ul>
+<li>Motivation:
+<ul>
+<li>The user asked for a new <code>chore/deps</code> branch that upgrades all dependency changes represented by the current GitHub pull request queue and opens a PR titled <code>chore: bumps deps</code>.</li>
+</ul>
+</li>
+<li>Design notes:
+<ul>
+<li><code>release/package-lock.json</code> is the only file touched by the upstream dependency PRs, so the rollup keeps the diff scoped to the existing release-tooling lockfile.</li>
+<li>The final lockfile updates <code>handlebars</code> from <code>4.7.8</code> to <code>4.7.9</code>, <code>lodash-es</code> from <code>4.17.23</code> to <code>4.18.1</code>, and <code>picomatch</code> from <code>2.3.1</code> to <code>2.3.2</code>, plus the nested <code>tinyglobby</code> <code>picomatch</code> resolution from <code>4.0.3</code> to <code>4.0.4</code>.</li>
+<li>No source code, workflows, or runtime manifests changed.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li><code>just ci</code></li>
+<li><code>just ui-e2e</code></li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>None. No runtime logging, tracing, metrics, or health behavior changed.</li>
+</ul>
+</li>
+<li>Status-doc validation:
+<ul>
+<li>No user-facing product or operator docs required updates beyond the mandatory ADR catalogue and summary entries for this task record.</li>
+</ul>
+</li>
+<li>Risk &amp; rollback plan:
+<ul>
+<li>Risk is low and isolated to release-tooling dependency resolution.</li>
+<li>Rollback is a revert of the lockfile rollup commit and PR if the dependency updates regress release automation.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>No new dependencies were added.</li>
+<li>The change only updates already-resolved transitive packages captured by the existing <code>release/package-lock.json</code>.</li>
+</ul>
+</li>
+<li>Stale-policy check:
+<ul>
+<li>Reviewed:
+<ul>
+<li><code>AGENTS.md</code></li>
+<li><code>.github/instructions/devops.instructions.md</code></li>
+<li><code>docs/adr/template.md</code></li>
+</ul>
+</li>
+<li>Drift found:
+<ul>
+<li><code>release/package-lock.json</code> is covered by <code>.github/instructions/devops.instructions.md</code>, so the release-instruction file needed an explicit lockfile policy note in the same change to satisfy the repo’s instruction-drift rule.</li>
+</ul>
+</li>
+<li>Contradictions removed:
+<ul>
+<li>Removed the release-instruction drift by documenting the expectation for lockfile-only dependency updates under <code>release/**</code>.</li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
@@ -239,13 +294,10 @@
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../adr/215-torznab-parity-integration-tests.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../adr/294-pr-19-review-feedback-closeout.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../adr/217-torznab-download-redirect-acquisition-attempt-coverage.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
-                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
-                            </a>
 
                         <div style="clear: both"></div>
                     </nav>
@@ -253,13 +305,10 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../adr/215-torznab-parity-integration-tests.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../adr/294-pr-19-review-feedback-closeout.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../adr/217-torznab-download-redirect-acquisition-attempt-coverage.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
-                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
-                    </a>
             </nav>
 
         </div>

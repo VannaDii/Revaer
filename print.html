@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "searchindex-ee8e9e3b.js";
+            window.path_to_searchindex_js = "searchindex-4fd4a94d.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-d1806bad.js"></script>
+        <script src="toc-e8294bd0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1578,6 +1578,7 @@ just test-native
 <li><a href="#pr-19-review-timeout-stability">292</a> – PR 19 review timeout stability</li>
 <li><a href="#pr-19-github-action-sha-pinning">293</a> – PR 19 GitHub Action SHA pinning</li>
 <li><a href="#pr-19-review-feedback-closeout">294</a> – PR 19 review feedback closeout</li>
+<li><a href="#dependency-bump-rollup">295</a> – Dependency bump rollup</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 ADR="" Title="" id=""><a class="header" href="#"></a></h1>
@@ -18341,6 +18342,119 @@ if limits are too strict.</li>
 <li>Contradictions removed:
 <ul>
 <li>Removed the docs-workflow toolchain drift by pointing it back at the shared repo variable.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="dependency-bump-rollup"><a class="header" href="#dependency-bump-rollup">Dependency bump rollup</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-04-12</li>
+<li>Context:
+<ul>
+<li>The repository had three open dependency PRs against <code>main</code> for <code>release/package-lock.json</code>: <code>#16</code> (<code>handlebars</code>), <code>#18</code> (<code>lodash-es</code>), and <code>#20</code> (<code>picomatch</code>).</li>
+<li>The user requested a single <code>chore/deps</code> branch and PR that folds those dependency updates together.</li>
+<li>The repo requires every task to record an ADR and to complete the standard <code>just</code> quality gates before hand-off.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Roll the three open dependency PRs into one branch by applying the union of their lockfile changes to <code>release/package-lock.json</code>.</li>
+<li>Use the <code>#20</code> lockfile as the base because it already carried the shared lockfile cleanup plus the <code>picomatch</code> upgrades, then layer in the <code>handlebars</code> and <code>lodash-es</code> version updates from <code>#16</code> and <code>#18</code>.</li>
+<li>Leave <code>release/package.json</code> unchanged because the requested work is a lockfile-only transitive dependency refresh, not a manifest dependency policy change.</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes:
+<ul>
+<li>The repo gets one dependency-refresh PR instead of three overlapping lockfile PRs.</li>
+<li>The combined branch captures the requested <code>handlebars</code>, <code>lodash-es</code>, and <code>picomatch</code> bumps without introducing new runtime or build dependencies.</li>
+</ul>
+</li>
+<li>Risks or trade-offs:
+<ul>
+<li>The branch depends on a manually composed lockfile union rather than a single-package-manager regeneration path because the current manifest does not expose these transitive bumps directly.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks:
+<ul>
+<li>Keep future release-tooling dependency bumps consolidated when they overlap on the same lockfile.</li>
+</ul>
+</li>
+<li>Review checkpoints:
+<ul>
+<li>Re-run <code>just ci</code> and <code>just ui-e2e</code>, then publish <code>chore/deps</code> and open the requested PR.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record-75"><a class="header" href="#task-record-75">Task Record</a></h2>
+<ul>
+<li>Motivation:
+<ul>
+<li>The user asked for a new <code>chore/deps</code> branch that upgrades all dependency changes represented by the current GitHub pull request queue and opens a PR titled <code>chore: bumps deps</code>.</li>
+</ul>
+</li>
+<li>Design notes:
+<ul>
+<li><code>release/package-lock.json</code> is the only file touched by the upstream dependency PRs, so the rollup keeps the diff scoped to the existing release-tooling lockfile.</li>
+<li>The final lockfile updates <code>handlebars</code> from <code>4.7.8</code> to <code>4.7.9</code>, <code>lodash-es</code> from <code>4.17.23</code> to <code>4.18.1</code>, and <code>picomatch</code> from <code>2.3.1</code> to <code>2.3.2</code>, plus the nested <code>tinyglobby</code> <code>picomatch</code> resolution from <code>4.0.3</code> to <code>4.0.4</code>.</li>
+<li>No source code, workflows, or runtime manifests changed.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li><code>just ci</code></li>
+<li><code>just ui-e2e</code></li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>None. No runtime logging, tracing, metrics, or health behavior changed.</li>
+</ul>
+</li>
+<li>Status-doc validation:
+<ul>
+<li>No user-facing product or operator docs required updates beyond the mandatory ADR catalogue and summary entries for this task record.</li>
+</ul>
+</li>
+<li>Risk &amp; rollback plan:
+<ul>
+<li>Risk is low and isolated to release-tooling dependency resolution.</li>
+<li>Rollback is a revert of the lockfile rollup commit and PR if the dependency updates regress release automation.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>No new dependencies were added.</li>
+<li>The change only updates already-resolved transitive packages captured by the existing <code>release/package-lock.json</code>.</li>
+</ul>
+</li>
+<li>Stale-policy check:
+<ul>
+<li>Reviewed:
+<ul>
+<li><code>AGENTS.md</code></li>
+<li><code>.github/instructions/devops.instructions.md</code></li>
+<li><code>docs/adr/template.md</code></li>
+</ul>
+</li>
+<li>Drift found:
+<ul>
+<li><code>release/package-lock.json</code> is covered by <code>.github/instructions/devops.instructions.md</code>, so the release-instruction file needed an explicit lockfile policy note in the same change to satisfy the repo’s instruction-drift rule.</li>
+</ul>
+</li>
+<li>Contradictions removed:
+<ul>
+<li>Removed the release-instruction drift by documenting the expectation for lockfile-only dependency updates under <code>release/**</code>.</li>
 </ul>
 </li>
 </ul>

@@ -2745,6 +2745,15 @@
     "href": "/adr/294-pr-19-review-feedback-closeout/"
   },
   {
+    "id": "adr/295-dependency-bump-rollup",
+    "title": "Dependency bump rollup",
+    "summary": "Status: Accepted Date: 2026-04-12 Context: The repository had three open dependency PRs against main for release/package-lock.json: #16 (handlebars), #18 (lodash-es), and #20 (picomatch). The user requested a single chore/deps branch and PR that folds those dependency updates together. The repo requires every task to record an ADR and to complete the standard just quality gates before hand-off. Decision: Roll the three open dependency PRs into one branch by applying the union of their lockfile changes to release/package-lock.json. Use the #20 lockfile as the base because it already carried the shared lockfile cleanup plus the picomatch upgrades, then layer in the",
+    "tags": [
+      "task-record"
+    ],
+    "href": "/adr/295-dependency-bump-rollup/"
+  },
+  {
     "id": "adr/index",
     "title": "ADRs",
     "summary": "Create a new ADR using the template in docs/adr/template.md. Give it a sequential identifier (e.g., 001, 002) and a concise title. Capture context, decision, consequences, and follow-up actions. Append the new ADR entry to the end of the Catalogue list above. Append the same entry under ADRs in docs/SUMMARY.md, keeping it nested so the sidebar stays collapsed. Reference ADRs from code comments or docs where the decision applies.",
