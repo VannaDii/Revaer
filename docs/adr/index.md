@@ -308,3 +308,4 @@
 -   [294](294-pr-19-review-feedback-closeout.md) – PR 19 review feedback closeout
 -   [295](295-dependency-bump-rollup.md) – Dependency bump rollup
 -   [296](296-helm-chart-release-publishing.md) – Helm chart release publishing
+-   [297](297-helm-feedback-and-sonar-closeout.md) – Helm feedback and Sonar closeout

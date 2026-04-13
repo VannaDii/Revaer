@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-if [ "$#" -ne 2 ]; then
+if [[ "$#" -ne 2 ]]; then
     echo "usage: $0 <chart-version> <app-version>" >&2
     exit 1
 fi
@@ -32,18 +32,24 @@ chart_copy_dir="$(mktemp -d)"
 gnupg_dir="$(mktemp -d)"
 cleanup() {
     rm -rf "${chart_copy_dir}" "${gnupg_dir}"
+    return 0
 }
 trap cleanup EXIT
 
 yaml_quote() {
-    case "$1" in
+    local value="$1"
+
+    case "${value}" in
         *$'\n'*|*$'\r'*)
             echo "Artifact Hub owner metadata must not contain newlines" >&2
             exit 1
             ;;
+        *)
+            ;;
     esac
 
-    printf "'%s'" "$(printf '%s' "$1" | sed "s/'/''/g")"
+    printf "'%s'" "$(printf '%s' "${value}" | sed "s/'/''/g")"
+    return 0
 }
 
 cp -R "${chart_root}" "${chart_copy_dir}/revaer"
@@ -56,13 +62,13 @@ if [[ "${chart_version}" == *-* ]]; then
     prerelease="true"
 fi
 
-if [ "${sign_chart}" = "1" ]; then
+if [[ "${sign_chart}" == "1" ]]; then
     if ! command -v gpg >/dev/null 2>&1; then
         echo "gpg is required to sign the chart" >&2
         exit 1
     fi
 
-    if [ -z "${HELM_GPG_PRIVATE:-}" ] || [ -z "${HELM_GPG_PUBLIC:-}" ]; then
+    if [[ -z "${HELM_GPG_PRIVATE:-}" || -z "${HELM_GPG_PUBLIC:-}" ]]; then
         echo "HELM_GPG_PRIVATE and HELM_GPG_PUBLIC are required when REVAER_HELM_SIGN=1" >&2
         exit 1
     fi
@@ -77,14 +83,18 @@ if [ "${sign_chart}" = "1" ]; then
     printf '%s\n' "${HELM_GPG_PRIVATE}" | gpg --batch --yes --import >/dev/null 2>&1
     gpg --batch --export > "${dist_dir}/${public_keyring_asset}"
     secret_keyring="${gnupg_dir}/secring.gpg"
-    gpg --batch --export-secret-keys > "${secret_keyring}"
+    (
+        umask 077
+        gpg --batch --export-secret-keys > "${secret_keyring}"
+    )
+    chmod 600 "${secret_keyring}"
 
     signing_uid="$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^uid:/ {print $10; exit}')"
     fingerprint="$(gpg --batch --list-secret-keys --with-colons --fingerprint | awk -F: '/^fpr:/ {print $10; exit}')"
     owner_name="${ARTIFACTHUB_OWNER_NAME:-$(printf '%s' "${signing_uid}" | sed -E 's/ <[^>]+>$//')}"
     owner_email="${ARTIFACTHUB_OWNER_EMAIL:-$(printf '%s' "${signing_uid}" | sed -nE 's/.*<([^>]+)>.*/\1/p')}"
 
-    if [ -z "${signing_uid}" ] || [ -z "${fingerprint}" ]; then
+    if [[ -z "${signing_uid}" || -z "${fingerprint}" ]]; then
         echo "failed to resolve imported GPG signing identity" >&2
         exit 1
     fi
@@ -105,7 +115,7 @@ EOF
         { print }
     ' "${chart_root}/Chart.yaml" > "${chart_yaml}"
 
-    if [ -n "${owner_name}" ] && [ -n "${owner_email}" ]; then
+    if [[ -n "${owner_name}" && -n "${owner_email}" ]]; then
         cat >> "${metadata_output}" <<EOF
 owners:
   - name: $(yaml_quote "${owner_name}")
@@ -113,7 +123,7 @@ owners:
 EOF
     fi
 
-    if [ -n "${ARTIFACTHUB_REPOSITORY_ID:-}" ]; then
+    if [[ -n "${ARTIFACTHUB_REPOSITORY_ID:-}" ]]; then
         printf 'repositoryID: %s\n' "${ARTIFACTHUB_REPOSITORY_ID}" >> "${metadata_output}"
     fi
 
@@ -131,7 +141,7 @@ else
         /__RELEASE_HELM_ANNOTATIONS__/ { next }
         { print }
     ' "${chart_root}/Chart.yaml" > "${chart_yaml}"
-    if [ -n "${ARTIFACTHUB_REPOSITORY_ID:-}" ]; then
+    if [[ -n "${ARTIFACTHUB_REPOSITORY_ID:-}" ]]; then
         printf 'repositoryID: %s\n' "${ARTIFACTHUB_REPOSITORY_ID}" >> "${metadata_output}"
     fi
     helm lint "${chart_copy_dir}/revaer" --set "database.url=${lint_database_url}"

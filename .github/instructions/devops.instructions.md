@@ -25,6 +25,8 @@ applyTo:
 - Prerelease Helm assets must be produced during the semantic-release prepare phase so the packaged chart version matches the dev release version exactly. OCI publication must consume those already-packaged assets after the GitHub release assets exist.
 - Stable tag releases must package the Helm chart once, attach the `.tgz`, `.prov`, and public key to the GitHub release, and publish that exact packaged chart to the OCI registry. Avoid repackaging between release-asset upload and OCI publication.
 - JavaScript release metadata helpers under `release/**` should stay side-effect scoped. Prefer wiring shell packaging steps in the semantic-release `prepareCmd` over spawning child processes from Node glue unless a documented exception is required.
+- Helm packaging scripts must exclude repository-level Artifact Hub metadata from the chart tarball itself. Publish `artifacthub-repo.yml` as a separate OCI artifact instead of shipping it inside the chart package.
+- Helm publishing must verify signed chart artifacts before OCI push, and temporary exported secret keyring files must be created with owner-only permissions.
 
 # Shell Safety
 
