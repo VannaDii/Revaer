@@ -26,9 +26,10 @@
   - Reran `just ui-e2e`.
 - Observability updates:
   - No runtime observability surfaces changed; this is a workflow-definition repair only.
-- Status-doc validation:
-  - Re-checked the workflow policy in `.github/instructions/devops.instructions.md`; existing guidance on reusable-workflow caller permissions already covered the intended shape, so no wording change was needed.
-  - Updated the ADR catalogue and docs summary to include this task record.
+- Stale-policy check:
+  - Reviewed `AGENTS.md` and `.github/instructions/devops.instructions.md` for workflow-change requirements and ADR task-record requirements.
+  - Drift was found: the previous ADR text said no instruction wording change was needed even though this fix adds a reusable-workflow caller permission-map rule to `.github/instructions/devops.instructions.md`.
+  - Removed that contradiction by documenting the new instruction wording explicitly and confirming the ADR catalogue and docs summary were updated for this task record.
 - Risk & rollback plan:
   - Low risk because the change removes invalid duplicate YAML without changing job logic.
   - Rollback is a revert of this commit, though that would reintroduce the parse failure.
