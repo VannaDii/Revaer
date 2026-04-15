@@ -81,6 +81,25 @@ jobs:
       - name: Check
         run: just check
 
+  helm-lint:
+    name: Helm Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: ./.github/actions/setup-revaer
+        with:
+          toolchain: ${{ vars.RUST_TOOLCHAIN_VERSION }}
+          apt-profile: base
+
+      - name: Set up Helm
+        uses: Azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          version: v3.19.0
+
+      - name: Helm lint
+        run: just helm-lint
+
   coverage:
     name: Check Coverage
     runs-on: ubuntu-latest
@@ -120,7 +139,7 @@ jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
-    needs: [fmt, lint, check]
+    needs: [fmt, lint, check, helm-lint]
     env:
       REVAER_TEST_DATABASE_URL: ${{ vars.REVAER_DATABASE_URL}}
       DATABASE_URL: ${{ vars.REVAER_DATABASE_URL}}
@@ -328,6 +347,7 @@ jobs:
       - audit
       - deny
       - udeps
+      - helm-lint
       - test
       - native-it
       - feature-matrix
@@ -374,6 +394,11 @@ jobs:
           toolchain: ${{ vars.RUST_TOOLCHAIN_VERSION }}
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Set up Helm
+        uses: Azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          version: v3.19.0
+
       - name: Push Short SHA to ENV
         run: |
           github_sha_hash=${{ github.sha }}
@@ -389,6 +414,12 @@ jobs:
       - name: Publish dev release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REVAER_ENABLE_HELM_RELEASE_ASSETS: "1"
+          HELM_GPG_PRIVATE: ${{ secrets.HELM_GPG_PRIVATE }}
+          HELM_GPG_PUBLIC: ${{ secrets.HELM_GPG_PUBLIC }}
+          ARTIFACTHUB_REPOSITORY_ID: ${{ vars.ARTIFACTHUB_REPOSITORY_ID }}
+          ARTIFACTHUB_OWNER_NAME: ${{ vars.ARTIFACTHUB_OWNER_NAME }}
+          ARTIFACTHUB_OWNER_EMAIL: ${{ vars.ARTIFACTHUB_OWNER_EMAIL }}
         run: just release-dev
 
       - name: Read release info
@@ -403,6 +434,12 @@ jobs:
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
+      - name: Upload Helm release assets
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: revaer-helm-${{ steps.release-info.outputs.tag }}
+          path: dist/helm
+
   publish-release:
     name: Publish Release
     runs-on: ubuntu-latest
@@ -414,6 +451,17 @@ jobs:
       contents: write # needed to create a release
 
     steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: ./.github/actions/setup-revaer
+        with:
+          toolchain: ${{ vars.RUST_TOOLCHAIN_VERSION }}
+
+      - name: Set up Helm
+        uses: Azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          version: v3.19.0
+
       - name: Push Short SHA to ENV
         run: |
           github_sha_hash=${{ github.sha }}
@@ -426,6 +474,25 @@ jobs:
           name: revaer-release-${{ env.RELEASE_SHA_SHORT }}
           path: dist
 
+      - name: Package Helm chart
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          HELM_GPG_PRIVATE: ${{ secrets.HELM_GPG_PRIVATE }}
+          HELM_GPG_PUBLIC: ${{ secrets.HELM_GPG_PUBLIC }}
+          ARTIFACTHUB_REPOSITORY_ID: ${{ vars.ARTIFACTHUB_REPOSITORY_ID }}
+          ARTIFACTHUB_OWNER_NAME: ${{ vars.ARTIFACTHUB_OWNER_NAME }}
+          ARTIFACTHUB_OWNER_EMAIL: ${{ vars.ARTIFACTHUB_OWNER_EMAIL }}
+        run: |
+          set -euo pipefail
+          chart_version="${RELEASE_TAG#v}"
+          just helm-package "${chart_version}" "${RELEASE_TAG}"
+
+      - name: Upload Helm release assets
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: revaer-helm-${{ github.ref_name }}
+          path: dist/helm
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2.6.1
         with:
@@ -437,8 +504,93 @@ jobs:
             dist/revaer-app
             dist/revaer-app.sha256
             dist/openapi.json
+            dist/helm/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-dev-helm:
+    name: Publish Dev Helm Chart
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: release-dev
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: ./.github/actions/setup-revaer
+        with:
+          toolchain: ${{ vars.RUST_TOOLCHAIN_VERSION }}
+
+      - name: Set up Helm
+        uses: Azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          version: v3.19.0
+
+      - name: Set up ORAS
+        uses: oras-project/setup-oras@ca28077386065e263c03428f4ae0c09024817c93 # v1.2.0
+        with:
+          version: 1.2.2
+
+      - name: Download Helm release assets
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: revaer-helm-${{ needs.release-dev.outputs.release_tag }}
+          path: dist/helm
+
+      - name: Publish dev Helm chart
+        env:
+          RELEASE_VERSION: ${{ needs.release-dev.outputs.release_version }}
+          RELEASE_TAG: ${{ needs.release-dev.outputs.release_tag }}
+          HELM_API_KEY_ID: ${{ secrets.HELM_API_KEY_ID }}
+          HELM_API_KEY_SECRET: ${{ secrets.HELM_API_KEY_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${RELEASE_VERSION}" ] || [ -z "${RELEASE_TAG}" ]; then
+            echo "Missing dev release version or tag." >&2
+            exit 1
+          fi
+          REVAER_HELM_SKIP_PACKAGE=1 just helm-publish "${RELEASE_VERSION}" "${RELEASE_TAG}"
+
+  publish-release-helm:
+    name: Publish Release Helm Chart
+    runs-on: ubuntu-latest
+    needs: publish-release
+    if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-')
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: ./.github/actions/setup-revaer
+        with:
+          toolchain: ${{ vars.RUST_TOOLCHAIN_VERSION }}
+
+      - name: Set up Helm
+        uses: Azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          version: v3.19.0
+
+      - name: Set up ORAS
+        uses: oras-project/setup-oras@ca28077386065e263c03428f4ae0c09024817c93 # v1.2.0
+        with:
+          version: 1.2.2
+
+      - name: Download Helm release assets
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: revaer-helm-${{ github.ref_name }}
+          path: dist/helm
+
+      - name: Publish release Helm chart
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          HELM_API_KEY_ID: ${{ secrets.HELM_API_KEY_ID }}
+          HELM_API_KEY_SECRET: ${{ secrets.HELM_API_KEY_SECRET }}
+        run: |
+          set -euo pipefail
+          chart_version="${RELEASE_TAG#v}"
+          REVAER_HELM_SKIP_PACKAGE=1 just helm-publish "${chart_version}" "${RELEASE_TAG}"
 
   load-matrix:
     name: Load Matrix

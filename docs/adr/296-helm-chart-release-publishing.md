@@ -1,0 +1,58 @@
+# Helm chart release publishing
+
+- Status: Accepted
+- Date: 2026-04-12
+- Context:
+  - What problem are we solving?
+    - Revaer shipped binary and image release automation, but it had no Helm chart release path for dev prereleases or stable tags.
+    - Consumers needed a signed chart package, values schema validation, OCI publication, and Artifact Hub metadata aligned to the same version boundary as the existing release packages.
+  - What constraints or forces shape the decision?
+    - `AGENTS.md` requires release gates to flow through `just`, documentation and instruction files must stay aligned with workflow changes, and release automation must remain deterministic and low-dependency.
+- Decision:
+  - Summary of the choice made.
+    - Add a first-party `charts/revaer` chart with a values schema and Artifact Hub metadata, package it through `just helm-package`, publish it through `just helm-publish`, and wire both dev prereleases and stable tag releases so the chart version matches the corresponding GitHub release version exactly.
+    - Use Helm provenance signing with the supplied GPG key pair, attach the chart archive, `.prov` file, and public key to GitHub releases, then publish the exact packaged chart artifact to `oci://ghcr.io/revaer/charts/revaer`.
+  - Alternatives considered.
+    - Publish only stable charts and skip dev prereleases.
+    - Repackage the chart independently during OCI publication.
+    - Use Cosign-only OCI signing instead of Helm provenance files.
+- Consequences:
+  - Positive outcomes.
+    - Dev prereleases and stable releases now expose a signed Helm chart at the same version boundary as the existing release packages.
+    - Chart consumers can validate values with `values.schema.json` and verify release packages with Helm provenance before install.
+    - Artifact Hub metadata is published alongside the OCI chart, and the chart package now carries the Revaer logo plus the sign-key reference needed for provenance verification.
+  - Risks or trade-offs.
+    - Release workflows now depend on Helm, ORAS, and GPG setup.
+    - Artifact Hub repository and organization branding, plus `Verified publisher` and `official` badges, still require manual control-plane approval after repository registration.
+- Follow-up:
+  - Implementation tasks.
+    - Register the OCI repository in Artifact Hub, set the repository ID in workflow configuration, use `revaer-logo.png` for the repository and organization branding there, and request verified publisher / official status for the Revaer organization when operational ownership is ready.
+    - Monitor prerelease and stable chart publication for drift between GitHub release assets and OCI-published artifacts.
+  - Review checkpoints.
+    - Revisit the chart defaults when the container image location or first-run setup flow changes.
+
+## Task Record
+
+- Motivation:
+  - Deliver a supported Helm installation path without creating a second, version-skewed release pipeline outside the existing dev and stable release flow.
+- Design notes:
+  - The chart packages once per release boundary and reuses that packaged artifact for OCI publication so the `.tgz` attached to GitHub releases matches what is pushed to the OCI registry.
+  - Dev prereleases package the chart during semantic-release prepare so the chart version matches the semantic-release version. Stable tags package from the tag name in the release workflow.
+  - Signing uses Helm provenance files with `HELM_GPG_PRIVATE` and `HELM_GPG_PUBLIC`; registry publication uses `HELM_API_KEY_ID` and `HELM_API_KEY_SECRET`.
+  - Chart metadata includes the Revaer logo and sign-key reference. Artifact Hub repository and organization branding, plus verified publisher and official badging, remain manual Artifact Hub actions because they require repository registration and approval.
+- Test coverage summary:
+  - `just helm-lint`
+  - `just ci`
+  - `just ui-e2e`
+- Observability updates:
+  - None in runtime services. Release visibility improves through additional GitHub release assets and OCI chart metadata.
+- Status-doc validation:
+  - Re-checked and updated `docs/release-checklist.md` and the chart README to match the new Helm publication flow and manual Artifact Hub follow-up requirements.
+- Risk & rollback plan:
+  - If chart publication regresses, remove the Helm workflow jobs and release scripts, delete the chart assets from release automation, and fall back to the existing binary/image-only release path while preserving the rest of CI.
+- Dependency rationale:
+  - No repository dependencies were added. The change uses Helm, ORAS, and GPG as workflow/runtime tools only because Helm provenance and OCI publication require them.
+- Stale-policy check:
+  - Reviewed `AGENTS.md` and `.github/instructions/devops.instructions.md`.
+  - Drift found: the devops instructions did not describe Helm chart packaging, signed release assets, or the separation between GPG signing material and Helm registry credentials.
+  - Removed stale references by updating the devops instructions and release checklist so the workflow changes have matching policy and operator documentation.

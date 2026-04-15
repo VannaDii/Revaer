@@ -1,0 +1,4 @@
+# Artifact Hub repository metadata file.
+#
+# Release packaging appends `owners` and `repositoryID` when those values are
+# configured in workflow variables.

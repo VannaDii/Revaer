@@ -16,6 +16,11 @@ const assets = [
     path: path.join(root, 'dist', 'openapi.json'),
     label: 'openapi.json',
   },
+  path.join(root, 'dist', 'helm', '*.tgz'),
+  path.join(root, 'dist', 'helm', '*.tgz.prov'),
+  path.join(root, 'dist', 'helm', 'revaer-helm-public.asc'),
+  path.join(root, 'dist', 'helm', 'revaer-helm-public.gpg'),
+  path.join(root, 'dist', 'helm', 'artifacthub-repo.yml'),
 ];
 
 module.exports = {
@@ -43,7 +48,7 @@ module.exports = {
       '@semantic-release/exec',
       {
         prepareCmd:
-          'node release/scripts/write-release-info.js "${nextRelease.version}" "${nextRelease.gitTag}"',
+          'node release/scripts/write-release-info.js "${nextRelease.version}" "${nextRelease.gitTag}" && if [ "${REVAER_ENABLE_HELM_RELEASE_ASSETS:-0}" = "1" ]; then bash release/scripts/helm-package.sh "${nextRelease.version}" "${nextRelease.gitTag}"; fi',
       },
     ],
     [

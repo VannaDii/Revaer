@@ -1,0 +1,21 @@
+{{- if and .Values.configPersistence.enabled (not .Values.configPersistence.existingClaim) -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ printf "%s-config" (include "revaer.fullname" .) }}
+  labels:
+    {{- include "revaer.labels" . | nindent 4 }}
+  {{- with .Values.configPersistence.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  accessModes:
+    {{- toYaml .Values.configPersistence.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.configPersistence.size }}
+  {{- if .Values.configPersistence.storageClassName }}
+  storageClassName: {{ .Values.configPersistence.storageClassName | quote }}
+  {{- end }}
+{{- end }}

@@ -204,6 +204,19 @@ licenses:
 api-export:
     cargo run -p revaer-api --bin generate_openapi
 
+helm-lint:
+    if ! command -v helm >/dev/null 2>&1; then \
+        echo "helm is required to lint the chart"; \
+        exit 1; \
+    fi
+    REVAER_HELM_SIGN=0 bash release/scripts/helm-package.sh 0.0.0-dev.0 v0.0.0-dev.0
+
+helm-package chart_version app_version:
+    bash release/scripts/helm-package.sh "{{chart_version}}" "{{app_version}}"
+
+helm-publish chart_version app_version:
+    bash release/scripts/helm-publish.sh "{{chart_version}}" "{{app_version}}"
+
 release-dev:
     npm --prefix release ci
     node release/node_modules/.bin/semantic-release --extends ./release/release.config.js
@@ -216,7 +229,7 @@ validate:
     DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}"
     export REVAER_TEST_DATABASE_URL DATABASE_URL
     just db-start
-    just fmt lint instruction-drift check-assets udeps audit deny ui-build test test-features-min cov
+    just fmt lint helm-lint instruction-drift check-assets udeps audit deny ui-build test test-features-min cov
 
 ci: validate
     just build-release

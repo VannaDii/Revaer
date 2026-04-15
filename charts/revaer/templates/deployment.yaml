@@ -1,0 +1,130 @@
+{{- if and (not .Values.database.existingSecret) (not .Values.database.url) -}}
+{{- fail "Either database.url or database.existingSecret must be set." -}}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "revaer.fullname" . }}
+  labels:
+    {{- include "revaer.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "revaer.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "revaer.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- $secretChecksum := include "revaer.databaseSecretChecksum" . | trim }}
+      {{- if or .Values.podAnnotations $secretChecksum }}
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if $secretChecksum }}
+        checksum/database-secret: {{ $secretChecksum | quote }}
+        {{- end }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "revaer.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: revaer
+          image: "{{ .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "revaer.databaseSecretName" . }}
+                  key: {{ .Values.database.secretKey }}
+            - name: RUST_LOG
+              value: info
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: api
+              containerPort: 7070
+              protocol: TCP
+            - name: ui
+              containerPort: 8080
+              protocol: TCP
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - curl -fsS http://127.0.0.1:7070/health >/dev/null
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - curl -fsS http://127.0.0.1:7070/health >/dev/null
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          startupProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - curl -fsS http://127.0.0.1:7070/health >/dev/null
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 18
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: config
+          {{- if .Values.configPersistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-config" (include "revaer.fullname" .)) .Values.configPersistence.existingClaim }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: data
+          {{- if .Values.dataPersistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-data" (include "revaer.fullname" .)) .Values.dataPersistence.existingClaim }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
