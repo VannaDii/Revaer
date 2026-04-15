@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "generated": "2026-04-13T00:08:10.633582422+00:00",
+  "generated": "2026-04-15T00:27:45.754937392+00:00",
   "entries": [
     {
       "id": "adr/001-configuration-revisioning",
@@ -2757,6 +2757,24 @@
       "href": "/adr/295-dependency-bump-rollup/"
     },
     {
+      "id": "adr/296-helm-chart-release-publishing",
+      "title": "Helm chart release publishing",
+      "summary": "Status: Accepted Date: 2026-04-12 Context: What problem are we solving? Revaer shipped binary and image release automation, but it had no Helm chart release path for dev prereleases or stable tags. Consumers needed a signed chart package, values schema validation, OCI publication, and Artifact Hub metadata aligned to the same version boundary as the existing release packages. What constraints or forces shape the decision? AGENTS.md requires release gates to flow through just, documentation and instruction files must stay aligned with workflow changes, and release automation must remain deterministic and low-dependency. Decision: Summary of the choice made. Add a first-party charts/revaer",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/296-helm-chart-release-publishing/"
+    },
+    {
+      "id": "adr/297-helm-feedback-and-sonar-closeout",
+      "title": "Helm Feedback And Sonar Closeout",
+      "summary": "Status: Accepted Date: 2026-04-13 Context: PR 23 added Helm packaging and publishing, then picked up follow-up review comments and 21 Sonar shell issues in the release scripts. The release flow already relied on signed chart artifacts and separate Artifact Hub repository metadata, so the cleanup needed to preserve that contract rather than redesign it. Decision: Harden the Helm shell scripts in place by adopting explicit Bash conditionals, clearer helper-local variables, and explicit helper returns where Sonar flagged maintainability issues. Tighten the release path by excluding artifacthub-repo.yml from packaged chart tarballs, exporting temporary secret key material with owner-only permissions, and verifying",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/297-helm-feedback-and-sonar-closeout/"
+    },
+    {
       "id": "adr/index",
       "title": "ADRs",
       "summary": "Create a new ADR using the template in docs/adr/template.md. Give it a sequential identifier (e.g., 001, 002) and a concise title. Capture context, decision, consequences, and follow-up actions. Append the new ADR entry to the end of the Catalogue list above. Append the same entry under ADRs in docs/SUMMARY.md, keeping it nested so the sidebar stays collapsed. Reference ADRs from code comments or docs where the decision applies.",
@@ -2966,7 +2984,7 @@
     {
       "id": "release-checklist",
       "title": "Phase One Release Checklist",
-      "summary": "**Branch Hygiene** Ensure main is green (CI pipeline complete). Review outstanding ADRs and docs for freshness. **Build & Test** just ci just build-release just api-export **Artefact Verification** Binary: target/release/revaer-app Checksum: sha256sum target/release/revaer-app OpenAPI: docs/api/openapi.json Docker image: just docker-build && just docker-scan Published GHCR image: verify Trivy scan, SBOM/provenance attestations, and Cosign signatures from the image workflow **Runbook Execution** Run just runbook Follow the remaining manual-only drills in docs/runbook.md Archive CLI telemetry, /metrics, /health/full snapshots. **Documentation Refresh** Verify ADRs 005–007 reflect current design. Update user guides (docs/api/guides/*.md) with any behavioural changes. **Tag & Publish** Create annotated tag: git tag -a vX.Y.Z",
+      "summary": "**Branch Hygiene** Ensure main is green (CI pipeline complete). Review outstanding ADRs and docs for freshness. **Build & Test** just ci just build-release just api-export **Artefact Verification** Binary: target/release/revaer-app Checksum: sha256sum target/release/revaer-app OpenAPI: docs/api/openapi.json Helm chart: dist/helm/revaer-<version>.tgz Helm provenance: dist/helm/revaer-<version>.tgz.prov Helm public key: dist/helm/revaer-helm-public.asc Helm public keyring: dist/helm/revaer-helm-public.gpg Docker image: just docker-build && just docker-scan Published GHCR image: verify Trivy scan, SBOM/provenance attestations, and Cosign signatures from the image workflow Published OCI chart: verify oci://ghcr.io/revaer/charts/revaer:<version> plus the artifacthub.io metadata tag and helm verify against the published public key **Runbook Execution** Run just runbook Follow the remaining manual-only drills in docs/runbook.md",
       "tags": [],
       "href": "/release-checklist/"
     },
