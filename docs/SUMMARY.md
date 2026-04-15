@@ -327,3 +327,4 @@
     -   [295: Dependency bump rollup](adr/295-dependency-bump-rollup.md)
     -   [296: Helm chart release publishing](adr/296-helm-chart-release-publishing.md)
     -   [297: Helm feedback and Sonar closeout](adr/297-helm-feedback-and-sonar-closeout.md)
+    -   [298: CI workflow permissions regression](adr/298-ci-workflow-permissions-regression.md)
