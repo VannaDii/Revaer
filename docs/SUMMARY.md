@@ -330,3 +330,4 @@
     -   [298: CI workflow permissions regression](adr/298-ci-workflow-permissions-regression.md)
     -   [299: Trivy config baseline](adr/299-trivy-config-baseline.md)
     -   [300: Trivy container and Sonar PGSQL config](adr/300-trivy-container-and-sonar-pgsql-config.md)
+    -   [301: Security dependency refresh for PR 25](adr/301-security-dependency-refresh-for-pr-25.md)

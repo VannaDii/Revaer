@@ -1,4 +1,5 @@
 RUSTSEC-2024-0370
 RUSTSEC-2025-0141
-# ADR 286 tracks RUSTSEC-2026-0097; remove this ignore once upstream dependencies no longer resolve to affected rand releases.
+# ADR 301 tracks the remaining RUSTSEC-2026-0097 exposure; remove this ignore once
+# upstream dependencies no longer resolve to rand 0.8.5 via sqlx-postgres.
 RUSTSEC-2026-0097
