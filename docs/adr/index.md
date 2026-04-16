@@ -310,3 +310,5 @@
 -   [296](296-helm-chart-release-publishing.md) – Helm chart release publishing
 -   [297](297-helm-feedback-and-sonar-closeout.md) – Helm feedback and Sonar closeout
 -   [298](298-ci-workflow-permissions-regression.md) – CI workflow permissions regression
+-   [299](299-trivy-config-baseline.md) – Trivy config baseline
+-   [300](300-trivy-container-and-sonar-pgsql-config.md) – Trivy container and Sonar PGSQL config

@@ -24,6 +24,7 @@ These are the repo-specific guidelines for using the SonarQube MCP server with R
 # Revaer Sonar Workflow
 
 - Revaer versions Sonar analysis scope in `sonar-project.properties`. Treat that file as the source of truth for authored-vs-generated scope, coverage exclusions, and duplication exclusions.
+- Revaer maps PostgreSQL procedure suffixes such as `.sql`, `.pgsql`, and `.plpgsql` into Sonar's PL/SQL analyzer because SonarCloud does not offer a PostgreSQL-specific dialect switch in this repo path. Keep that suffix mapping explicit in `sonar-project.properties` when PostgreSQL file naming changes.
 - Rust unit and integration tests may live under `src/**/tests*` as well as crate-level `tests/`; keep those test paths out of Sonar duplication gates so the PR quality signal stays focused on first-party production code.
 - Follow the repo-wide external action versioning rule in `.github/instructions/devops.instructions.md` when editing `.github/workflows/sonar.yml`. Do not restate a conflicting Sonar-only pinning rule here.
 - Revaer uses Sonar as a strict merge-control signal on pull requests. Prefer PR quality-gate status and decoration over scanner-side waiting in PR workflows.
