@@ -1,0 +1,29 @@
+# Revaer's baseline Trivy policy. CI workflow steps may still override
+# report formatting, output paths, and exit behavior per job.
+image:
+  image-config-scanners:
+    - misconfig
+    - secret
+  source:
+    - remote
+    - docker
+    - containerd
+    - podman
+
+pkg:
+  types:
+    - os
+    - library
+
+scan:
+  scanners:
+    - vuln
+    - misconfig
+    - secret
+
+severity:
+  - HIGH
+  - CRITICAL
+
+vulnerability:
+  ignore-unfixed: false

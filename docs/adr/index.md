@@ -309,3 +309,11 @@
 -   [295](295-dependency-bump-rollup.md) – Dependency bump rollup
 -   [296](296-helm-chart-release-publishing.md) – Helm chart release publishing
 -   [297](297-helm-feedback-and-sonar-closeout.md) – Helm feedback and Sonar closeout
+-   [298](298-ci-workflow-permissions-regression.md) – CI workflow permissions regression
+-   [299](299-trivy-config-baseline.md) – Trivy config baseline
+-   [300](300-trivy-container-and-sonar-pgsql-config.md) – Trivy container and Sonar PGSQL config
+-   [301](301-security-dependency-refresh-for-pr-25.md) – Security dependency refresh for PR 25
+-   [302](302-pr-validation-and-main-release-workflow-split.md) – PR validation and main release workflow split
+-   [303](303-release-tag-image-job-dependency-split.md) – Release tag image job dependency split
+-   [304](304-pr-25-deny-exception-and-sonar-hotspot-closeout.md) – PR 25 deny exception and Sonar hotspot closeout
+-   [305](305-pr-25-prerelease-tag-release-guard.md) – PR 25 prerelease tag release guard
