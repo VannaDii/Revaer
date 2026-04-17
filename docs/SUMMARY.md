@@ -333,3 +333,4 @@
     -   [301: Security dependency refresh for PR 25](adr/301-security-dependency-refresh-for-pr-25.md)
     -   [302: PR validation and main release workflow split](adr/302-pr-validation-and-main-release-workflow-split.md)
     -   [303: Release tag image job dependency split](adr/303-release-tag-image-job-dependency-split.md)
+    -   [304: PR 25 deny exception and Sonar hotspot closeout](adr/304-pr-25-deny-exception-and-sonar-hotspot-closeout.md)

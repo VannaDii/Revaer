@@ -305,7 +305,6 @@ jobs:
       version_tag: ${{ needs.release-dev.outputs.release_tag }}
       alias_tag: dev
       include_sha_tag: true
-    secrets: inherit
 
   build-images-release:
     name: Build Release Images
@@ -323,4 +322,3 @@ jobs:
       version_tag: ${{ github.ref_name }}
       alias_tag: latest
       include_sha_tag: true
-    secrets: inherit
