@@ -313,3 +313,4 @@
 -   [299](299-trivy-config-baseline.md) – Trivy config baseline
 -   [300](300-trivy-container-and-sonar-pgsql-config.md) – Trivy container and Sonar PGSQL config
 -   [301](301-security-dependency-refresh-for-pr-25.md) – Security dependency refresh for PR 25
+-   [302](302-pr-validation-and-main-release-workflow-split.md) – PR validation and main release workflow split
