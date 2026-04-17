@@ -316,3 +316,4 @@
 -   [302](302-pr-validation-and-main-release-workflow-split.md) – PR validation and main release workflow split
 -   [303](303-release-tag-image-job-dependency-split.md) – Release tag image job dependency split
 -   [304](304-pr-25-deny-exception-and-sonar-hotspot-closeout.md) – PR 25 deny exception and Sonar hotspot closeout
+-   [305](305-pr-25-prerelease-tag-release-guard.md) – PR 25 prerelease tag release guard
