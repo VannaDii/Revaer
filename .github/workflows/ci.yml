@@ -289,29 +289,38 @@ jobs:
             echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"
           fi
 
-  build-images:
-    name: Build Images
+  build-images-dev:
+    name: Build Dev Images
     needs: [load-matrix, release-dev]
     permissions:
       contents: read
       packages: write
       security-events: write
       id-token: write
-    if: |
-      (github.ref == 'refs/heads/main' &&
-        needs.release-dev.result == 'success' &&
-        needs.load-matrix.result == 'success') ||
-      (startsWith(github.ref, 'refs/tags/') &&
-        !contains(github.ref_name, '-') &&
-        needs.load-matrix.result == 'success')
+    if: github.ref == 'refs/heads/main' && needs.release-dev.result == 'success' && needs.load-matrix.result == 'success'
     uses: ./.github/workflows/build-images.yml
     with:
       matrix: ${{ needs.load-matrix.outputs.matrix }}
       image_name: revaer
-      version_tag: >-
-        ${{ needs.release-dev.outputs.release_tag != '' &&
-            needs.release-dev.outputs.release_tag ||
-            github.ref_name }}
-      alias_tag: ${{ github.ref == 'refs/heads/main' && 'dev' || 'latest' }}
+      version_tag: ${{ needs.release-dev.outputs.release_tag }}
+      alias_tag: dev
+      include_sha_tag: true
+    secrets: inherit
+
+  build-images-release:
+    name: Build Release Images
+    needs: load-matrix
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+      id-token: write
+    if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-') && needs.load-matrix.result == 'success'
+    uses: ./.github/workflows/build-images.yml
+    with:
+      matrix: ${{ needs.load-matrix.outputs.matrix }}
+      image_name: revaer
+      version_tag: ${{ github.ref_name }}
+      alias_tag: latest
       include_sha_tag: true
     secrets: inherit

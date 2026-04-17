@@ -332,3 +332,4 @@
     -   [300: Trivy container and Sonar PGSQL config](adr/300-trivy-container-and-sonar-pgsql-config.md)
     -   [301: Security dependency refresh for PR 25](adr/301-security-dependency-refresh-for-pr-25.md)
     -   [302: PR validation and main release workflow split](adr/302-pr-validation-and-main-release-workflow-split.md)
+    -   [303: Release tag image job dependency split](adr/303-release-tag-image-job-dependency-split.md)

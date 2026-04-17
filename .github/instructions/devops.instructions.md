@@ -19,6 +19,7 @@ applyTo:
 - Workflow build, lint, test, coverage, and release gates must call `just` recipes. Do not reintroduce raw `cargo` pipelines into CI jobs.
 - `pr.yml` is the sole pull-request validation workflow. Keep formatting, lint, test, audit, deny, coverage, E2E, and other verification gates there so pull requests are validated exactly once before merge.
 - `ci.yml` is the post-merge and tag-release workflow. Limit it to release-artifact, publish, and image-build activity for `main` pushes and release tags; do not duplicate PR validation jobs there.
+- Release-tag image publication in `ci.yml` must not depend on `release-dev` or any other `main`-only job. Split dev and tag image publishing into separate jobs when their prerequisites differ.
 - Helm chart validation and publication must flow through `just helm-lint`, `just helm-package`, and `just helm-publish`. Do not add ad hoc packaging or registry-push shell blocks to workflows.
 - Workflow jobs that invoke `just helm-lint` must install `just` first through `./.github/actions/setup-revaer`; do not assume the runner image already provides it.
 - `just lint` runs `scripts/workflow-guardrails.sh`, which rejects unpinned external action refs and direct `${{ inputs.* }}` interpolation inside `run:` blocks.
