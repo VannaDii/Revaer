@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "generated": "2026-04-15T00:27:45.754937392+00:00",
+  "generated": "2026-04-17T20:53:22.542757854+00:00",
   "entries": [
     {
       "id": "adr/001-configuration-revisioning",
@@ -2773,6 +2773,78 @@
         "task-record"
       ],
       "href": "/adr/297-helm-feedback-and-sonar-closeout/"
+    },
+    {
+      "id": "adr/298-ci-workflow-permissions-regression",
+      "title": "CI Workflow Permissions Regression",
+      "summary": "Status: Accepted Date: 2026-04-14 Context: The Helm publishing work merged to main left .github/workflows/ci.yml with two permissions keys on the build-images caller job. GitHub Actions rejects duplicate keys at workflow-parse time, so the entire CI workflow failed before any jobs ran. Decision: Keep the original build-images caller permissions block and remove the duplicate lower block so the workflow remains valid YAML and preserves the scopes required by the reusable image-build workflow. Record the regression explicitly because workflow syntax failures bypass normal job-level validation and can break the default branch immediately. Consequences: CI parses and schedules again on main without changing",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/298-ci-workflow-permissions-regression/"
+    },
+    {
+      "id": "adr/299-trivy-config-baseline",
+      "title": "Trivy Config Baseline",
+      "summary": "Status: Accepted Date: 2026-04-16 Context: Revaer's image scan workflow uses Trivy, but the repository had no root trivy.yaml. Trivy automatically reads trivy.yaml from the current working directory, so keeping a repo-local baseline config makes the scan policy explicit and reusable across local and CI invocations. Decision: Add a root trivy.yaml that encodes Revaer's baseline Trivy scan posture. Keep the baseline conservative and aligned with existing image-scan behavior by scanning for vulnerabilities and secrets, restricting findings to HIGH and CRITICAL, and leaving unfixed vulnerabilities visible. Consequences: The repository now has a valid Trivy configuration file that local invocations and CI can",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/299-trivy-config-baseline/"
+    },
+    {
+      "id": "adr/300-trivy-container-and-sonar-pgsql-config",
+      "title": "Trivy Container And Sonar PGSQL Config",
+      "summary": "Status: Accepted Date: 2026-04-16 Context: Revaer now has a root trivy.yaml, but it only expressed generic scanner and severity settings. The repository's Sonar configuration documents PostgreSQL migration noise, yet it did not explicitly map PostgreSQL-oriented file suffixes such as .pgsql and .plpgsql into Sonar's available SQL analyzer path. Decision: Extend trivy.yaml with explicit container-image settings so image scans prefer remote registry artifacts, inspect both OS and library packages, and include image misconfiguration checks alongside vulnerability and secret scanning. Update sonar-project.properties to keep .sql mapped to PL/SQL and explicitly add .pgsql and .plpgsql suffixes, while leaving the existing PostgreSQL-noise exclusions and",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/300-trivy-container-and-sonar-pgsql-config/"
+    },
+    {
+      "id": "adr/301-security-dependency-refresh-for-pr-25",
+      "title": "Security Dependency Refresh For PR 25",
+      "summary": "Status: Accepted Date: 2026-04-16 Context: PR 25 was failing Run Audit on new rustls-webpki advisories and Check Deny on stale exception state. The repository also carried an older RUSTSEC-2026-0097 exception that needed to be re-evaluated against the live dependency graph rather than left untouched. Decision: Update rustls-webpki to 0.103.12 and refresh the rand 0.9 line to 0.9.4 in Cargo.lock. Keep the cargo audit ignore for RUSTSEC-2026-0097 only in .secignore, because rand 0.8.5 still arrives transitively through sqlx-postgres. Remove the stale cargo-deny advisory ignore for RUSTSEC-2026-0097 and update the duplicate-version skip entry from rand@0.9.2 to rand@0.9.4. Consequences: The PR's audit failures",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/301-security-dependency-refresh-for-pr-25/"
+    },
+    {
+      "id": "adr/302-pr-validation-and-main-release-workflow-split",
+      "title": "PR Validation And Main Release Workflow Split",
+      "summary": "Status: Accepted Date: 2026-04-16 Context: Both .github/workflows/pr.yml and .github/workflows/ci.yml were running the same validation graph on pull requests, which duplicated formatting, lint, test, coverage, audit, deny, and E2E work. The repository cannot merge directly to main, so pull requests are the enforced validation boundary before any post-merge or tag release activity happens. Decision: Keep all pull-request validation in .github/workflows/pr.yml. Restrict .github/workflows/ci.yml to release-only work for main pushes and stable tags: building release artifacts, publishing releases, publishing Helm charts, and building images. Update the devops instruction file to make the PR-validation-versus-release-workflow split explicit. Consequences: Pull requests no longer pay for two",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/302-pr-validation-and-main-release-workflow-split/"
+    },
+    {
+      "id": "adr/303-release-tag-image-job-dependency-split",
+      "title": "Release Tag Image Job Dependency Split",
+      "summary": "Status: Accepted Date: 2026-04-16 Context: PR 25 split pull-request validation into pr.yml and kept post-merge and tag release work in ci.yml. The remaining build-images job still declared needs: [load-matrix, release-dev], even though release-dev only runs on main, which meant stable tag pushes could skip image publication before the tag branch of the job condition was evaluated. Decision: Split image publication in ci.yml into build-images-dev for main pushes and build-images-release for stable tags. Keep the shared reusable workflow and matrix source, but give the dev and release jobs separate prerequisites and tags. Update the devops instruction file to record that tag",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/303-release-tag-image-job-dependency-split/"
+    },
+    {
+      "id": "adr/304-pr-25-deny-exception-and-sonar-hotspot-closeout",
+      "title": "PR 25 Deny Exception And Sonar Hotspot Closeout",
+      "summary": "Status: Accepted Date: 2026-04-16 Context: PR 25 still had two failing external checks after the workflow split work: Check Deny and SonarCloud Code Analysis. The GitHub Actions log for Check Deny showed cargo-deny still reports RUSTSEC-2026-0097 through the live dependency graph, while SonarCloud reported a single hotspot on .github/workflows/ci.yml for passing inherited secrets into the reusable image-build workflow. Decision: Restore the temporary RUSTSEC-2026-0097 ignore in deny.toml so cargo-deny matches the already-documented unresolved sqlx-postgres -> rand 0.8.5 path. Remove secrets: inherit from the release-only build-images-dev and build-images-release reusable-workflow caller jobs because those jobs do not require repository secrets beyond the default",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/304-pr-25-deny-exception-and-sonar-hotspot-closeout/"
+    },
+    {
+      "id": "adr/305-pr-25-prerelease-tag-release-guard",
+      "title": "PR 25 Prerelease Tag Release Guard",
+      "summary": "Status: Accepted Date: 2026-04-16 Context: After splitting PR validation and release-only workflow responsibilities, ci.yml still allowed build-release to run on prerelease tags because the workflow trigger matched v*.*.* and the stable-tag filter only existed on downstream publish jobs. PR 25 had an unresolved review thread calling out that prerelease tags such as v1.2.3-rc.1 could still build and upload stable release artifacts even though later publish jobs correctly skipped them. Decision: Add a job-level guard on build-release so prerelease tags are excluded at the point stable release artifacts would otherwise be created. Update the devops instruction file to require stable-tag exclusion",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/305-pr-25-prerelease-tag-release-guard/"
     },
     {
       "id": "adr/index",
