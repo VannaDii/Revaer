@@ -335,3 +335,4 @@
     -   [303: Release tag image job dependency split](adr/303-release-tag-image-job-dependency-split.md)
     -   [304: PR 25 deny exception and Sonar hotspot closeout](adr/304-pr-25-deny-exception-and-sonar-hotspot-closeout.md)
     -   [305: PR 25 prerelease tag release guard](adr/305-pr-25-prerelease-tag-release-guard.md)
+    -   [306: Semantic release prepare template fix](adr/306-semantic-release-prepare-template-fix.md)
