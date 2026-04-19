@@ -68,6 +68,9 @@ printf '%s\n' "${HELM_API_KEY_SECRET}" | oras login "${registry_host}" \
     --password-stdin
 
 helm push "${chart_path}" "oci://${registry_host}/${registry_namespace}"
-oras push "${metadata_ref}" \
-    --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
-    "${metadata_path}:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml"
+(
+    cd "${dist_dir}"
+    oras push "${metadata_ref}" \
+        --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
+        "artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml"
+)

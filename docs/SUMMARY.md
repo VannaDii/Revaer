@@ -336,3 +336,4 @@
     -   [304: PR 25 deny exception and Sonar hotspot closeout](adr/304-pr-25-deny-exception-and-sonar-hotspot-closeout.md)
     -   [305: PR 25 prerelease tag release guard](adr/305-pr-25-prerelease-tag-release-guard.md)
     -   [306: Semantic release prepare template fix](adr/306-semantic-release-prepare-template-fix.md)
+    -   [307: CI ORAS setup action refresh](adr/307-ci-oras-setup-action-refresh.md)

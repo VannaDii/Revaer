@@ -15,10 +15,14 @@ applyTo:
 - External GitHub actions in modified files must pin the exact upstream commit SHA. Do not use floating branch refs such as `main`, `master`, or `trunk`, and do not rely on mutable release tags alone.
 - When updating an external action reference, resolve the chosen stable upstream release tag to its full 40-character commit SHA at the time of the change. Keep the originating tag in an inline comment when practical so upgrades stay auditable.
 - Verify action usage against the action's current official documentation when changing its major or minor release line. Preserve documented step ordering and supported inputs.
+- ORAS setup jobs in workflows must stay on a node24-capable `oras-project/setup-oras` release line and request an ORAS CLI version that the pinned action release explicitly supports.
+- ORAS publish commands in release scripts must avoid absolute on-disk layer paths unless path validation is intentionally disabled; prefer running from the asset directory and pushing relative artifact names.
 - Workflows that install Rust toolchains must use the repository's configured toolchain source of truth rather than hard-coded ad hoc channels unless a documented exception is required.
 - Workflow build, lint, test, coverage, and release gates must call `just` recipes. Do not reintroduce raw `cargo` pipelines into CI jobs.
 - `pr.yml` is the sole pull-request validation workflow. Keep formatting, lint, test, audit, deny, coverage, E2E, and other verification gates there so pull requests are validated exactly once before merge.
 - `ci.yml` is the post-merge and tag-release workflow. Limit it to release-artifact, publish, and image-build activity for `main` pushes and release tags; do not duplicate PR validation jobs there.
+- Manual release verification belongs in dedicated `workflow_dispatch` workflows, not in `pr.yml`, and should reuse the same `just` entrypoints and pinned third-party actions as the release path they exercise.
+- Manual workflows that publish PR-scoped dev Helm artifacts should encode the PR number into the default prerelease version so registry output is traceable back to the reviewed change.
 - Release-tag image publication in `ci.yml` must not depend on `release-dev` or any other `main`-only job. Split dev and tag image publishing into separate jobs when their prerequisites differ.
 - Stable tag activity in `ci.yml` must exclude prerelease tags consistently at the job boundary, not only in downstream publish jobs. Do not let prerelease tags build stable release artifacts that the later jobs refuse to publish.
 - Reusable-workflow caller jobs must not use `secrets: inherit` unless the callee truly requires repository secrets. Prefer the default GitHub token plus explicit job permissions, and pass named secrets only when the callee consumes them.

@@ -1,0 +1,98 @@
+name: Helm OCI Verify
+
+on:
+  workflow_dispatch:
+    inputs:
+      chart_version:
+        description: Optional chart version override for manual verification.
+        required: false
+        type: string
+      app_version:
+        description: Optional app version override for manual verification.
+        required: false
+        type: string
+
+concurrency:
+  group: helm-oci-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+  pull-requests: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  verify-helm-oci:
+    name: Verify Helm OCI Publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: ./.github/actions/setup-revaer
+        with:
+          toolchain: ${{ vars.RUST_TOOLCHAIN_VERSION }}
+
+      - name: Set up Helm
+        uses: Azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          version: v3.19.0
+
+      - name: Set up ORAS
+        uses: oras-project/setup-oras@38de303aac69abb66f3e6255b7198bff35f323e3 # v2.0.0
+        with:
+          version: 1.3.1
+
+      - name: Resolve verification versions
+        id: versions
+        env:
+          INPUT_CHART_VERSION: ${{ inputs.chart_version }}
+          INPUT_APP_VERSION: ${{ inputs.app_version }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          chart_version="${INPUT_CHART_VERSION}"
+          app_version="${INPUT_APP_VERSION}"
+          pr_number="$(gh api "repos/${GITHUB_REPOSITORY}/pulls?head=${GITHUB_REPOSITORY_OWNER}:${GITHUB_REF_NAME}&state=open" --jq '.[0].number // empty')"
+
+          if [ -z "${chart_version}" ]; then
+            if [ -z "${pr_number}" ]; then
+              echo "Unable to resolve an open PR number for ${GITHUB_REF_NAME}; provide chart_version explicitly." >&2
+              exit 1
+            fi
+            chart_version="0.0.0-dev.pr${pr_number}.${GITHUB_RUN_NUMBER}"
+          fi
+
+          if [ -z "${app_version}" ]; then
+            if [ -n "${pr_number}" ]; then
+              app_version="pr-${pr_number}-${GITHUB_SHA::7}"
+            else
+              app_version="verify-${GITHUB_SHA::7}"
+            fi
+          fi
+
+          echo "pr_number=${pr_number}" >> "$GITHUB_OUTPUT"
+          echo "chart_version=${chart_version}" >> "$GITHUB_OUTPUT"
+          echo "app_version=${app_version}" >> "$GITHUB_OUTPUT"
+
+      - name: Package Helm chart
+        env:
+          HELM_GPG_PRIVATE: ${{ secrets.HELM_GPG_PRIVATE }}
+          HELM_GPG_PUBLIC: ${{ secrets.HELM_GPG_PUBLIC }}
+          ARTIFACTHUB_REPOSITORY_ID: ${{ vars.ARTIFACTHUB_REPOSITORY_ID }}
+          ARTIFACTHUB_OWNER_NAME: ${{ vars.ARTIFACTHUB_OWNER_NAME }}
+          ARTIFACTHUB_OWNER_EMAIL: ${{ vars.ARTIFACTHUB_OWNER_EMAIL }}
+        run: |
+          set -euo pipefail
+          just helm-package "${{ steps.versions.outputs.chart_version }}" "${{ steps.versions.outputs.app_version }}"
+
+      - name: Publish Helm chart
+        env:
+          HELM_API_KEY_ID: ${{ secrets.HELM_API_KEY_ID }}
+          HELM_API_KEY_SECRET: ${{ secrets.HELM_API_KEY_SECRET }}
+          REVAER_HELM_SKIP_PACKAGE: "1"
+        run: |
+          set -euo pipefail
+          just helm-publish "${{ steps.versions.outputs.chart_version }}" "${{ steps.versions.outputs.app_version }}"
