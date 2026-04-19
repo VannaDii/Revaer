@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "generated": "2026-04-17T20:53:22.542757854+00:00",
+  "generated": "2026-04-19T17:25:28.656141575+00:00",
   "entries": [
     {
       "id": "adr/001-configuration-revisioning",
@@ -2845,6 +2845,15 @@
         "task-record"
       ],
       "href": "/adr/305-pr-25-prerelease-tag-release-guard/"
+    },
+    {
+      "id": "adr/306-semantic-release-prepare-template-fix",
+      "title": "Semantic Release Prepare Template Fix",
+      "summary": "Status: Accepted Date: 2026-04-18 Context: The Publish Dev Release job in GitHub Actions failed on April 17, 2026 in run 24586113873, job 71897294770, during the semantic-release prepare step. release/release.config.js embedded Bash parameter expansion syntax inside @semantic-release/exec prepareCmd, but that field is first rendered through lodash templates. The ${REVAER_ENABLE_HELM_RELEASE_ASSETS:-0} fragment was parsed as a template expression, causing SyntaxError: Unexpected token ':' before the shell command ran. Decision: Replace the parameter-expansion form with a plain quoted environment-variable comparison that semantic-release leaves untouched. Keep the Helm packaging behavior gated by REVAER_ENABLE_HELM_RELEASE_ASSETS so prerelease packaging still happens only in the intended workflow path. Consequences:",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/306-semantic-release-prepare-template-fix/"
     },
     {
       "id": "adr/index",

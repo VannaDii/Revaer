@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "searchindex-ff296097.js";
+            window.path_to_searchindex_js = "searchindex-0431164e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-4179b294.js"></script>
+        <script src="toc-fb6a417d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1596,6 +1596,7 @@ just test-native
 <li><a href="#release-tag-image-job-dependency-split">303</a> – Release tag image job dependency split</li>
 <li><a href="#pr-25-deny-exception-and-sonar-hotspot-closeout">304</a> – PR 25 deny exception and Sonar hotspot closeout</li>
 <li><a href="#pr-25-prerelease-tag-release-guard">305</a> – PR 25 prerelease tag release guard</li>
+<li><a href="#semantic-release-prepare-template-fix">306</a> – Semantic release prepare template fix</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 ADR="" Title="" id=""><a class="header" href="#"></a></h1>
@@ -19273,6 +19274,82 @@ if limits are too strict.</li>
 <ul>
 <li>No new dependencies were added.</li>
 <li>The fix stays within the existing workflow and policy files rather than introducing new release automation layers.</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="semantic-release-prepare-template-fix"><a class="header" href="#semantic-release-prepare-template-fix">Semantic Release Prepare Template Fix</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-04-18</li>
+<li>Context:
+<ul>
+<li>The <code>Publish Dev Release</code> job in GitHub Actions failed on April 17, 2026 in run <code>24586113873</code>, job <code>71897294770</code>, during the semantic-release <code>prepare</code> step.</li>
+<li><code>release/release.config.js</code> embedded Bash parameter expansion syntax inside <code>@semantic-release/exec</code> <code>prepareCmd</code>, but that field is first rendered through lodash templates.</li>
+<li>The <code>${REVAER_ENABLE_HELM_RELEASE_ASSETS:-0}</code> fragment was parsed as a template expression, causing <code>SyntaxError: Unexpected token ':'</code> before the shell command ran.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Replace the parameter-expansion form with a plain quoted environment-variable comparison that semantic-release leaves untouched.</li>
+<li>Keep the Helm packaging behavior gated by <code>REVAER_ENABLE_HELM_RELEASE_ASSETS</code> so prerelease packaging still happens only in the intended workflow path.</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Dev release preparation no longer fails during template rendering.</li>
+<li>Unset <code>REVAER_ENABLE_HELM_RELEASE_ASSETS</code> still skips Helm packaging because an empty string does not match <code>"1"</code>.</li>
+<li>The release flow stays dependency-neutral and keeps the existing shell-based packaging contract.</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Keep shell syntax inside semantic-release command templates free of <code>${...}</code> forms unless they are semantic-release placeholders.</li>
+<li>Revisit other release command templates if more shell interpolation is added later.</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record-86"><a class="header" href="#task-record-86">Task Record</a></h2>
+<ul>
+<li>Motivation:
+<ul>
+<li>Restore the failing <code>main</code> release workflow with the smallest safe change that matches the logged failure.</li>
+</ul>
+</li>
+<li>Design notes:
+<ul>
+<li>The fix is limited to <code>release/release.config.js</code>; it preserves the existing <code>write-release-info</code> and Helm packaging order and only changes the environment-variable check syntax.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li>Reran a semantic-release dry run locally against <code>release/release.config.js</code>.</li>
+<li>Reran <code>just ci</code>.</li>
+<li>Reran <code>just ui-e2e</code>.</li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>No runtime observability surfaces changed; this work only repairs release automation.</li>
+</ul>
+</li>
+<li>Stale-policy check:
+<ul>
+<li>Reviewed <code>AGENTS.md</code>, <code>.github/instructions/devops.instructions.md</code>, <code>.github/instructions/rust.instructions.md</code>, <code>justfile</code>, and <code>release/release.config.js</code>.</li>
+<li>Drift was found: the release configuration violated the documented semantic-release prepare-phase contract because template-hostile shell syntax prevented the command from executing.</li>
+<li>Removed that contradiction by switching the gate to a template-safe environment-variable comparison without changing the release workflow contract.</li>
+</ul>
+</li>
+<li>Risk &amp; rollback plan:
+<ul>
+<li>Risk is limited to dev release packaging; if the new condition were mistyped, Helm assets could be skipped unexpectedly.</li>
+<li>Rollback is a revert of this commit and restoration of the prior release config once an alternative template-safe gating strategy is ready.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>No new dependencies were added.</li>
+<li>The fix stays inside the existing semantic-release configuration instead of adding wrapper scripts or release plugins.</li>
 </ul>
 </li>
 </ul>
