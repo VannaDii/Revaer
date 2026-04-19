@@ -9,6 +9,7 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
 
 env:
   CARGO_TERM_COLOR: always
@@ -130,6 +131,22 @@ jobs:
 
       - name: Coverage
         run: just cov
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: sonar-coverage
+          path: coverage
+          if-no-files-found: error
+
+      - name: Build native compile database
+        run: just sonar-compile-db
+
+      - name: SonarQube scan
+        uses: SonarSource/sonarqube-scan-action@299e4b793aaa83bf2aba7c9c14bedbb485688ec4 # v7.1.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN || secrets.SONARQUBE_TOKEN }}
 
   native-it:
     name: Native Integration Tests
@@ -287,7 +304,7 @@ jobs:
 
   build-pr-images:
     name: Build PR Images
-    needs: [ui-e2e, feature-matrix, native-it, coverage]
+    needs: [ui-e2e, feature-matrix, native-it, coverage, load-matrix]
     if: github.event.pull_request.head.repo.fork == false
     uses: ./.github/workflows/build-images.yml
     permissions:
@@ -301,6 +318,8 @@ jobs:
       version_tag: pr-${{ github.event.pull_request.number }}-${{ needs.load-matrix.outputs.short_sha }}
       alias_tag: pr-${{ github.event.pull_request.number }}
       include_sha_tag: false
+      publish_dev_helm: true
+      pr_number: ${{ github.event.pull_request.number }}
       checkout_ref: ${{ github.event.pull_request.head.sha }}
     secrets: inherit
 

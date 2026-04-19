@@ -1,0 +1,52 @@
+# PR Workflow Helm And Sonar Consolidation
+
+- Status: Accepted
+- Date: 2026-04-19
+- Context:
+  - PR validation already builds and publishes multi-arch container images through the reusable `.github/workflows/build-images.yml` workflow.
+  - The requested PR flow now also needs to publish a dev Helm chart, but only after the multi-arch manifest exists and without reshaping the current workflow dependency graph.
+  - PR Sonar analysis should run inside the main PR validation workflow instead of through a separate `sonar.yml` pull-request trigger.
+  - PR-scoped Helm artifacts must be traceable in the OCI registry and Artifact Hub back to the reviewed change.
+- Decision:
+  - Extend `.github/workflows/build-images.yml` with an optional `publish-dev-helm` job that runs only when the caller enables it.
+  - Keep that job dependent on `create-manifest` so Helm publication stays downstream of the existing multi-arch manifest creation step.
+  - Have the caller pass the PR number explicitly and derive the default chart version as `0.0.0-dev.pr<PR_NUMBER>.<GITHUB_RUN_NUMBER>`.
+  - Reuse `just helm-package` and `just helm-publish` instead of introducing ad hoc shell publication logic.
+  - Enable the new path from the existing `build-pr-images` job in `.github/workflows/pr.yml` without changing its `needs` graph.
+  - Keep `sonar.yml` scoped to `main` pushes and move PR Sonar upload into `.github/workflows/pr.yml` alongside the existing coverage job.
+- Consequences:
+  - PR builds can now publish a dev chart version that is directly attributable to the PR number.
+  - The manifest job remains the synchronization point before registry publication of the chart.
+  - The PR workflow dependency structure remains unchanged outside of the existing reusable-workflow call.
+  - PR validation owns the PR Sonar path directly, avoiding a second PR-triggered workflow for the same review event.
+  - Fork PRs still skip this path because `build-pr-images` already guards against fork execution.
+- Follow-up:
+  - Verify the PR build run publishes the expected PR-scoped chart version successfully.
+  - Monitor Artifact Hub ingestion delay separately from OCI publication success.
+
+## Task Record
+
+- Motivation:
+  - Publish PR-scoped dev Helm charts from the existing PR image flow without disturbing the current dependency layout, and keep PR Sonar analysis in the main PR validation workflow.
+- Design notes:
+  - The reusable workflow gained two optional inputs, `publish_dev_helm` and `pr_number`, so existing callers keep their current behavior by default.
+  - The new Helm publish job resolves versions locally from the checked-out commit and the caller-provided PR number, avoiding any extra GitHub API dependency inside the reusable workflow.
+  - The packaging and publish steps intentionally reuse the existing release scripts through `just` to keep release behavior consistent across CI entrypoints.
+  - The PR workflow now uploads the coverage artifact and performs the Sonar scan from the same job that generates coverage, while `sonar.yml` remains a `main` push workflow.
+- Test coverage summary:
+  - Planned verification: `just ci`.
+  - Planned verification: `just ui-e2e`.
+  - Planned verification: observe the PR-side `Build PR Images` reusable workflow run through manifest creation and dev Helm publication.
+  - Planned verification: observe the PR workflow run the in-workflow Sonar scan while `sonar.yml` no longer triggers on pull requests.
+- Observability updates:
+  - No runtime observability surfaces changed; this work only adds a CI publication path.
+- Stale-policy check:
+  - Reviewed `AGENTS.md`, `.github/instructions/devops.instructions.md`, `.github/workflows/pr.yml`, `.github/workflows/build-images.yml`, and `.github/workflows/sonar.yml`.
+  - Drift was found: PR validation built images but did not publish a PR-scoped dev Helm chart after the multi-arch manifest step, and PR Sonar analysis was still split across a separate workflow trigger.
+  - Removed that drift by adding an optional post-manifest Helm publish path to the reusable image workflow, moving PR Sonar scanning into `pr.yml`, constraining `sonar.yml` to `main` pushes, and documenting the reusable-workflow rule in the devops instruction file.
+- Risk & rollback plan:
+  - The new path depends on Helm registry credentials and chart-signing material being available to the reusable workflow caller; a missing secret will fail only the new publish step.
+  - Rollback is a revert of this workflow change or disabling the caller input that enables PR-side dev Helm publication.
+- Dependency rationale:
+  - No repository dependencies were added.
+  - The change reuses existing pinned workflow actions and existing release scripts.

@@ -319,3 +319,4 @@
 -   [305](305-pr-25-prerelease-tag-release-guard.md) – PR 25 prerelease tag release guard
 -   [306](306-semantic-release-prepare-template-fix.md) – Semantic release prepare template fix
 -   [307](307-ci-oras-setup-action-refresh.md) – CI ORAS setup action refresh
+-   [308](308-pr-build-images-dev-helm-publish.md) – PR workflow Helm and Sonar consolidation
