@@ -43,7 +43,7 @@ on:
 
 jobs:
   build-images:
-    name: Build & Push ${{ matrix.name }}
+    name: Build ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -130,7 +130,7 @@ jobs:
         run: cosign sign --yes "${{ steps.build_image.outputs.image_tag }}"
 
   create-manifest:
-    name: Multi-arch Manifest
+    name: Manifest
     runs-on: ubuntu-latest
     needs: build-images
     permissions:
@@ -225,7 +225,7 @@ jobs:
           done
 
   publish-dev-helm:
-    name: Publish Dev Helm Chart
+    name: Helm Chart
     if: inputs.publish_dev_helm
     runs-on: ubuntu-latest
     needs: create-manifest
