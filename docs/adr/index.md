@@ -322,3 +322,4 @@
 -   [308](308-pr-build-images-dev-helm-publish.md) – PR workflow Helm and Sonar consolidation
 -   [309](309-ghcr-helm-namespace-derivation.md) – GHCR Helm namespace derivation
 -   [310](310-pr-helm-review-followups.md) – PR Helm review follow-ups
+-   [311](311-ghcr-helm-github-token-auth.md) – GHCR Helm GitHub token authentication

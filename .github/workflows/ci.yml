@@ -183,6 +183,7 @@ jobs:
     needs: release-dev
     permissions:
       contents: read
+      packages: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -208,10 +209,11 @@ jobs:
 
       - name: Publish dev Helm chart
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HELM_REGISTRY_USERNAME: ${{ github.actor }}
+          HELM_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_VERSION: ${{ needs.release-dev.outputs.release_version }}
           RELEASE_TAG: ${{ needs.release-dev.outputs.release_tag }}
-          HELM_API_KEY_ID: ${{ secrets.HELM_API_KEY_ID }}
-          HELM_API_KEY_SECRET: ${{ secrets.HELM_API_KEY_SECRET }}
         run: |
           set -euo pipefail
           if [ -z "${RELEASE_VERSION}" ] || [ -z "${RELEASE_TAG}" ]; then
@@ -227,6 +229,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-')
     permissions:
       contents: read
+      packages: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -252,9 +255,10 @@ jobs:
 
       - name: Publish release Helm chart
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HELM_REGISTRY_USERNAME: ${{ github.actor }}
+          HELM_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.ref_name }}
-          HELM_API_KEY_ID: ${{ secrets.HELM_API_KEY_ID }}
-          HELM_API_KEY_SECRET: ${{ secrets.HELM_API_KEY_SECRET }}
         run: |
           set -euo pipefail
           chart_version="${RELEASE_TAG#v}"

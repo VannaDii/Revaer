@@ -292,8 +292,9 @@ jobs:
 
       - name: Publish dev Helm chart
         env:
-          HELM_API_KEY_ID: ${{ secrets.HELM_API_KEY_ID }}
-          HELM_API_KEY_SECRET: ${{ secrets.HELM_API_KEY_SECRET }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HELM_REGISTRY_USERNAME: ${{ github.actor }}
+          HELM_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           REVAER_HELM_SKIP_PACKAGE: "1"
         run: |
           set -euo pipefail
