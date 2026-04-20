@@ -22,7 +22,7 @@
     - Helm public keyring: `dist/helm/revaer-helm-public.gpg`
     - Docker image: `just docker-build && just docker-scan`
     - Published GHCR image: verify Trivy scan, SBOM/provenance attestations, and Cosign signatures from the image workflow
-    - Published OCI chart: verify `oci://ghcr.io/revaer/charts/revaer:<version>` plus the `artifacthub.io` metadata tag and `helm verify` against the published public key
+    - Published OCI chart: verify `oci://ghcr.io/<owner>/<repo>/charts/revaer:<version>` plus the `artifacthub.io` metadata tag and `helm verify` against the published public key
 
 4. **Runbook Execution**
 

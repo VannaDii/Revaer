@@ -27,7 +27,11 @@ app_version="$2"
 repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
 dist_dir="${repo_root}/dist/helm"
 registry_host="${HELM_REGISTRY_HOST:-ghcr.io}"
-registry_namespace="${HELM_REGISTRY_NAMESPACE:-revaer/charts}"
+default_registry_namespace="revaer/charts"
+if [[ -n "${GITHUB_REPOSITORY:-}" ]]; then
+    default_registry_namespace="$(printf '%s' "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')/charts"
+fi
+registry_namespace="${HELM_REGISTRY_NAMESPACE:-${default_registry_namespace}}"
 chart_path="${dist_dir}/revaer-${chart_version}.tgz"
 metadata_path="${dist_dir}/artifacthub-repo.yml"
 provenance_path="${chart_path}.prov"

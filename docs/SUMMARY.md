@@ -338,3 +338,4 @@
     -   [306: Semantic release prepare template fix](adr/306-semantic-release-prepare-template-fix.md)
     -   [307: CI ORAS setup action refresh](adr/307-ci-oras-setup-action-refresh.md)
     -   [308: PR workflow Helm and Sonar consolidation](adr/308-pr-build-images-dev-helm-publish.md)
+    -   [309: GHCR Helm namespace derivation](adr/309-ghcr-helm-namespace-derivation.md)
