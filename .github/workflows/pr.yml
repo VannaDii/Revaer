@@ -9,7 +9,6 @@ concurrency:
 
 permissions:
   contents: read
-  pull-requests: read
 
 env:
   CARGO_TERM_COLOR: always
@@ -100,9 +99,13 @@ jobs:
     name: Check Coverage
     runs-on: ubuntu-latest
     needs: [fmt, lint, check, helm-lint, udeps, deny, audit, load-matrix, instruction-drift]
+    permissions:
+      contents: read
+      pull-requests: read
     env:
       REVAER_TEST_DATABASE_URL: ${{ vars.REVAER_DATABASE_URL}}
       DATABASE_URL: ${{ vars.REVAER_DATABASE_URL}}
+      SONAR_AUTH_TOKEN: ${{ secrets.SONAR_TOKEN || secrets.SONARQUBE_TOKEN }}
     services:
       postgres:
         image: postgres:16-alpine
@@ -144,9 +147,10 @@ jobs:
         run: just sonar-compile-db
 
       - name: SonarQube scan
+        if: github.event.pull_request.head.repo.fork == false && env.SONAR_AUTH_TOKEN != ''
         uses: SonarSource/sonarqube-scan-action@299e4b793aaa83bf2aba7c9c14bedbb485688ec4 # v7.1.0
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN || secrets.SONARQUBE_TOKEN }}
+          SONAR_TOKEN: ${{ env.SONAR_AUTH_TOKEN }}
 
   native-it:
     name: Native Integration Tests
@@ -321,7 +325,11 @@ jobs:
       publish_dev_helm: true
       pr_number: ${{ github.event.pull_request.number }}
       checkout_ref: ${{ github.event.pull_request.head.sha }}
-    secrets: inherit
+    secrets:
+      HELM_GPG_PRIVATE: ${{ secrets.HELM_GPG_PRIVATE }}
+      HELM_GPG_PUBLIC: ${{ secrets.HELM_GPG_PUBLIC }}
+      HELM_API_KEY_ID: ${{ secrets.HELM_API_KEY_ID }}
+      HELM_API_KEY_SECRET: ${{ secrets.HELM_API_KEY_SECRET }}
 
   audit:
     name: Run Audit

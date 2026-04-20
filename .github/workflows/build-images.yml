@@ -40,6 +40,15 @@ on:
         required: false
         type: string
         default: ""
+    secrets:
+      HELM_GPG_PRIVATE:
+        required: false
+      HELM_GPG_PUBLIC:
+        required: false
+      HELM_API_KEY_ID:
+        required: false
+      HELM_API_KEY_SECRET:
+        required: false
 
 jobs:
   build:

@@ -37,6 +37,7 @@ metadata_path="${dist_dir}/artifacthub-repo.yml"
 provenance_path="${chart_path}.prov"
 public_keyring_path="${dist_dir}/revaer-helm-public.gpg"
 metadata_ref="${registry_host}/${registry_namespace}/revaer:artifacthub.io"
+metadata_filename="$(basename "${metadata_path}")"
 
 if [[ "${REVAER_HELM_SKIP_PACKAGE:-0}" != "1" ]]; then
     bash "${repo_root}/release/scripts/helm-package.sh" "${chart_version}" "${app_version}"
@@ -76,5 +77,5 @@ helm push "${chart_path}" "oci://${registry_host}/${registry_namespace}"
     cd "${dist_dir}"
     oras push "${metadata_ref}" \
         --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
-        "artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml"
+        "${metadata_filename}:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml"
 )

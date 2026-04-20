@@ -24,6 +24,7 @@ applyTo:
 - `ci.yml` is the post-merge and tag-release workflow. Limit it to release-artifact, publish, and image-build activity for `main` pushes and release tags; do not duplicate PR validation jobs there.
 - Manual release verification belongs in dedicated `workflow_dispatch` workflows, not in `pr.yml`, and should reuse the same `just` entrypoints and pinned third-party actions as the release path they exercise.
 - Manual workflows that publish PR-scoped dev Helm artifacts should encode the PR number into the default prerelease version so registry output is traceable back to the reviewed change.
+- `workflow_dispatch` string inputs that flow into shell or release commands must be validated and normalized before use. Reject unsafe or malformed values instead of passing them through to `just`, Helm, or release scripts.
 - Reusable image workflows may publish PR-scoped dev Helm charts only as an optional post-manifest job. Keep that publish step downstream of the multi-arch manifest job, drive it through `just helm-package` and `just helm-publish`, and derive the default prerelease chart version from the caller-provided PR number.
 - Release-tag image publication in `ci.yml` must not depend on `release-dev` or any other `main`-only job. Split dev and tag image publishing into separate jobs when their prerequisites differ.
 - Stable tag activity in `ci.yml` must exclude prerelease tags consistently at the job boundary, not only in downstream publish jobs. Do not let prerelease tags build stable release artifacts that the later jobs refuse to publish.
@@ -44,6 +45,7 @@ applyTo:
 
 - Never interpolate untrusted `${{ inputs.* }}` or comparable expression values directly into `run:` blocks.
 - Map user-controlled inputs into environment variables first, validate or whitelist them, then consume them in shell.
+- When writing validated values to `$GITHUB_OUTPUT`, use the multiline heredoc form so output parsing stays safe even if the value surface changes later.
 - Prefer arrays and quoted expansions over word-splitting command strings.
 - Setup-action package-list inputs may accept general shell whitespace, including CRLF-pasted multiline input, when that improves YAML readability, but the resulting tokens must still be normalized into a validated array before invocation.
 

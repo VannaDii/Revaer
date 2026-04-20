@@ -321,3 +321,4 @@
 -   [307](307-ci-oras-setup-action-refresh.md) – CI ORAS setup action refresh
 -   [308](308-pr-build-images-dev-helm-publish.md) – PR workflow Helm and Sonar consolidation
 -   [309](309-ghcr-helm-namespace-derivation.md) – GHCR Helm namespace derivation
+-   [310](310-pr-helm-review-followups.md) – PR Helm review follow-ups

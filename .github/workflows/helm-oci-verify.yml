@@ -16,11 +16,6 @@ concurrency:
   group: helm-oci-verify-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-  packages: write
-  pull-requests: read
-
 env:
   CARGO_TERM_COLOR: always
 
@@ -28,6 +23,9 @@ jobs:
   verify-helm-oci:
     name: Verify Helm OCI Publish
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -53,6 +51,34 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+
+          validate_chart_version() {
+            local value="$1"
+            if [[ ! "${value}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+              echo "Invalid chart_version '${value}'. Expected a SemVer-compatible Helm chart version." >&2
+              exit 1
+            fi
+          }
+
+          validate_app_version() {
+            local value="$1"
+            if [[ ! "${value}" =~ ^[0-9A-Za-z._+-]+$ ]]; then
+              echo "Invalid app_version '${value}'. Expected only ASCII letters, digits, dot, underscore, plus, or hyphen." >&2
+              exit 1
+            fi
+          }
+
+          write_output() {
+            local key="$1"
+            local value="$2"
+            local delimiter="EOF_${key}_$(uuidgen | tr '[:lower:]' '[:upper:]')"
+            {
+              printf '%s<<%s\n' "${key}" "${delimiter}"
+              printf '%s\n' "${value}"
+              printf '%s\n' "${delimiter}"
+            } >> "${GITHUB_OUTPUT}"
+          }
+
           chart_version="${INPUT_CHART_VERSION}"
           app_version="${INPUT_APP_VERSION}"
           pr_number="$(gh api "repos/${GITHUB_REPOSITORY}/pulls?head=${GITHUB_REPOSITORY_OWNER}:${GITHUB_REF_NAME}&state=open" --jq '.[0].number // empty')"
@@ -73,12 +99,17 @@ jobs:
             fi
           fi
 
-          echo "pr_number=${pr_number}" >> "$GITHUB_OUTPUT"
-          echo "chart_version=${chart_version}" >> "$GITHUB_OUTPUT"
-          echo "app_version=${app_version}" >> "$GITHUB_OUTPUT"
+          validate_chart_version "${chart_version}"
+          validate_app_version "${app_version}"
+
+          write_output "pr_number" "${pr_number}"
+          write_output "chart_version" "${chart_version}"
+          write_output "app_version" "${app_version}"
 
       - name: Package Helm chart
         env:
+          CHART_VERSION: ${{ steps.versions.outputs.chart_version }}
+          APP_VERSION: ${{ steps.versions.outputs.app_version }}
           HELM_GPG_PRIVATE: ${{ secrets.HELM_GPG_PRIVATE }}
           HELM_GPG_PUBLIC: ${{ secrets.HELM_GPG_PUBLIC }}
           ARTIFACTHUB_REPOSITORY_ID: ${{ vars.ARTIFACTHUB_REPOSITORY_ID }}
@@ -86,13 +117,15 @@ jobs:
           ARTIFACTHUB_OWNER_EMAIL: ${{ vars.ARTIFACTHUB_OWNER_EMAIL }}
         run: |
           set -euo pipefail
-          just helm-package "${{ steps.versions.outputs.chart_version }}" "${{ steps.versions.outputs.app_version }}"
+          just helm-package "${CHART_VERSION}" "${APP_VERSION}"
 
       - name: Publish Helm chart
         env:
+          CHART_VERSION: ${{ steps.versions.outputs.chart_version }}
+          APP_VERSION: ${{ steps.versions.outputs.app_version }}
           HELM_API_KEY_ID: ${{ secrets.HELM_API_KEY_ID }}
           HELM_API_KEY_SECRET: ${{ secrets.HELM_API_KEY_SECRET }}
           REVAER_HELM_SKIP_PACKAGE: "1"
         run: |
           set -euo pipefail
-          just helm-publish "${{ steps.versions.outputs.chart_version }}" "${{ steps.versions.outputs.app_version }}"
+          just helm-publish "${CHART_VERSION}" "${APP_VERSION}"
