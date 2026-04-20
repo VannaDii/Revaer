@@ -42,7 +42,7 @@ on:
         default: ""
 
 jobs:
-  build-images:
+  build:
     name: Build ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
     permissions:
@@ -132,7 +132,7 @@ jobs:
   create-manifest:
     name: Manifest
     runs-on: ubuntu-latest
-    needs: build-images
+    needs: build
     permissions:
       contents: read
       packages: write
