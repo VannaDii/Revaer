@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-0431164e.js";
+            window.path_to_searchindex_js = "../searchindex-6d668485.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-fb6a417d.js"></script>
+        <script src="../toc-771f9177.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -201,7 +201,7 @@
 <li>Summary of the choice made.
 <ul>
 <li>Add a first-party <code>charts/revaer</code> chart with a values schema and Artifact Hub metadata, package it through <code>just helm-package</code>, publish it through <code>just helm-publish</code>, and wire both dev prereleases and stable tag releases so the chart version matches the corresponding GitHub release version exactly.</li>
-<li>Use Helm provenance signing with the supplied GPG key pair, attach the chart archive, <code>.prov</code> file, and public key to GitHub releases, then publish the exact packaged chart artifact to <code>oci://ghcr.io/revaer/charts/revaer</code>.</li>
+<li>Use Helm provenance signing with the supplied GPG key pair, attach the chart archive, <code>.prov</code> file, and public key to GitHub releases, then publish the exact packaged chart artifact to <code>oci://ghcr.io/&lt;owner&gt;/charts/revaer</code>.</li>
 </ul>
 </li>
 <li>Alternatives considered.

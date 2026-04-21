@@ -2853,6 +2853,78 @@
     "href": "/adr/306-semantic-release-prepare-template-fix/"
   },
   {
+    "id": "adr/307-ci-oras-setup-action-refresh",
+    "title": "CI ORAS Setup Action Refresh",
+    "summary": "Status: Accepted Date: 2026-04-19 Context: The CI workflow failed on main on April 19, 2026 in run 24634790324, job 72028754428, at the Publish Dev Helm Chart Set up ORAS step. .github/workflows/ci.yml pinned oras-project/setup-oras to v1.2.0, and that action release reported official ORAS CLI releases does not contain version 1.2.2. Upstream oras-project/setup-oras v2.0.0 documents the same version input, runs on Node 24, and explicitly supports ORAS CLI 1.3.1. Local end-to-end rehearsal of release/scripts/helm-publish.sh against a disposable OCI registry surfaced a second failure: oras push rejected the absolute artifacthub-repo.yml path under ORAS CLI 1.3.1. Decision: Update both Helm publication jobs in .github/workflows/ci.yml",
+    "tags": [
+      "task-record"
+    ],
+    "href": "/adr/307-ci-oras-setup-action-refresh/"
+  },
+  {
+    "id": "adr/308-pr-build-images-dev-helm-publish",
+    "title": "PR Workflow Helm And Sonar Consolidation",
+    "summary": "Status: Accepted Date: 2026-04-19 Context: PR validation already builds and publishes multi-arch container images through the reusable .github/workflows/build-images.yml workflow. The requested PR flow now also needs to publish a dev Helm chart, but only after the multi-arch manifest exists and without reshaping the current workflow dependency graph. PR Sonar analysis should run inside the main PR validation workflow instead of through a separate sonar.yml pull-request trigger. PR-scoped Helm artifacts must be traceable in the OCI registry and Artifact Hub back to the reviewed change. Decision: Extend .github/workflows/build-images.yml with an optional publish-dev-helm job that runs only when the caller enables it.",
+    "tags": [
+      "task-record"
+    ],
+    "href": "/adr/308-pr-build-images-dev-helm-publish/"
+  },
+  {
+    "id": "adr/309-ghcr-helm-namespace-derivation",
+    "title": "GHCR Helm Namespace Derivation",
+    "summary": "Status: Accepted Date: 2026-04-19 Context: The PR-side Publish Dev Helm Chart job reached just helm-publish and then failed against GHCR with response status code 403: denied: denied. release/scripts/helm-publish.sh defaulted the OCI namespace to revaer/charts, which omits the GitHub owner segment required by GHCR package scopes. That incorrect default affected every workflow path that reuses just helm-publish, not only the PR-side reusable image workflow. Decision: Derive the default Helm OCI namespace from GITHUB_REPOSITORY when available, lowercased and suffixed with /charts. Keep HELM_REGISTRY_NAMESPACE as an explicit override so local disposable registry tests and any future non-GitHub targets can still set a custom",
+    "tags": [
+      "task-record"
+    ],
+    "href": "/adr/309-ghcr-helm-namespace-derivation/"
+  },
+  {
+    "id": "adr/310-pr-helm-review-followups",
+    "title": "PR Helm Review Follow-Ups",
+    "summary": "Status: Accepted Date: 2026-04-19 Context: PR review on the PR-scoped Helm publish work flagged workflow shell-safety gaps, overly broad workflow permissions, reusable-workflow secret inheritance, and a filename drift hazard in Helm metadata publication. The repository policy requires workflow and release-script changes to stay aligned with the devops instruction set and task-record ADR bookkeeping. Decision: Harden helm-oci-verify.yml by validating manual version inputs, writing outputs with the multiline GITHUB_OUTPUT form, and moving step-consumed values through env. Narrow workflow permissions to the jobs that need them, guard the PR Sonar scan for non-fork PRs with configured tokens, and replace reusable-workflow secrets: inherit with",
+    "tags": [
+      "task-record"
+    ],
+    "href": "/adr/310-pr-helm-review-followups/"
+  },
+  {
+    "id": "adr/311-ghcr-helm-github-token-auth",
+    "title": "GHCR Helm GitHub Token Authentication",
+    "summary": "Status: Accepted Date: 2026-04-20 Context: PR run 24643631011 failed in Images / Helm Chart after the chart package and signature verification completed. The shared release/scripts/helm-publish.sh path reached helm registry login ghcr.io and GHCR returned 403 denied when the workflow used the configured Helm API secret pair. The same shared publish path is reused by the PR reusable workflow and the main and tag publish jobs in ci.yml. Decision: Teach release/scripts/helm-publish.sh to accept explicit HELM_REGISTRY_USERNAME and HELM_REGISTRY_PASSWORD, with a GITHUB_TOKEN fallback for ghcr.io. Update GitHub-hosted GHCR publish jobs to pass github.actor plus secrets.GITHUB_TOKEN instead of the long-lived Helm API secret pair.",
+    "tags": [
+      "task-record"
+    ],
+    "href": "/adr/311-ghcr-helm-github-token-auth/"
+  },
+  {
+    "id": "adr/312-artifacthub-oci-repository-alignment",
+    "title": "Artifact Hub OCI Repository Alignment",
+    "summary": "Status: Accepted Date: 2026-04-20 Context: The PR Helm workflow was publishing charts to ghcr.io/<owner>/<repo>/charts/revaer, while the Artifact Hub repository that now exists is configured for oci://ghcr.io/vannadii/charts/revaer. That namespace mismatch meant successful workflow publishes would land in GHCR, but not at the OCI repository URL Artifact Hub is actually tracking. The Artifact Hub repository now has the stable ID dfbc5c47-d0c5-4ac7-b9d4-5812c0a6a15a, which needs to be present in the published repository metadata for verified ownership workflows. Decision: Change the default GHCR Helm namespace derivation to publish charts to ghcr.io/<owner>/charts/revaer. Ship the Artifact Hub repository ID in charts/revaer/artifacthub-repo.yml and keep release packaging from appending",
+    "tags": [
+      "task-record"
+    ],
+    "href": "/adr/312-artifacthub-oci-repository-alignment/"
+  },
+  {
+    "id": "adr/313-trivy-sarif-category-and-ghcr-token-alignment",
+    "title": "Trivy SARIF Category And GHCR Token Alignment",
+    "summary": "Status: Accepted Date: 2026-04-20 Context: PR #27 moved image builds into a reusable workflow and added a manual Helm OCI verification workflow. GitHub Advanced Security started reporting 2 configurations not found for the Trivy scan because the workflow/job identity that code scanning used on main (.github/workflows/ci.yml:build-images/...) no longer matched the PR branch upload identity after the refactor. Review feedback also flagged that the manual GHCR publish path still preferred legacy Helm API secrets instead of the job-scoped GITHUB_TOKEN, and that the reusable image workflow still trusted the pr_number input too much when writing environment values. Decision: Set an explicit SARIF",
+    "tags": [
+      "task-record"
+    ],
+    "href": "/adr/313-trivy-sarif-category-and-ghcr-token-alignment/"
+  },
+  {
+    "id": "adr/314-artifacthub-verification-and-official-readiness",
+    "title": "Artifact Hub Verification And Official Readiness",
+    "summary": "Status: Accepted Date: 2026-04-20 Context: The Revaer chart repository was already aligned to the owner-scoped OCI URL and Artifact Hub repository ID, but the remaining ownership and package-metadata details were still partly implicit. Artifact Hub's current repository guidance requires the repository metadata to carry the repository ID for Verified publisher, and ownership claim flows depend on published owner identity that matches the Artifact Hub account or organization member performing the claim. Artifact Hub also recommends explicit package metadata where automatic extraction may be incomplete, including chart image metadata that powers package security scanning. Decision: Keep charts/revaer/artifacthub-repo.yml as the canonical repository-metadata",
+    "tags": [
+      "task-record"
+    ],
+    "href": "/adr/314-artifacthub-verification-and-official-readiness/"
+  },
+  {
     "id": "adr/index",
     "title": "ADRs",
     "summary": "Create a new ADR using the template in docs/adr/template.md. Give it a sequential identifier (e.g., 001, 002) and a concise title. Capture context, decision, consequences, and follow-up actions. Append the new ADR entry to the end of the Catalogue list above. Append the same entry under ADRs in docs/SUMMARY.md, keeping it nested so the sidebar stays collapsed. Reference ADRs from code comments or docs where the decision applies.",
@@ -3062,7 +3134,7 @@
   {
     "id": "release-checklist",
     "title": "Phase One Release Checklist",
-    "summary": "**Branch Hygiene** Ensure main is green (CI pipeline complete). Review outstanding ADRs and docs for freshness. **Build & Test** just ci just build-release just api-export **Artefact Verification** Binary: target/release/revaer-app Checksum: sha256sum target/release/revaer-app OpenAPI: docs/api/openapi.json Helm chart: dist/helm/revaer-<version>.tgz Helm provenance: dist/helm/revaer-<version>.tgz.prov Helm public key: dist/helm/revaer-helm-public.asc Helm public keyring: dist/helm/revaer-helm-public.gpg Docker image: just docker-build && just docker-scan Published GHCR image: verify Trivy scan, SBOM/provenance attestations, and Cosign signatures from the image workflow Published OCI chart: verify oci://ghcr.io/revaer/charts/revaer:<version> plus the artifacthub.io metadata tag and helm verify against the published public key **Runbook Execution** Run just runbook Follow the remaining manual-only drills in docs/runbook.md",
+    "summary": "**Branch Hygiene** Ensure main is green (CI pipeline complete). Review outstanding ADRs and docs for freshness. **Build & Test** just ci just build-release just api-export **Artefact Verification** Binary: target/release/revaer-app Checksum: sha256sum target/release/revaer-app OpenAPI: docs/api/openapi.json Helm chart: dist/helm/revaer-<version>.tgz Helm provenance: dist/helm/revaer-<version>.tgz.prov Helm public key: dist/helm/revaer-helm-public.asc Helm public keyring: dist/helm/revaer-helm-public.gpg Docker image: just docker-build && just docker-scan Published GHCR image: verify Trivy scan, SBOM/provenance attestations, and Cosign signatures from the image workflow Published OCI chart: verify oci://ghcr.io/<owner>/charts/revaer:<version> plus the artifacthub.io metadata tag and helm verify against the published public key **Runbook Execution** Run just runbook Follow the remaining manual-only drills in docs/runbook.md",
     "tags": [],
     "href": "/release-checklist/"
   },
