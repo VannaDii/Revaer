@@ -64,8 +64,18 @@ helm install revaer ./revaer-0.1.0.tgz \
 ```
 
 Artifact Hub verified-publisher and official badges remain manual Artifact Hub
-control-plane steps after the OCI repository is registered. Use
-`revaer-logo.png` as the Artifact Hub repository and organization logo when
+control-plane steps after the OCI repository is registered:
+
+1. Add `oci://ghcr.io/vannadii/charts/revaer` as the repository URL in Artifact
+   Hub and ensure the GHCR chart package is public so Artifact Hub can pull it
+   anonymously.
+2. Claim or verify the repository using the published `artifacthub.io` metadata
+   tag. Release packaging publishes the repository ID and owner identity needed
+   for Artifact Hub's `Verified publisher` flow.
+3. After the repository shows `Verified publisher`, file Artifact Hub's
+   `official` status request for the Revaer publisher or organization.
+
+Use `revaer-logo.png` as the Artifact Hub repository and organization logo when
 completing that setup.
 
 ## Key Values

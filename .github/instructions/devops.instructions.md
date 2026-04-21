@@ -21,6 +21,8 @@ applyTo:
 - Revaer's default public Helm OCI repository is `oci://ghcr.io/<owner>/charts/revaer`. Keep workflow defaults, install docs, and Artifact Hub registration aligned to that owner-scoped path.
 - The shipped `charts/revaer/artifacthub-repo.yml` template is the source of truth for the Artifact Hub repository ID. Release packaging may append ownership data, but it must not duplicate an existing `repositoryID`.
 - Trivy SARIF uploads from the reusable image workflow must set an explicit `upload-sarif` category when workflow refactors would otherwise rename the analysis identity. Keep that category aligned with the legacy `ci.yml` build-image matrix key so GitHub code scanning can compare PR scans against `main`.
+- Release packaging must preserve Artifact Hub ownership metadata when `ARTIFACTHUB_OWNER_NAME` and `ARTIFACTHUB_OWNER_EMAIL` are provided, even for unsigned packaging paths, because Artifact Hub ownership claim and verified-publisher flows depend on that published owner identity.
+- Release packaging should publish an explicit `artifacthub.io/images` chart annotation for the Revaer image so Artifact Hub can index the runtime image and generate package security scans reliably.
 - Workflows that install Rust toolchains must use the repository's configured toolchain source of truth rather than hard-coded ad hoc channels unless a documented exception is required.
 - Workflow build, lint, test, coverage, and release gates must call `just` recipes. Do not reintroduce raw `cargo` pipelines into CI jobs.
 - `pr.yml` is the sole pull-request validation workflow. Keep formatting, lint, test, audit, deny, coverage, E2E, and other verification gates there so pull requests are validated exactly once before merge.

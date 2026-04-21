@@ -64,15 +64,51 @@ append_repository_id() {
     return 0
 }
 
+append_owner() {
+    local metadata_file="$1"
+    local owner_name="$2"
+    local owner_email="$3"
+
+    if [[ -z "${owner_name}" || -z "${owner_email}" ]]; then
+        return 0
+    fi
+
+    if grep -Eq '^[[:space:]]*owners:' "${metadata_file}"; then
+        return 0
+    fi
+
+    cat >> "${metadata_file}" <<EOF
+owners:
+  - name: $(yaml_quote "${owner_name}")
+    email: $(yaml_quote "${owner_email}")
+EOF
+    return 0
+}
+
 cp -R "${chart_root}" "${chart_copy_dir}/revaer"
 chart_yaml="${chart_copy_dir}/revaer/Chart.yaml"
 metadata_output="${dist_dir}/artifacthub-repo.yml"
 cp "${metadata_template}" "${metadata_output}"
+release_owner="$(printf '%s' "${release_repository%%/*}" | tr '[:upper:]' '[:lower:]')"
+image_repository="${REVAER_HELM_IMAGE_REPOSITORY:-ghcr.io/${release_owner}/revaer}"
+owner_name="${ARTIFACTHUB_OWNER_NAME:-}"
+owner_email="${ARTIFACTHUB_OWNER_EMAIL:-}"
 
 prerelease="false"
 if [[ "${chart_version}" == *-* ]]; then
     prerelease="true"
 fi
+
+release_annotations="$(cat <<EOF
+  artifacthub.io/prerelease: "${prerelease}"
+  artifacthub.io/images: |
+    - name: revaer
+      image: ${image_repository}:${app_version}
+      platforms:
+        - linux/amd64
+        - linux/arm64
+EOF
+)"
 
 if [[ "${sign_chart}" == "1" ]]; then
     if ! command -v gpg >/dev/null 2>&1; then
@@ -103,8 +139,12 @@ if [[ "${sign_chart}" == "1" ]]; then
 
     signing_uid="$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^uid:/ {print $10; exit}')"
     fingerprint="$(gpg --batch --list-secret-keys --with-colons --fingerprint | awk -F: '/^fpr:/ {print $10; exit}')"
-    owner_name="${ARTIFACTHUB_OWNER_NAME:-$(printf '%s' "${signing_uid}" | sed -E 's/ <[^>]+>$//')}"
-    owner_email="${ARTIFACTHUB_OWNER_EMAIL:-$(printf '%s' "${signing_uid}" | sed -nE 's/.*<([^>]+)>.*/\1/p')}"
+    if [[ -z "${owner_name}" ]]; then
+        owner_name="$(printf '%s' "${signing_uid}" | sed -E 's/ <[^>]+>$//')"
+    fi
+    if [[ -z "${owner_email}" ]]; then
+        owner_email="$(printf '%s' "${signing_uid}" | sed -nE 's/.*<([^>]+)>.*/\1/p')"
+    fi
 
     if [[ -z "${signing_uid}" || -z "${fingerprint}" ]]; then
         echo "failed to resolve imported GPG signing identity" >&2
@@ -112,7 +152,7 @@ if [[ "${sign_chart}" == "1" ]]; then
     fi
 
     release_annotations="$(cat <<EOF
-  artifacthub.io/prerelease: "${prerelease}"
+${release_annotations}
   artifacthub.io/signKey: |
     fingerprint: ${fingerprint}
     url: ${release_asset_url}
@@ -127,17 +167,10 @@ EOF
         { print }
     ' "${chart_root}/Chart.yaml" > "${chart_yaml}"
 
-    if [[ -n "${owner_name}" && -n "${owner_email}" ]]; then
-        cat >> "${metadata_output}" <<EOF
-owners:
-  - name: $(yaml_quote "${owner_name}")
-    email: $(yaml_quote "${owner_email}")
-EOF
-    fi
-
     if [[ -n "${ARTIFACTHUB_REPOSITORY_ID:-}" ]]; then
         append_repository_id "${metadata_output}" "${ARTIFACTHUB_REPOSITORY_ID}"
     fi
+    append_owner "${metadata_output}" "${owner_name}" "${owner_email}"
 
     helm lint "${chart_copy_dir}/revaer" --set "database.url=${lint_database_url}"
     helm package "${chart_copy_dir}/revaer" \
@@ -149,13 +182,17 @@ EOF
         --keyring "${secret_keyring}"
     helm verify "${dist_dir}/revaer-${chart_version}.tgz" --keyring "${dist_dir}/${public_keyring_asset}"
 else
-    awk '
-        /__RELEASE_HELM_ANNOTATIONS__/ { next }
+    awk -v replacement="${release_annotations}" '
+        /__RELEASE_HELM_ANNOTATIONS__/ {
+            print replacement
+            next
+        }
         { print }
     ' "${chart_root}/Chart.yaml" > "${chart_yaml}"
     if [[ -n "${ARTIFACTHUB_REPOSITORY_ID:-}" ]]; then
         append_repository_id "${metadata_output}" "${ARTIFACTHUB_REPOSITORY_ID}"
     fi
+    append_owner "${metadata_output}" "${owner_name}" "${owner_email}"
     helm lint "${chart_copy_dir}/revaer" --set "database.url=${lint_database_url}"
     helm package "${chart_copy_dir}/revaer" \
         --destination "${dist_dir}" \

@@ -343,3 +343,4 @@
     -   [311: GHCR Helm GitHub token authentication](adr/311-ghcr-helm-github-token-auth.md)
     -   [312: Artifact Hub OCI repository alignment](adr/312-artifacthub-oci-repository-alignment.md)
     -   [313: Trivy SARIF category and GHCR token alignment](adr/313-trivy-sarif-category-and-ghcr-token-alignment.md)
+    -   [314: Artifact Hub verification and official readiness](adr/314-artifacthub-verification-and-official-readiness.md)
