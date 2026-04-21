@@ -98,10 +98,14 @@ jobs:
   coverage:
     name: Check Coverage
     runs-on: ubuntu-latest
-    needs: [test]
+    needs: [fmt, lint, check, helm-lint, udeps, deny, audit, load-matrix, instruction-drift]
+    permissions:
+      contents: read
+      pull-requests: read
     env:
       REVAER_TEST_DATABASE_URL: ${{ vars.REVAER_DATABASE_URL}}
       DATABASE_URL: ${{ vars.REVAER_DATABASE_URL}}
+      SONAR_AUTH_TOKEN: ${{ secrets.SONAR_TOKEN || secrets.SONARQUBE_TOKEN }}
     services:
       postgres:
         image: postgres:16-alpine
@@ -131,46 +135,27 @@ jobs:
       - name: Coverage
         run: just cov
 
-  test:
-    name: Run Tests
-    runs-on: ubuntu-latest
-    needs: [fmt, lint, check, helm-lint]
-    env:
-      REVAER_TEST_DATABASE_URL: ${{ vars.REVAER_DATABASE_URL}}
-      DATABASE_URL: ${{ vars.REVAER_DATABASE_URL}}
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: revaer
-          POSTGRES_PASSWORD: revaer
-          POSTGRES_DB: revaer
-        options: >-
-          --health-cmd="pg_isready -U revaer -d revaer"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-        ports:
-          - 5432:5432
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: ./.github/actions/setup-revaer
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          toolchain: ${{ vars.RUST_TOOLCHAIN_VERSION }}
-          apt-profile: db
+          name: sonar-coverage
+          path: coverage
+          if-no-files-found: error
 
-      - name: Run migrations
+      - name: Build native compile database
+        run: just sonar-compile-db
+
+      - name: SonarQube scan
+        if: github.event.pull_request.head.repo.fork == false && env.SONAR_AUTH_TOKEN != ''
+        uses: SonarSource/sonarqube-scan-action@299e4b793aaa83bf2aba7c9c14bedbb485688ec4 # v7.1.0
         env:
-          DATABASE_URL: ${{ env.REVAER_TEST_DATABASE_URL }}
-        run: just db-migrate
-
-      - name: Test
-        run: just test
+          SONAR_TOKEN: ${{ env.SONAR_AUTH_TOKEN }}
 
   native-it:
     name: Native Integration Tests
     runs-on: ubuntu-latest
-    needs: [test]
+    needs: [fmt, lint, check, helm-lint, udeps, deny, audit, load-matrix, instruction-drift]
     env:
       REVAER_NATIVE_IT: "1"
       DOCKER_HOST: unix:///var/run/docker.sock
@@ -187,7 +172,7 @@ jobs:
   feature-matrix:
     name: Feature Matrix
     runs-on: ubuntu-latest
-    needs: [test]
+    needs: [fmt, lint, check, helm-lint, udeps, deny, audit, load-matrix, instruction-drift]
     env:
       REVAER_TEST_DATABASE_URL: ${{ vars.REVAER_DATABASE_URL}}
       DATABASE_URL: ${{ vars.REVAER_DATABASE_URL}}
@@ -227,7 +212,7 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1, 2, 3]
-    needs: [test]
+    needs: [fmt, lint, check, helm-lint, udeps, deny, audit, load-matrix, instruction-drift]
     env:
       E2E_API_BASE_URL: http://localhost:7070
       E2E_BASE_URL: http://localhost:8080
@@ -275,7 +260,7 @@ jobs:
   ui-e2e-coverage:
     name: UI E2E Coverage
     runs-on: ubuntu-latest
-    needs: ui-e2e
+    needs: [ui-e2e, feature-matrix, native-it, coverage]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: ./.github/actions/setup-revaer
@@ -322,8 +307,8 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
   build-pr-images:
-    name: Build PR Images
-    needs: [ui-e2e-coverage, load-matrix]
+    name: Images
+    needs: [ui-e2e, feature-matrix, native-it, coverage, load-matrix]
     if: github.event.pull_request.head.repo.fork == false
     uses: ./.github/workflows/build-images.yml
     permissions:
@@ -337,13 +322,16 @@ jobs:
       version_tag: pr-${{ github.event.pull_request.number }}-${{ needs.load-matrix.outputs.short_sha }}
       alias_tag: pr-${{ github.event.pull_request.number }}
       include_sha_tag: false
+      publish_dev_helm: true
+      pr_number: ${{ github.event.pull_request.number }}
       checkout_ref: ${{ github.event.pull_request.head.sha }}
-    secrets: inherit
+    secrets:
+      HELM_GPG_PRIVATE: ${{ secrets.HELM_GPG_PRIVATE }}
+      HELM_GPG_PUBLIC: ${{ secrets.HELM_GPG_PUBLIC }}
 
   audit:
     name: Run Audit
     runs-on: ubuntu-latest
-    needs: [fmt, lint, check]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: ./.github/actions/setup-revaer
@@ -356,7 +344,6 @@ jobs:
   deny:
     name: Check Deny
     runs-on: ubuntu-latest
-    needs: [fmt, lint, check]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: ./.github/actions/setup-revaer
@@ -369,7 +356,6 @@ jobs:
   udeps:
     name: Check Unused Deps
     runs-on: ubuntu-latest
-    needs: [fmt, lint, check]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: ./.github/actions/setup-revaer
@@ -384,15 +370,7 @@ jobs:
     name: Build Release
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
-    needs:
-      - coverage
-      - audit
-      - deny
-      - udeps
-      - test
-      - native-it
-      - feature-matrix
-      - ui-e2e-coverage
+    needs: [ui-e2e, feature-matrix, native-it, coverage]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: ./.github/actions/setup-revaer

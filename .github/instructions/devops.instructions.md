@@ -15,10 +15,22 @@ applyTo:
 - External GitHub actions in modified files must pin the exact upstream commit SHA. Do not use floating branch refs such as `main`, `master`, or `trunk`, and do not rely on mutable release tags alone.
 - When updating an external action reference, resolve the chosen stable upstream release tag to its full 40-character commit SHA at the time of the change. Keep the originating tag in an inline comment when practical so upgrades stay auditable.
 - Verify action usage against the action's current official documentation when changing its major or minor release line. Preserve documented step ordering and supported inputs.
+- ORAS setup jobs in workflows must stay on a node24-capable `oras-project/setup-oras` release line and request an ORAS CLI version that the pinned action release explicitly supports.
+- ORAS publish commands in release scripts must avoid absolute on-disk layer paths unless path validation is intentionally disabled; prefer running from the asset directory and pushing relative artifact names.
+- Helm OCI publication defaults must target the owner-qualified GHCR namespace derived from the active GitHub repository. If a non-GitHub registry layout is needed, override it explicitly with `HELM_REGISTRY_NAMESPACE` rather than relying on an incomplete default path.
+- Revaer's default public Helm OCI repository is `oci://ghcr.io/<owner>/charts/revaer`. Keep workflow defaults, install docs, and Artifact Hub registration aligned to that owner-scoped path.
+- The shipped `charts/revaer/artifacthub-repo.yml` template is the source of truth for the Artifact Hub repository ID. Release packaging may append ownership data, but it must not duplicate an existing `repositoryID`.
+- Trivy SARIF uploads from the reusable image workflow must set an explicit `upload-sarif` category when workflow refactors would otherwise rename the analysis identity. Keep that category aligned with the legacy `ci.yml` build-image matrix key so GitHub code scanning can compare PR scans against `main`.
+- Release packaging must preserve Artifact Hub ownership metadata when `ARTIFACTHUB_OWNER_NAME` and `ARTIFACTHUB_OWNER_EMAIL` are provided, even for unsigned packaging paths, because Artifact Hub ownership claim and verified-publisher flows depend on that published owner identity.
+- Release packaging should publish an explicit `artifacthub.io/images` chart annotation for the Revaer image so Artifact Hub can index the runtime image and generate package security scans reliably.
 - Workflows that install Rust toolchains must use the repository's configured toolchain source of truth rather than hard-coded ad hoc channels unless a documented exception is required.
 - Workflow build, lint, test, coverage, and release gates must call `just` recipes. Do not reintroduce raw `cargo` pipelines into CI jobs.
 - `pr.yml` is the sole pull-request validation workflow. Keep formatting, lint, test, audit, deny, coverage, E2E, and other verification gates there so pull requests are validated exactly once before merge.
 - `ci.yml` is the post-merge and tag-release workflow. Limit it to release-artifact, publish, and image-build activity for `main` pushes and release tags; do not duplicate PR validation jobs there.
+- Manual release verification belongs in dedicated `workflow_dispatch` workflows, not in `pr.yml`, and should reuse the same `just` entrypoints and pinned third-party actions as the release path they exercise.
+- Manual workflows that publish PR-scoped dev Helm artifacts should encode the PR number into the default prerelease version so registry output is traceable back to the reviewed change.
+- `workflow_dispatch` string inputs that flow into shell or release commands must be validated and normalized before use. Reject unsafe or malformed values instead of passing them through to `just`, Helm, or release scripts.
+- Reusable image workflows may publish PR-scoped dev Helm charts only as an optional post-manifest job. Keep that publish step downstream of the multi-arch manifest job, drive it through `just helm-package` and `just helm-publish`, and derive the default prerelease chart version from the caller-provided PR number.
 - Release-tag image publication in `ci.yml` must not depend on `release-dev` or any other `main`-only job. Split dev and tag image publishing into separate jobs when their prerequisites differ.
 - Stable tag activity in `ci.yml` must exclude prerelease tags consistently at the job boundary, not only in downstream publish jobs. Do not let prerelease tags build stable release artifacts that the later jobs refuse to publish.
 - Reusable-workflow caller jobs must not use `secrets: inherit` unless the callee truly requires repository secrets. Prefer the default GitHub token plus explicit job permissions, and pass named secrets only when the callee consumes them.
@@ -38,6 +50,7 @@ applyTo:
 
 - Never interpolate untrusted `${{ inputs.* }}` or comparable expression values directly into `run:` blocks.
 - Map user-controlled inputs into environment variables first, validate or whitelist them, then consume them in shell.
+- When writing validated values to `$GITHUB_OUTPUT`, use the multiline heredoc form so output parsing stays safe even if the value surface changes later.
 - Prefer arrays and quoted expansions over word-splitting command strings.
 - Setup-action package-list inputs may accept general shell whitespace, including CRLF-pasted multiline input, when that improves YAML readability, but the resulting tokens must still be normalized into a validated array before invocation.
 
@@ -47,6 +60,7 @@ applyTo:
 - Ephemeral test credentials must never be reused as application secrets, committed runtime credentials, or user-facing examples.
 - Do not log secrets or secret-like values. Mask or omit them.
 - Keep Helm registry credentials (`HELM_API_KEY_ID`, `HELM_API_KEY_SECRET`) separate from chart-signing material (`HELM_GPG_PRIVATE`, `HELM_GPG_PUBLIC`). Publishing jobs may use registry credentials only when consuming an already-packaged chart artifact.
+- GHCR chart publication on GitHub-hosted runners should prefer the job-scoped `GITHUB_TOKEN` plus explicit `packages: write` over long-lived custom registry secrets. Keep `HELM_API_KEY_*` only for non-GitHub or local override paths.
 
 # Drift Control
 

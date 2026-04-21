@@ -25,15 +25,30 @@ on:
         required: false
         type: boolean
         default: true
+      publish_dev_helm:
+        description: Whether to publish a PR-scoped dev Helm chart after the multi-arch manifest succeeds.
+        required: false
+        type: boolean
+        default: false
+      pr_number:
+        description: Pull request number used to derive the dev Helm chart version.
+        required: false
+        type: string
+        default: ""
       checkout_ref:
         description: Optional git ref to checkout.
         required: false
         type: string
         default: ""
+    secrets:
+      HELM_GPG_PRIVATE:
+        required: false
+      HELM_GPG_PUBLIC:
+        required: false
 
 jobs:
-  build-images:
-    name: Build & Push ${{ matrix.name }}
+  build:
+    name: Build ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -107,11 +122,26 @@ jobs:
           severity: HIGH,CRITICAL
           exit-code: ${{ github.event_name == 'pull_request' && '0' || '1' }}
 
+      - name: Resolve code scanning category
+        id: code-scanning-category
+        env:
+          ARCH_TAG: ${{ matrix.arch_tag }}
+          MATRIX_NAME: ${{ matrix.name }}
+          NEEDS_QEMU: ${{ matrix.needs_qemu && 'true' || '' }}
+          PLATFORM: ${{ matrix.platform }}
+          RUNNER: ${{ matrix.runner }}
+          RUST_TARGET: ${{ matrix.rust_target }}
+        run: |
+          set -euo pipefail
+          category=".github/workflows/ci.yml:build-images/arch_tag:${ARCH_TAG}/name:${MATRIX_NAME}/needs_qemu:${NEEDS_QEMU}/platform:${PLATFORM}/runner:${RUNNER}/rust_target:${RUST_TARGET}"
+          printf 'value=%s\n' "${category}" >> "${GITHUB_OUTPUT}"
+
       - name: Upload scan results
         if: always() && hashFiles('trivy-results.sarif') != ''
         uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
         with:
           sarif_file: trivy-results.sarif
+          category: ${{ steps.code-scanning-category.outputs.value }}
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
@@ -120,9 +150,9 @@ jobs:
         run: cosign sign --yes "${{ steps.build_image.outputs.image_tag }}"
 
   create-manifest:
-    name: Multi-arch Manifest
+    name: Manifest
     runs-on: ubuntu-latest
-    needs: build-images
+    needs: build
     permissions:
       contents: read
       packages: write
@@ -213,3 +243,83 @@ jobs:
           for tag in "${TAGS[@]}"; do
             cosign sign --yes "${tag}"
           done
+
+  publish-dev-helm:
+    name: Helm Chart
+    if: inputs.publish_dev_helm
+    runs-on: ubuntu-latest
+    needs: create-manifest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.checkout_ref != '' && inputs.checkout_ref || github.ref }}
+
+      - uses: ./.github/actions/setup-revaer
+        with:
+          toolchain: ${{ vars.RUST_TOOLCHAIN_VERSION }}
+
+      - name: Set up Helm
+        uses: Azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          version: v3.19.0
+
+      - name: Set up ORAS
+        uses: oras-project/setup-oras@38de303aac69abb66f3e6255b7198bff35f323e3 # v2.0.0
+        with:
+          version: 1.3.1
+
+      - name: Resolve Helm versions
+        env:
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${PR_NUMBER}" ]; then
+            echo "Missing pr_number for PR-scoped dev Helm publish." >&2
+            exit 1
+          fi
+
+          case "${PR_NUMBER}" in
+            (*[!0-9]*)
+              echo "Invalid pr_number: expected a numeric pull request number." >&2
+              exit 1
+              ;;
+          esac
+
+          git_sha_short="$(git rev-parse --short HEAD)"
+          chart_version="0.0.0-dev.pr${PR_NUMBER}.${GITHUB_RUN_NUMBER}"
+          app_version="pr-${PR_NUMBER}-${git_sha_short}"
+
+          {
+            echo "RELEASE_VERSION<<EOF"
+            echo "${chart_version}"
+            echo "EOF"
+            echo "RELEASE_TAG<<EOF"
+            echo "${app_version}"
+            echo "EOF"
+          } >> "${GITHUB_ENV}"
+
+      - name: Package Helm chart
+        env:
+          HELM_GPG_PRIVATE: ${{ secrets.HELM_GPG_PRIVATE }}
+          HELM_GPG_PUBLIC: ${{ secrets.HELM_GPG_PUBLIC }}
+          ARTIFACTHUB_REPOSITORY_ID: ${{ vars.ARTIFACTHUB_REPOSITORY_ID }}
+          ARTIFACTHUB_OWNER_NAME: ${{ vars.ARTIFACTHUB_OWNER_NAME }}
+          ARTIFACTHUB_OWNER_EMAIL: ${{ vars.ARTIFACTHUB_OWNER_EMAIL }}
+        run: |
+          set -euo pipefail
+          just helm-package "${RELEASE_VERSION}" "${RELEASE_TAG}"
+
+      - name: Publish dev Helm chart
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HELM_REGISTRY_USERNAME: ${{ github.actor }}
+          HELM_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          REVAER_HELM_SKIP_PACKAGE: "1"
+        run: |
+          set -euo pipefail
+          just helm-publish "${RELEASE_VERSION}" "${RELEASE_TAG}"

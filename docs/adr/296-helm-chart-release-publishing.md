@@ -11,7 +11,7 @@
 - Decision:
   - Summary of the choice made.
     - Add a first-party `charts/revaer` chart with a values schema and Artifact Hub metadata, package it through `just helm-package`, publish it through `just helm-publish`, and wire both dev prereleases and stable tag releases so the chart version matches the corresponding GitHub release version exactly.
-    - Use Helm provenance signing with the supplied GPG key pair, attach the chart archive, `.prov` file, and public key to GitHub releases, then publish the exact packaged chart artifact to `oci://ghcr.io/revaer/charts/revaer`.
+    - Use Helm provenance signing with the supplied GPG key pair, attach the chart archive, `.prov` file, and public key to GitHub releases, then publish the exact packaged chart artifact to `oci://ghcr.io/<owner>/charts/revaer`.
   - Alternatives considered.
     - Publish only stable charts and skip dev prereleases.
     - Repackage the chart independently during OCI publication.

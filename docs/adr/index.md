@@ -318,3 +318,11 @@
 -   [304](304-pr-25-deny-exception-and-sonar-hotspot-closeout.md) – PR 25 deny exception and Sonar hotspot closeout
 -   [305](305-pr-25-prerelease-tag-release-guard.md) – PR 25 prerelease tag release guard
 -   [306](306-semantic-release-prepare-template-fix.md) – Semantic release prepare template fix
+-   [307](307-ci-oras-setup-action-refresh.md) – CI ORAS setup action refresh
+-   [308](308-pr-build-images-dev-helm-publish.md) – PR workflow Helm and Sonar consolidation
+-   [309](309-ghcr-helm-namespace-derivation.md) – GHCR Helm namespace derivation
+-   [310](310-pr-helm-review-followups.md) – PR Helm review follow-ups
+-   [311](311-ghcr-helm-github-token-auth.md) – GHCR Helm GitHub token authentication
+-   [312](312-artifacthub-oci-repository-alignment.md) – Artifact Hub OCI repository alignment
+-   [313](313-trivy-sarif-category-and-ghcr-token-alignment.md) – Trivy SARIF category and GHCR token alignment
+-   [314](314-artifacthub-verification-and-official-readiness.md) – Artifact Hub verification and official readiness

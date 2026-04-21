@@ -1,0 +1,55 @@
+# CI ORAS Setup Action Refresh
+
+- Status: Accepted
+- Date: 2026-04-19
+- Context:
+  - The `CI` workflow failed on `main` on April 19, 2026 in run `24634790324`, job `72028754428`, at the `Publish Dev Helm Chart` `Set up ORAS` step.
+  - `.github/workflows/ci.yml` pinned `oras-project/setup-oras` to `v1.2.0`, and that action release reported `official ORAS CLI releases does not contain version 1.2.2`.
+  - Upstream `oras-project/setup-oras` `v2.0.0` documents the same `version` input, runs on Node 24, and explicitly supports ORAS CLI `1.3.1`.
+  - Local end-to-end rehearsal of `release/scripts/helm-publish.sh` against a disposable OCI registry surfaced a second failure: `oras push` rejected the absolute `artifacthub-repo.yml` path under ORAS CLI `1.3.1`.
+- Decision:
+  - Update both Helm publication jobs in `.github/workflows/ci.yml` to pin `oras-project/setup-oras` to the `v2.0.0` commit SHA.
+  - Align the requested ORAS CLI version to `1.3.1`, which the pinned action release explicitly supports.
+  - Update `release/scripts/helm-publish.sh` to invoke `oras push` from `dist/helm` with a relative metadata filename so the script remains compatible with ORAS CLI path validation.
+  - Add a dedicated manual verification workflow that packages and publishes a caller-specified or auto-generated prerelease chart version through the same `just helm-package` and `just helm-publish` entrypoints on GitHub-hosted runners.
+  - Default the manual verification workflow's generated prerelease version to a PR-scoped pattern that includes the open PR number when one exists for the branch.
+  - Record the workflow maintenance expectation in `.github/instructions/devops.instructions.md`.
+- Consequences:
+  - The failing `Set up ORAS` step can install a supported ORAS release again for both dev and stable Helm publication flows.
+  - The ORAS setup action now runs on Node 24, removing the Node 20 deprecation warning from that step.
+  - The Helm publish script now completes under the same ORAS CLI release used by the updated workflow instead of failing after login on Artifact Hub metadata upload.
+  - Branch verification can now exercise real registry publication under GitHub Actions without weakening the repo rule that `ci.yml` remains the post-merge release workflow.
+  - PR-scoped verification versions are easier to correlate in the registry and Artifact Hub with the review under test.
+  - Future ORAS workflow updates have an explicit policy hook tied to the pinned action's supported release catalog.
+- Follow-up:
+  - Monitor the replacement branch PR checks to confirm both Helm publication paths stay healthy.
+  - Revisit other third-party actions still running on Node 20 before GitHub's forced Node 24 migration date.
+
+## Task Record
+
+- Motivation:
+  - Restore the broken `main` CI workflow and keep Helm publication unblocked with the smallest safe workflow-only change.
+- Design notes:
+  - The fix stays within `.github/workflows/ci.yml` and keeps the existing publish flow, permissions, and `just` entrypoints unchanged.
+  - The action pin was advanced to the upstream `v2.0.0` SHA after confirming the `version` input contract still matches the current README and `action.yml`.
+  - The release script change is path-only: the Artifact Hub metadata payload and media type stay unchanged, but `oras push` now sees a relative file name from inside `dist/helm`.
+  - The manual verification workflow is dispatch-only, publishes with the same `just` entrypoints as the release path, and keeps `ci.yml` scoped to `main` pushes and release tags.
+  - When callers do not override the version explicitly, the workflow resolves the open PR for the branch with `gh api` and generates a semver-compatible prerelease string containing that PR number.
+- Test coverage summary:
+  - Verified the failing job log from run `24634790324` and confirmed the failure string.
+  - Rehearsed `release/scripts/helm-package.sh` and `release/scripts/helm-publish.sh` locally against a disposable TLS-backed OCI registry with a temporary GPG signing key and verified both the chart layer and Artifact Hub metadata manifest were pushed successfully after the script change.
+  - Planned verification: dispatch `.github/workflows/helm-oci-verify.yml` on the branch and confirm the GitHub-hosted publish completes.
+  - Planned verification: `just ci`.
+  - Planned verification: `just ui-e2e`.
+- Observability updates:
+  - No runtime observability surfaces changed; this task only repairs CI workflow setup.
+- Stale-policy check:
+  - Reviewed `AGENTS.md`, `.github/instructions/devops.instructions.md`, `.github/instructions/rust.instructions.md`, `.github/workflows/ci.yml`, `.github/workflows/helm-oci-verify.yml`, and the upstream `oras-project/setup-oras` release metadata and docs.
+  - Drift was found: the workflow pinned an action release whose bundled ORAS catalog no longer matched the requested CLI version, and the Helm publish script assumed an ORAS path mode that current ORAS releases reject.
+  - Removed those contradictions by pinning a current node24-capable action release, switching metadata upload to a relative path, adding a manual GitHub-hosted verification workflow, and documenting those requirements in the devops instruction file.
+- Risk & rollback plan:
+  - Risk is limited to Helm publication jobs; if ORAS CLI semantics change again, the publish commands could still fail later in the job.
+  - Rollback is a revert of this change or a narrower repin to a different supported `setup-oras` release plus a compatible ORAS metadata upload strategy.
+- Dependency rationale:
+  - No repository dependencies were added.
+  - The change updates an existing GitHub Action pin instead of adding custom install scripts or new workflow dependencies.

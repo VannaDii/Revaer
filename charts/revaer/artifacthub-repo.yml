@@ -1,4 +1,7 @@
 # Artifact Hub repository metadata file.
 #
 # Release packaging appends `owners` and `repositoryID` when those values are
-# configured in workflow variables.
+# configured in workflow variables. The owner email must match the Artifact Hub
+# account or organization member used to claim and verify the repository.
+repositoryID: dfbc5c47-d0c5-4ac7-b9d4-5812c0a6a15a
+type: oci
