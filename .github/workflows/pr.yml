@@ -328,8 +328,6 @@ jobs:
     secrets:
       HELM_GPG_PRIVATE: ${{ secrets.HELM_GPG_PRIVATE }}
       HELM_GPG_PUBLIC: ${{ secrets.HELM_GPG_PUBLIC }}
-      HELM_API_KEY_ID: ${{ secrets.HELM_API_KEY_ID }}
-      HELM_API_KEY_SECRET: ${{ secrets.HELM_API_KEY_SECRET }}
 
   audit:
     name: Run Audit

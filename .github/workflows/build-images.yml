@@ -45,10 +45,6 @@ on:
         required: false
       HELM_GPG_PUBLIC:
         required: false
-      HELM_API_KEY_ID:
-        required: false
-      HELM_API_KEY_SECRET:
-        required: false
 
 jobs:
   build:
@@ -126,11 +122,26 @@ jobs:
           severity: HIGH,CRITICAL
           exit-code: ${{ github.event_name == 'pull_request' && '0' || '1' }}
 
+      - name: Resolve code scanning category
+        id: code-scanning-category
+        env:
+          ARCH_TAG: ${{ matrix.arch_tag }}
+          MATRIX_NAME: ${{ matrix.name }}
+          NEEDS_QEMU: ${{ matrix.needs_qemu && 'true' || '' }}
+          PLATFORM: ${{ matrix.platform }}
+          RUNNER: ${{ matrix.runner }}
+          RUST_TARGET: ${{ matrix.rust_target }}
+        run: |
+          set -euo pipefail
+          category=".github/workflows/ci.yml:build-images/arch_tag:${ARCH_TAG}/name:${MATRIX_NAME}/needs_qemu:${NEEDS_QEMU}/platform:${PLATFORM}/runner:${RUNNER}/rust_target:${RUST_TARGET}"
+          printf 'value=%s\n' "${category}" >> "${GITHUB_OUTPUT}"
+
       - name: Upload scan results
         if: always() && hashFiles('trivy-results.sarif') != ''
         uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
         with:
           sarif_file: trivy-results.sarif
+          category: ${{ steps.code-scanning-category.outputs.value }}
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
@@ -272,12 +283,25 @@ jobs:
             exit 1
           fi
 
+          case "${PR_NUMBER}" in
+            (*[!0-9]*)
+              echo "Invalid pr_number: expected a numeric pull request number." >&2
+              exit 1
+              ;;
+          esac
+
           git_sha_short="$(git rev-parse --short HEAD)"
           chart_version="0.0.0-dev.pr${PR_NUMBER}.${GITHUB_RUN_NUMBER}"
           app_version="pr-${PR_NUMBER}-${git_sha_short}"
 
-          echo "RELEASE_VERSION=${chart_version}" >> "${GITHUB_ENV}"
-          echo "RELEASE_TAG=${app_version}" >> "${GITHUB_ENV}"
+          {
+            echo "RELEASE_VERSION<<EOF"
+            echo "${chart_version}"
+            echo "EOF"
+            echo "RELEASE_TAG<<EOF"
+            echo "${app_version}"
+            echo "EOF"
+          } >> "${GITHUB_ENV}"
 
       - name: Package Helm chart
         env:

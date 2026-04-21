@@ -324,3 +324,4 @@
 -   [310](310-pr-helm-review-followups.md) – PR Helm review follow-ups
 -   [311](311-ghcr-helm-github-token-auth.md) – GHCR Helm GitHub token authentication
 -   [312](312-artifacthub-oci-repository-alignment.md) – Artifact Hub OCI repository alignment
+-   [313](313-trivy-sarif-category-and-ghcr-token-alignment.md) – Trivy SARIF category and GHCR token alignment

@@ -25,6 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: write
       pull-requests: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -123,8 +124,9 @@ jobs:
         env:
           CHART_VERSION: ${{ steps.versions.outputs.chart_version }}
           APP_VERSION: ${{ steps.versions.outputs.app_version }}
-          HELM_API_KEY_ID: ${{ secrets.HELM_API_KEY_ID }}
-          HELM_API_KEY_SECRET: ${{ secrets.HELM_API_KEY_SECRET }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HELM_REGISTRY_USERNAME: ${{ github.actor }}
+          HELM_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           REVAER_HELM_SKIP_PACKAGE: "1"
         run: |
           set -euo pipefail
