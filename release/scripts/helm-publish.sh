@@ -23,8 +23,10 @@ repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
 dist_dir="${repo_root}/dist/helm"
 registry_host="${HELM_REGISTRY_HOST:-ghcr.io}"
 default_registry_namespace="revaer/charts"
-if [[ -n "${GITHUB_REPOSITORY:-}" ]]; then
-    default_registry_namespace="$(printf '%s' "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')/charts"
+if [[ -n "${GITHUB_REPOSITORY_OWNER:-}" ]]; then
+    default_registry_namespace="$(printf '%s' "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')/charts"
+elif [[ -n "${GITHUB_REPOSITORY:-}" ]]; then
+    default_registry_namespace="$(printf '%s' "${GITHUB_REPOSITORY%%/*}" | tr '[:upper:]' '[:lower:]')/charts"
 fi
 registry_namespace="${HELM_REGISTRY_NAMESPACE:-${default_registry_namespace}}"
 chart_path="${dist_dir}/revaer-${chart_version}.tgz"

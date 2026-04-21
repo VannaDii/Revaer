@@ -8,7 +8,7 @@ deployments.
 ## Install
 
 ```bash
-helm install revaer oci://ghcr.io/revaer/charts/revaer \
+helm install revaer oci://ghcr.io/vannadii/charts/revaer \
   --version 0.1.0 \
   --set database.url=postgres://revaer:revaer@postgres.default.svc.cluster.local:5432/revaer
 ```
@@ -19,7 +19,7 @@ Using an existing secret:
 kubectl create secret generic revaer-db \
   --from-literal=DATABASE_URL=postgres://revaer:revaer@postgres.default.svc.cluster.local:5432/revaer
 
-helm install revaer oci://ghcr.io/revaer/charts/revaer \
+helm install revaer oci://ghcr.io/vannadii/charts/revaer \
   --version 0.1.0 \
   --set database.existingSecret=revaer-db
 ```

@@ -52,6 +52,18 @@ yaml_quote() {
     return 0
 }
 
+append_repository_id() {
+    local metadata_file="$1"
+    local repository_id="$2"
+
+    if grep -Eq '^[[:space:]]*repositoryID:' "${metadata_file}"; then
+        return 0
+    fi
+
+    printf 'repositoryID: %s\n' "${repository_id}" >> "${metadata_file}"
+    return 0
+}
+
 cp -R "${chart_root}" "${chart_copy_dir}/revaer"
 chart_yaml="${chart_copy_dir}/revaer/Chart.yaml"
 metadata_output="${dist_dir}/artifacthub-repo.yml"
@@ -124,7 +136,7 @@ EOF
     fi
 
     if [[ -n "${ARTIFACTHUB_REPOSITORY_ID:-}" ]]; then
-        printf 'repositoryID: %s\n' "${ARTIFACTHUB_REPOSITORY_ID}" >> "${metadata_output}"
+        append_repository_id "${metadata_output}" "${ARTIFACTHUB_REPOSITORY_ID}"
     fi
 
     helm lint "${chart_copy_dir}/revaer" --set "database.url=${lint_database_url}"
@@ -142,7 +154,7 @@ else
         { print }
     ' "${chart_root}/Chart.yaml" > "${chart_yaml}"
     if [[ -n "${ARTIFACTHUB_REPOSITORY_ID:-}" ]]; then
-        printf 'repositoryID: %s\n' "${ARTIFACTHUB_REPOSITORY_ID}" >> "${metadata_output}"
+        append_repository_id "${metadata_output}" "${ARTIFACTHUB_REPOSITORY_ID}"
     fi
     helm lint "${chart_copy_dir}/revaer" --set "database.url=${lint_database_url}"
     helm package "${chart_copy_dir}/revaer" \

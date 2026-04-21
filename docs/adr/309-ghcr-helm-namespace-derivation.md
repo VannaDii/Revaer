@@ -16,7 +16,7 @@
   - Release documentation now matches the actual GHCR package location instead of the incomplete legacy path.
 - Follow-up:
   - Re-run the failing PR publish path and confirm GHCR authentication succeeds with the owner-qualified namespace.
-  - Refresh any remaining docs or automation that still reference `ghcr.io/revaer/charts/...`.
+  - Refresh any remaining docs or automation that still reference `ghcr.io/<owner>/<repo>/charts/...`.
 
 ## Task Record
 

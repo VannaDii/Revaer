@@ -323,3 +323,4 @@
 -   [309](309-ghcr-helm-namespace-derivation.md) – GHCR Helm namespace derivation
 -   [310](310-pr-helm-review-followups.md) – PR Helm review follow-ups
 -   [311](311-ghcr-helm-github-token-auth.md) – GHCR Helm GitHub token authentication
+-   [312](312-artifacthub-oci-repository-alignment.md) – Artifact Hub OCI repository alignment

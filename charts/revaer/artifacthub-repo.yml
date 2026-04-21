@@ -2,3 +2,5 @@
 #
 # Release packaging appends `owners` and `repositoryID` when those values are
 # configured in workflow variables.
+repositoryID: dfbc5c47-d0c5-4ac7-b9d4-5812c0a6a15a
+type: oci
